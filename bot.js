@@ -410,7 +410,7 @@ function expenseModal(groupId, isRequest = false) {
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("qty").setLabel("Quantity").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 4").setRequired(true)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("est_cost").setLabel("Est. unit cost (AUD)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 25.00").setRequired(true)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("final_cost").setLabel("Final unit cost AUD (blank = estimate)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 23.50 — leave blank if unknown").setRequired(false)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("receipt_and_reason").setLabel("Receipt link, status & justification").setStyle(TextInputStyle.Paragraph).setPlaceholder("Line 1: SharePoint receipt link\nLine 2: Reimbursement status (Pending/Paid/N/A)\nLine 3: Justification for purchase").setRequired(false))
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("receipt_and_reason").setLabel("Receipt link, status & justification").setStyle(TextInputStyle.Paragraph).setPlaceholder("Link | Status (Pending/Paid/N/A) | Justification").setRequired(false))
     );
 }
 
