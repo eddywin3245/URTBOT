@@ -26,8 +26,7 @@ const SUBSYSTEMS = [
 ];
 
 // ─────────────────────────────────────────
-//  JSONBIN — with a queue so saves never
-//  overlap and overwrite each other
+//  JSONBIN
 // ─────────────────────────────────────────
 const limiter = new Bottleneck({ maxConcurrent: 1, minTime: 300 });
 
@@ -56,7 +55,6 @@ function jsonbinRequest(method, body) {
   });
 }
 
-// In-memory store — single source of truth while bot is running
 let store = null;
 
 async function loadData() {
@@ -67,21 +65,81 @@ async function loadData() {
     messageId: record.messageId || null,
     leadMessageIds: record.leadMessageIds || {},
     leadChannelIds: record.leadChannelIds || {},
+    logChannelId: record.logChannelId || null,
   };
-  // Make sure all subsystems exist in tasks
   for (const sub of SUBSYSTEMS) {
     if (!store.tasks[sub.id]) store.tasks[sub.id] = [];
   }
   return store;
 }
 
-// Queued save — prevents concurrent writes
 const saveData = limiter.wrap(async () => {
   await jsonbinRequest("PUT", store);
 });
 
 function makeId() {
   return Math.random().toString(36).slice(2, 10);
+}
+
+// ─────────────────────────────────────────
+//  LOGS CHANNEL
+// ─────────────────────────────────────────
+async function getLogChannel(guild) {
+  if (store.logChannelId) {
+    try { return await guild.channels.fetch(store.logChannelId); } catch {}
+  }
+  // Create it if it doesn't exist
+  const ch = await guild.channels.create({
+    name: "rover-logs",
+    type: ChannelType.GuildText,
+    topic: "📋 URT Rover Bot — automatic task log",
+  });
+  store.logChannelId = ch.id;
+  await saveData();
+  return ch;
+}
+
+async function postLog(guild, embed) {
+  try {
+    const ch = await getLogChannel(guild);
+    await ch.send({ embeds: [embed] });
+  } catch (e) { console.error("Log post failed:", e.message); }
+}
+
+function logEmbed(color, title, lines) {
+  return new EmbedBuilder()
+    .setColor(color)
+    .setTitle(title)
+    .setDescription(lines.join("\n"))
+    .setTimestamp();
+}
+
+// Post full task snapshot — used on startup and for manual restore
+async function postSnapshot(guild) {
+  const ch = await getLogChannel(guild);
+  const lines = SUBSYSTEMS.map((sub) => {
+    const list = store.tasks[sub.id] || [];
+    if (!list.length) return `${sub.emoji} **${sub.label}** — no tasks`;
+    const taskLines = list.map((t) => {
+      const who = t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "*unassigned*";
+      return `  ${t.done ? "✅" : "⬜"} ${t.name} — ${who}`;
+    });
+    return `${sub.emoji} **${sub.label}**\n${taskLines.join("\n")}`;
+  });
+
+  const total = Object.values(store.tasks).flat().length;
+  const done  = Object.values(store.tasks).flat().filter((t) => t.done).length;
+
+  await ch.send({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x38bdf8)
+        .setTitle("📋 URT Rover — Full Task Snapshot")
+        .setDescription(lines.join("\n\n"))
+        .setFooter({ text: `${done}/${total} tasks complete — posted on bot startup` })
+        .setTimestamp(),
+    ],
+  });
 }
 
 // ─────────────────────────────────────────
@@ -94,9 +152,9 @@ function buildOverviewEmbed(tasks) {
     const done  = list.filter((t) => t.done).length;
     const total = list.length;
     totalDone += done; totalAll += total;
-    const pct    = total === 0 ? 0 : Math.round((done / total) * 100);
-    const bar    = "█".repeat(Math.round(pct / 10)) + "░".repeat(10 - Math.round(pct / 10));
-    const tick   = pct === 100 && total > 0 ? "  ✅" : "";
+    const pct  = total === 0 ? 0 : Math.round((done / total) * 100);
+    const bar  = "█".repeat(Math.round(pct / 10)) + "░".repeat(10 - Math.round(pct / 10));
+    const tick = pct === 100 && total > 0 ? "  ✅" : "";
     return `${sub.emoji} **${sub.label}**\n\`${bar}\` ${String(pct).padStart(3)}%  (${done}/${total})${tick}`;
   });
   const op = totalAll === 0 ? 0 : Math.round((totalDone / totalAll) * 100);
@@ -142,7 +200,7 @@ function buildLeadEmbed(sub, tasks) {
 }
 
 // ─────────────────────────────────────────
-//  BUTTONS
+//  BUTTONS & MENUS
 // ─────────────────────────────────────────
 function buildOverviewButtons() {
   return new ActionRowBuilder().addComponents(
@@ -164,9 +222,6 @@ function buildLeadButtons(subId) {
   );
 }
 
-// ─────────────────────────────────────────
-//  SELECT MENUS
-// ─────────────────────────────────────────
 function buildSubSel(customId) {
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder().setCustomId(customId).setPlaceholder("Choose a subsystem...")
@@ -327,13 +382,10 @@ client.once("clientReady", async () => {
   console.log(`✅ URT Bot online as ${client.user.tag}`);
   try {
     const guild = client.guilds.cache.first();
-
-    // Load from JSONBin into memory
     await loadData();
-
     await setupLeadChannels(guild, client.user.id);
 
-    // Clear old overview messages and force fresh post
+    // Clear old overview messages
     const overviewCh = await client.channels.fetch(STATUS_CHANNEL_ID);
     const fetched    = await overviewCh.messages.fetch({ limit: 20 });
     for (const msg of fetched.filter((m) => m.author.id === client.user.id).values()) {
@@ -343,6 +395,10 @@ client.once("clientReady", async () => {
     store.leadMessageIds = {};
 
     await updateAll(client);
+
+    // Post snapshot to logs channel on every startup
+    await postSnapshot(guild);
+
     console.log("✅ All done!");
   } catch (e) { console.error("Startup error:", e); }
 });
@@ -352,7 +408,8 @@ client.once("clientReady", async () => {
 // ─────────────────────────────────────────
 client.on("interactionCreate", async (interaction) => {
   try {
-    const uid = interaction.user?.id;
+    const uid   = interaction.user?.id;
+    const guild = interaction.guild;
 
     // ── BUTTONS ──────────────────────────────────────────────────────────
     if (interaction.isButton()) {
@@ -403,26 +460,40 @@ client.on("interactionCreate", async (interaction) => {
         const sub   = SUBSYSTEMS.find((s) => s.id === subId);
         const todos = (store.tasks[subId] || []).filter((t) => !t.done);
         if (!todos.length) return interaction.reply({ content: "✅ No incomplete tasks — nothing to remind about!", flags: MessageFlags.Ephemeral });
+
         const assigneeIds = [...new Set(todos.flatMap((t) => t.assignees || []))];
         if (!assigneeIds.length) return interaction.reply({ content: "⚠️ No one is assigned to any incomplete tasks. Use 👤 Assign first!", flags: MessageFlags.Ephemeral });
+
         const taskList = todos.map((t) => {
           const who = t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "*unassigned*";
           return `• **${t.name}** — ${who}`;
         }).join("\n");
+
+        // DM each assignee
         let dmCount = 0;
         for (const assigneeId of assigneeIds) {
           try {
-            const member = await interaction.guild.members.fetch(assigneeId);
+            const member = await guild.members.fetch(assigneeId);
             await member.send(
-      `📣 **Progress update request — ${sub.emoji} ${sub.label}**\n\nHey ${member.displayName}! Your team lead is asking for a progress update on your assigned tasks:\n\n${taskList}\n\nPlease update the bot in your lead channel when done. Thanks!`
-      );
-      dmCount++;
-    } catch { /* user has DMs closed */ }
-  }
-  return interaction.reply({
-    content: `📣 Reminder sent to ${dmCount} member${dmCount !== 1 ? "s" : ""} via DM!`,
-    flags: MessageFlags.Ephemeral,
-  });
+              `📣 **Progress update request — ${sub.emoji} ${sub.label}**\n\n` +
+              `Hey ${member.displayName}! Your team lead is asking for a progress update on your assigned tasks:\n\n` +
+              `${taskList}\n\n` +
+              `Please update the bot in your subsystem lead channel when tasks are done. Thanks!`
+            );
+            dmCount++;
+          } catch { /* user has DMs closed */ }
+        }
+
+        // Log it
+        await postLog(guild, logEmbed(sub.color,
+          `📣 Reminder sent — ${sub.emoji} ${sub.label}`,
+          [`Sent by <@${uid}>`, `DMed ${dmCount} member(s)`, "", taskList]
+        ));
+
+        return interaction.reply({
+          content: `📣 Reminder sent to **${dmCount}** member${dmCount !== 1 ? "s" : ""} via DM!`,
+          flags: MessageFlags.Ephemeral,
+        });
       }
     }
 
@@ -478,6 +549,8 @@ client.on("interactionCreate", async (interaction) => {
         task.done = true; task.doneAt = Date.now();
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
+        await postLog(guild, logEmbed(0x2ecc71, `✅ Task completed — ${sub.emoji} ${sub.label}`,
+          [`**${task.name}**`, `Marked done by <@${uid}>`]));
         return interaction.editReply({ content: `✅ **${task.name}** marked done in ${sub.emoji} ${sub.label}!`, components: [] });
       }
 
@@ -489,6 +562,8 @@ client.on("interactionCreate", async (interaction) => {
         task.done = false; delete task.doneAt;
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
+        await postLog(guild, logEmbed(0xe67e22, `↩️ Task reopened — ${sub.emoji} ${sub.label}`,
+          [`**${task.name}**`, `Reopened by <@${uid}>`]));
         return interaction.editReply({ content: `↩️ **${task.name}** reopened in ${sub.emoji} ${sub.label}.`, components: [] });
       }
 
@@ -500,6 +575,8 @@ client.on("interactionCreate", async (interaction) => {
         store.tasks[subId] = store.tasks[subId].filter((t) => t.id !== value);
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
+        await postLog(guild, logEmbed(0xe74c3c, `🗑️ Task removed — ${sub.emoji} ${sub.label}`,
+          [`**${task.name}**`, `Removed by <@${uid}>`]));
         return interaction.editReply({ content: `🗑️ **${task.name}** removed from ${sub.emoji} ${sub.label}.`, components: [] });
       }
     }
@@ -518,6 +595,8 @@ client.on("interactionCreate", async (interaction) => {
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         const who = assignees.length ? assignees.map((id) => `<@${id}>`).join(", ") : "*unassigned*";
+        await postLog(guild, logEmbed(sub.color, `➕ Task added — ${sub.emoji} ${sub.label}`,
+          [`**${name}**`, `Added by <@${uid}>`, `Assigned to: ${who}`]));
         return interaction.editReply({ content: `${sub.emoji} **${name}** added to **${sub.label}**!\n👤 ${who}` });
       }
 
@@ -532,6 +611,8 @@ client.on("interactionCreate", async (interaction) => {
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         const who = assignees.map((id) => `<@${id}>`).join(", ");
+        await postLog(guild, logEmbed(sub.color, `👤 Task assigned — ${sub.emoji} ${sub.label}`,
+          [`**${task.name}**`, `Assigned to: ${who}`, `By <@${uid}>`]));
         return interaction.editReply({ content: `👤 **${task.name}** assigned to ${who} in ${sub.emoji} ${sub.label}!` });
       }
     }
