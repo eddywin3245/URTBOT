@@ -402,7 +402,7 @@ function expenseModal(groupId, isRequest = false) {
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("item").setLabel("Item Description").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 4x Motor Driver Boards").setMaxLength(100).setRequired(true)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("qty").setLabel("Quantity").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 4").setRequired(true)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("est_cost").setLabel("Est. Unit Cost (AUD)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 25.00").setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("final_cost").setLabel("Final Unit Cost (AUD) — leave blank if estimate").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 23.50").setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("final_cost").setLabel("Final Unit Cost AUD (blank = estimate)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 23.50").setRequired(false)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("receipt").setLabel("Receipt Link (SharePoint) + Reimbursement Status").setStyle(TextInputStyle.Paragraph).setPlaceholder("SharePoint link on first line\nReimbursement status on second line (e.g. Pending / Paid / N/A)").setRequired(false))
     );
 }
