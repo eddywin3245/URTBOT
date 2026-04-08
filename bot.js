@@ -205,12 +205,10 @@ function buildBudgetButtons() {
 }
 
 async function updateBudgetDashboard(guild) {
-  // Validate saved channel ID
   if (store.budgetChannelId) {
     try { await guild.channels.fetch(store.budgetChannelId); }
     catch { store.budgetChannelId = null; store.budgetMessageId = null; }
   }
-  // Find existing by name if no valid ID
   if (!store.budgetChannelId) {
     const existing = guild.channels.cache.find((c) => c.name === "budget-status");
     if (existing) { store.budgetChannelId = existing.id; store.budgetMessageId = null; }
@@ -223,9 +221,9 @@ async function updateBudgetDashboard(guild) {
     const ch      = await guild.channels.fetch(store.budgetChannelId);
     const payload = { embeds: [buildBudgetEmbed()], components: buildBudgetButtons() };
     if (store.budgetMessageId) {
-      try { const m = await ch.messages.fetch(store.budgetMessageId); await m.edit(payload); return; } catch { store.budgetMessageId = null; }
+      try { const m = await ch.messages.fetch(store.budgetMessageId); await m.edit(payload); return; }
+      catch { store.budgetMessageId = null; }
     }
-    // Clear old bot messages then post fresh
     const fetched = await ch.messages.fetch({ limit: 10 });
     for (const msg of fetched.filter((m) => m.author.id === client.user.id).values()) { try { await msg.delete(); } catch {} }
     const m = await ch.send(payload);
@@ -328,17 +326,16 @@ function addTaskModal(subId) {
     );
 }
 
-// ALL labels are kept under 45 characters
 function expenseModal(groupId, isRequest = false) {
   const group = FINANCE_GROUPS.find((g) => g.id === groupId);
   return new ModalBuilder()
     .setCustomId(`modal_expense_${groupId}${isRequest ? "_req" : ""}`)
-    .setTitle(`${isRequest ? "📝 Request" : "💸 Log Expense"} — ${group.label}`)
+    .setTitle(`${isRequest ? "📝 Request" : "💸 Expense"} — ${group.label}`)
     .addComponents(
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("item").setLabel("Item description").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 4x Motor Driver Boards").setMaxLength(100).setRequired(true)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("qty").setLabel("Quantity").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 4").setRequired(true)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("est_cost").setLabel("Est. unit cost (AUD)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 25.00").setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("final_cost").setLabel("Final unit cost AUD (blank = estimate)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 23.50 — leave blank if not yet known").setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("final_cost").setLabel("Final unit cost AUD (blank = estimate)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 23.50 — leave blank if unknown").setRequired(false)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("receipt").setLabel("SharePoint link + reimbursement status").setStyle(TextInputStyle.Paragraph).setPlaceholder("SharePoint link on line 1\nReimbursement status on line 2 (Pending/Paid/N/A)").setRequired(false))
     );
 }
@@ -426,10 +423,18 @@ client.once("clientReady", async () => {
     await setupLeadChannels(guild, client.user.id);
     await ensureSheetHeaders();
 
+    // ── KEY FIX: save channel IDs BEFORE wiping message IDs ──
+    await saveData();
+
+    // Now wipe just the message IDs so embeds get reposted fresh
+    store.messageId      = null;
+    store.leadMessageIds = {};
+    store.budgetMessageId = null;
+
+    // Clean up old overview messages
     const overviewCh = await client.channels.fetch(STATUS_CHANNEL_ID);
     const fetched    = await overviewCh.messages.fetch({ limit: 20 });
     for (const msg of fetched.filter((m) => m.author.id === client.user.id).values()) { try { await msg.delete(); } catch {} }
-    store.messageId = null; store.leadMessageIds = {};
 
     await updateAll(client);
     await updateBudgetDashboard(guild);
@@ -450,7 +455,6 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.isButton()) {
       const id = interaction.customId;
 
-      // Modals first — no defer allowed before showModal
       if (id.startsWith("lead_add_")) return interaction.showModal(addTaskModal(id.replace("lead_add_", "")));
 
       if (id === "refresh") {
@@ -464,6 +468,7 @@ client.on("interactionCreate", async (interaction) => {
         await saveData();
         return interaction.editReply({ content: "🔄 Budget refreshed!" });
       }
+
       if (id === "log_expense")      return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_expense")], flags: MessageFlags.Ephemeral });
       if (id === "purchase_request") return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_request")], flags: MessageFlags.Ephemeral });
       if (id === "set_budget")       return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_budget")],  flags: MessageFlags.Ephemeral });
@@ -509,7 +514,6 @@ client.on("interactionCreate", async (interaction) => {
         return interaction.reply({ content: `📣 Reminder sent to **${dmCount}** member(s) via DM!`, flags: MessageFlags.Ephemeral });
       }
 
-      // Purchase request approve/reject
       if (id.startsWith("approve_req_") || id.startsWith("reject_req_")) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const approved = id.startsWith("approve_req_");
@@ -539,7 +543,6 @@ client.on("interactionCreate", async (interaction) => {
       const id    = interaction.customId;
       const value = interaction.values[0];
 
-      // Modals first
       if (id === "sub_for_add")       return interaction.showModal(addTaskModal(value));
       if (id === "group_for_expense") return interaction.showModal(expenseModal(value, false));
       if (id === "group_for_request") return interaction.showModal(expenseModal(value, true));
@@ -657,9 +660,9 @@ client.on("interactionCreate", async (interaction) => {
         const estCost   = parseFloat(interaction.fields.getTextInputValue("est_cost").replace(/[^0-9.]/g, "")) || 0;
         const finalRaw  = interaction.fields.getTextInputValue("final_cost").trim();
         const finalCost = finalRaw ? parseFloat(finalRaw.replace(/[^0-9.]/g, "")) : null;
-        const receiptRaw   = interaction.fields.getTextInputValue("receipt").trim();
-        const receiptLines = receiptRaw.split("\n");
-        const receipt      = receiptLines[0]?.trim() || "";
+        const receiptRaw    = interaction.fields.getTextInputValue("receipt").trim();
+        const receiptLines  = receiptRaw.split("\n");
+        const receipt       = receiptLines[0]?.trim() || "";
         const reimbursement = receiptLines[1]?.trim() || "Pending";
         const estTotal   = qty * estCost;
         const finalTotal = finalCost !== null ? qty * finalCost : null;
