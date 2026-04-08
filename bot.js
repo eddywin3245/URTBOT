@@ -420,6 +420,7 @@ client.once("clientReady", async () => {
   try {
     const guild = client.guilds.cache.first();
     await loadData();
+    await guild.channels.fetch();
     await setupLeadChannels(guild, client.user.id);
     await ensureSheetHeaders();
 
