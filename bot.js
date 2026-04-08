@@ -10,16 +10,13 @@ const Bottleneck = require("bottleneck");
 const https = require("https");
 const { google } = require("googleapis");
 
-const DISCORD_TOKEN        = process.env.DISCORD_TOKEN;
-const JSONBIN_BIN_ID       = process.env.JSONBIN_BIN_ID;
-const JSONBIN_API_KEY      = process.env.JSONBIN_API_KEY;
-const STATUS_CHANNEL_ID    = process.env.STATUS_CHANNEL_ID;
-const GOOGLE_SHEET_ID      = process.env.GOOGLE_SHEET_ID;
-const GOOGLE_SERVICE_ACCOUNT = process.env.GOOGLE_SERVICE_ACCOUNT;
+const DISCORD_TOKEN           = process.env.DISCORD_TOKEN;
+const JSONBIN_BIN_ID          = process.env.JSONBIN_BIN_ID;
+const JSONBIN_API_KEY         = process.env.JSONBIN_API_KEY;
+const STATUS_CHANNEL_ID       = process.env.STATUS_CHANNEL_ID;
+const GOOGLE_SHEET_ID         = process.env.GOOGLE_SHEET_ID;
+const GOOGLE_SERVICE_ACCOUNT  = process.env.GOOGLE_SERVICE_ACCOUNT;
 
-// ─────────────────────────────────────────
-//  SUBSYSTEMS
-// ─────────────────────────────────────────
 const SUBSYSTEMS = [
   { id: "manipulator",   label: "Manipulator",     emoji: "🦾", color: 0xe74c3c },
   { id: "drivetrain",    label: "Drivetrain",       emoji: "🚗", color: 0xe67e22 },
@@ -31,40 +28,28 @@ const SUBSYSTEMS = [
   { id: "automation",    label: "Automation",       emoji: "🤖", color: 0xe91e63 },
 ];
 
-// ─────────────────────────────────────────
-//  FINANCE GROUPS
-//  These are the budget groupings — some
-//  subsystems share a budget
-// ─────────────────────────────────────────
 const FINANCE_GROUPS = [
-  { id: "manipulator", label: "Manipulator",  emoji: "🦾", subsystems: ["manipulator"],              color: 0xe74c3c },
-  { id: "drivetrain",  label: "Drivetrain",   emoji: "🚗", subsystems: ["drivetrain"],               color: 0xe67e22 },
-  { id: "comms",       label: "Comms",        emoji: "📡", subsystems: ["rf_antenna", "vision"],     color: 0x3498db },
-  { id: "electrical",  label: "Electrical",   emoji: "⚡", subsystems: ["power", "onboard_comms"],   color: 0xf1c40f },
-  { id: "science",     label: "Science",      emoji: "🔬", subsystems: ["science"],                  color: 0x2ecc71 },
-  { id: "automation",  label: "Automation",   emoji: "🤖", subsystems: ["automation"],               color: 0xe91e63 },
+  { id: "manipulator", label: "Manipulator", emoji: "🦾", subsystems: ["manipulator"],            color: 0xe74c3c },
+  { id: "drivetrain",  label: "Drivetrain",  emoji: "🚗", subsystems: ["drivetrain"],             color: 0xe67e22 },
+  { id: "comms",       label: "Comms",       emoji: "📡", subsystems: ["rf_antenna","vision"],    color: 0x3498db },
+  { id: "electrical",  label: "Electrical",  emoji: "⚡", subsystems: ["power","onboard_comms"],  color: 0xf1c40f },
+  { id: "science",     label: "Science",     emoji: "🔬", subsystems: ["science"],                color: 0x2ecc71 },
+  { id: "automation",  label: "Automation",  emoji: "🤖", subsystems: ["automation"],             color: 0xe91e63 },
 ];
 
-// Default budgets — change these to update starting amounts
 const DEFAULT_BUDGETS = {
-  manipulator: 1000,
-  drivetrain:  1000,
-  comms:       1000,
-  electrical:  1000,
-  science:     1000,
-  automation:  1000,
+  manipulator: 1000, drivetrain: 1000, comms: 1000,
+  electrical: 1000, science: 1000, automation: 1000,
 };
 
 // ─────────────────────────────────────────
 //  GOOGLE SHEETS
 // ─────────────────────────────────────────
 let sheetsClient = null;
-
 function getSheets() {
   if (sheetsClient) return sheetsClient;
-  const creds = JSON.parse(GOOGLE_SERVICE_ACCOUNT);
-  const auth  = new google.auth.GoogleAuth({
-    credentials: creds,
+  const auth = new google.auth.GoogleAuth({
+    credentials: JSON.parse(GOOGLE_SERVICE_ACCOUNT),
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
   sheetsClient = google.sheets({ version: "v4", auth });
@@ -72,25 +57,14 @@ function getSheets() {
 }
 
 async function ensureSheetHeaders() {
-  const sheets = getSheets();
-  const headers = [
-    "Receipt ID", "Date", "Who Paid", "Finance Group",
-    "Item Description", "Qty", "Est. Unit Cost (AUD)", "Est. Total Cost (AUD)",
-    "Final Unit Cost (AUD)", "Final Total Cost (AUD)",
-    "Pre-Approved?", "Reimbursement Status", "Receipt Link", "Notes",
-  ];
+  const sheets  = getSheets();
+  const headers = ["Receipt ID","Date","Who Paid","Finance Group","Item Description","Qty",
+    "Est. Unit Cost (AUD)","Est. Total (AUD)","Final Unit Cost (AUD)","Final Total (AUD)",
+    "Pre-Approved?","Reimbursement Status","Receipt Link","Notes"];
   try {
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: GOOGLE_SHEET_ID,
-      range: "Sheet1!A1:N1",
-    });
-    if (!res.data.values || res.data.values.length === 0) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: GOOGLE_SHEET_ID,
-        range: "Sheet1!A1",
-        valueInputOption: "RAW",
-        requestBody: { values: [headers] },
-      });
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1:N1" });
+    if (!res.data.values?.length) {
+      await sheets.spreadsheets.values.update({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1", valueInputOption: "RAW", requestBody: { values: [headers] } });
       console.log("✅ Sheet headers written");
     }
   } catch (e) { console.error("Sheet header error:", e.message); }
@@ -99,10 +73,8 @@ async function ensureSheetHeaders() {
 async function appendExpenseRow(row) {
   const sheets = getSheets();
   await sheets.spreadsheets.values.append({
-    spreadsheetId: GOOGLE_SHEET_ID,
-    range: "Sheet1!A1",
-    valueInputOption: "USER_ENTERED",
-    insertDataOption: "INSERT_ROWS",
+    spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1",
+    valueInputOption: "USER_ENTERED", insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
   });
 }
@@ -116,15 +88,9 @@ function jsonbinRequest(method, body) {
   return new Promise((resolve, reject) => {
     const bodyStr = body ? JSON.stringify(body) : null;
     const options = {
-      hostname: "api.jsonbin.io",
-      path: `/v3/b/${JSONBIN_BIN_ID}`,
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        "X-Master-Key": JSONBIN_API_KEY,
-        "X-Bin-Versioning": "false",
-        ...(bodyStr ? { "Content-Length": Buffer.byteLength(bodyStr) } : {}),
-      },
+      hostname: "api.jsonbin.io", path: `/v3/b/${JSONBIN_BIN_ID}`, method,
+      headers: { "Content-Type": "application/json", "X-Master-Key": JSONBIN_API_KEY, "X-Bin-Versioning": "false",
+        ...(bodyStr ? { "Content-Length": Buffer.byteLength(bodyStr) } : {}) },
     };
     const req = https.request(options, (res) => {
       let data = "";
@@ -140,24 +106,22 @@ function jsonbinRequest(method, body) {
 let store = null;
 
 async function loadData() {
-  const res    = await jsonbinRequest("GET");
-  const record = res.record || {};
+  const res = await jsonbinRequest("GET");
+  const r   = res.record || {};
   store = {
-    tasks:           record.tasks           || Object.fromEntries(SUBSYSTEMS.map((s) => [s.id, []])),
-    messageId:       record.messageId       || null,
-    leadMessageIds:  record.leadMessageIds  || {},
-    leadChannelIds:  record.leadChannelIds  || {},
-    logChannelId:    record.logChannelId    || null,
-    budgetChannelId: record.budgetChannelId || null,
-    budgetMessageId: record.budgetMessageId || null,
-    budgets:         record.budgets         || { ...DEFAULT_BUDGETS },
-    spent:           record.spent           || Object.fromEntries(FINANCE_GROUPS.map((g) => [g.id, 0])),
-    pendingRequests: record.pendingRequests || [],
-    receiptCounter:  record.receiptCounter  || 1,
+    tasks:           r.tasks           || Object.fromEntries(SUBSYSTEMS.map((s) => [s.id, []])),
+    messageId:       r.messageId       || null,
+    leadMessageIds:  r.leadMessageIds  || {},
+    leadChannelIds:  r.leadChannelIds  || {},
+    logChannelId:    r.logChannelId    || null,
+    budgetChannelId: r.budgetChannelId || null,
+    budgetMessageId: r.budgetMessageId || null,
+    budgets:         r.budgets         || { ...DEFAULT_BUDGETS },
+    spent:           r.spent           || Object.fromEntries(FINANCE_GROUPS.map((g) => [g.id, 0])),
+    pendingRequests: r.pendingRequests || [],
+    receiptCounter:  r.receiptCounter  || 1,
   };
-  for (const sub of SUBSYSTEMS) {
-    if (!store.tasks[sub.id]) store.tasks[sub.id] = [];
-  }
+  for (const sub of SUBSYSTEMS) { if (!store.tasks[sub.id]) store.tasks[sub.id] = []; }
   for (const g of FINANCE_GROUPS) {
     if (!store.budgets[g.id]) store.budgets[g.id] = DEFAULT_BUDGETS[g.id] || 1000;
     if (store.spent[g.id] === undefined) store.spent[g.id] = 0;
@@ -165,25 +129,21 @@ async function loadData() {
   return store;
 }
 
-const saveData = limiter.wrap(async () => {
-  await jsonbinRequest("PUT", store);
-});
+const saveData = limiter.wrap(async () => { await jsonbinRequest("PUT", store); });
 
 function makeId() { return Math.random().toString(36).slice(2, 10); }
-function makeReceiptId() {
-  const id = `RCP-${String(store.receiptCounter).padStart(4, "0")}`;
-  store.receiptCounter++;
-  return id;
-}
+function makeReceiptId() { const id = `RCP-${String(store.receiptCounter).padStart(4,"0")}`; store.receiptCounter++; return id; }
 function fmtAUD(n) { return `$${Number(n).toFixed(2)}`; }
 
 // ─────────────────────────────────────────
-//  LOGS CHANNEL
+//  LOGS
 // ─────────────────────────────────────────
 async function getLogChannel(guild) {
   if (store.logChannelId) {
-    try { return await guild.channels.fetch(store.logChannelId); } catch {}
+    try { return await guild.channels.fetch(store.logChannelId); } catch { store.logChannelId = null; }
   }
+  const existing = guild.channels.cache.find((c) => c.name === "rover-logs");
+  if (existing) { store.logChannelId = existing.id; return existing; }
   const ch = await guild.channels.create({ name: "rover-logs", type: ChannelType.GuildText, topic: "📋 URT Rover Bot — automatic task log" });
   store.logChannelId = ch.id;
   await saveData();
@@ -204,10 +164,7 @@ async function postSnapshot(guild) {
   const lines = SUBSYSTEMS.map((sub) => {
     const list = store.tasks[sub.id] || [];
     if (!list.length) return `${sub.emoji} **${sub.label}** — no tasks`;
-    return `${sub.emoji} **${sub.label}**\n${list.map((t) => {
-      const who = t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "*unassigned*";
-      return `  ${t.done ? "✅" : "⬜"} ${t.name} — ${who}`;
-    }).join("\n")}`;
+    return `${sub.emoji} **${sub.label}**\n${list.map((t) => `  ${t.done ? "✅" : "⬜"} ${t.name} — ${t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "*unassigned*"}`).join("\n")}`;
   });
   const total = Object.values(store.tasks).flat().length;
   const done  = Object.values(store.tasks).flat().filter((t) => t.done).length;
@@ -219,70 +176,58 @@ async function postSnapshot(guild) {
 // ─────────────────────────────────────────
 function buildBudgetEmbed() {
   const lines = FINANCE_GROUPS.map((g) => {
-    const budget    = store.budgets[g.id] || 0;
-    const spent     = store.spent[g.id]   || 0;
-    const remaining = budget - spent;
-    const pct       = budget === 0 ? 0 : Math.min(100, Math.round((spent / budget) * 100));
-    const filled    = Math.round(pct / 10);
-    const bar       = "█".repeat(filled) + "░".repeat(10 - filled);
-    const color     = remaining < 0 ? "🔴" : remaining < budget * 0.2 ? "🟡" : "🟢";
-    const subs      = g.subsystems.map((sid) => SUBSYSTEMS.find((s) => s.id === sid)?.label).join(" + ");
-    return `${g.emoji} **${g.label}** ${color}\n\`${bar}\` ${pct}% spent\n${fmtAUD(spent)} / ${fmtAUD(budget)} — **${fmtAUD(remaining)} remaining**\n*${subs}*`;
+    const budget = store.budgets[g.id] || 0;
+    const spent  = store.spent[g.id]   || 0;
+    const left   = budget - spent;
+    const pct    = budget === 0 ? 0 : Math.min(100, Math.round((spent / budget) * 100));
+    const bar    = "█".repeat(Math.round(pct / 10)) + "░".repeat(10 - Math.round(pct / 10));
+    const dot    = left < 0 ? "🔴" : left < budget * 0.2 ? "🟡" : "🟢";
+    const subs   = g.subsystems.map((sid) => SUBSYSTEMS.find((s) => s.id === sid)?.label).join(" + ");
+    return `${g.emoji} **${g.label}** ${dot}\n\`${bar}\` ${pct}% spent\n${fmtAUD(spent)} / ${fmtAUD(budget)} — **${fmtAUD(left)} remaining**\n*${subs}*`;
   });
-
-  const totalBudget  = Object.values(store.budgets).reduce((a, b) => a + b, 0);
-  const totalSpent   = Object.values(store.spent).reduce((a, b) => a + b, 0);
-  const totalLeft    = totalBudget - totalSpent;
-
+  const tb = Object.values(store.budgets).reduce((a, b) => a + b, 0);
+  const ts = Object.values(store.spent).reduce((a, b) => a + b, 0);
   return new EmbedBuilder()
     .setTitle("💰  URT ROVER — BUDGET STATUS")
     .setColor(0x2ecc71)
-    .setDescription(
-      `**Total Budget: ${fmtAUD(totalBudget)}  |  Spent: ${fmtAUD(totalSpent)}  |  Remaining: ${fmtAUD(totalLeft)}**\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      lines.join("\n\n")
-    )
+    .setDescription(`**Total: ${fmtAUD(tb)}  |  Spent: ${fmtAUD(ts)}  |  Remaining: ${fmtAUD(tb - ts)}**\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n` + lines.join("\n\n"))
     .setTimestamp()
-    .setFooter({ text: "🟢 Healthy  🟡 Under 20% remaining  🔴 Over budget" });
+    .setFooter({ text: "🟢 Healthy  🟡 Under 20%  🔴 Over budget" });
 }
 
 function buildBudgetButtons() {
-  return [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("log_expense")    .setLabel("💸 Log Expense")      .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("purchase_request").setLabel("📝 Purchase Request") .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("set_budget")     .setLabel("⚙️ Set Budget")        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("refresh_budget") .setLabel("🔄 Refresh")           .setStyle(ButtonStyle.Secondary),
-    ),
-  ];
+  return [new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("log_expense")     .setLabel("💸 Log Expense")     .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("purchase_request").setLabel("📝 Purchase Request").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("set_budget")      .setLabel("⚙️ Set Budget")      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("refresh_budget")  .setLabel("🔄 Refresh")         .setStyle(ButtonStyle.Secondary),
+  )];
 }
 
 async function updateBudgetDashboard(guild) {
-  // Find or create #budget-status channel
+  // Validate saved channel ID
+  if (store.budgetChannelId) {
+    try { await guild.channels.fetch(store.budgetChannelId); }
+    catch { store.budgetChannelId = null; store.budgetMessageId = null; }
+  }
+  // Find existing by name if no valid ID
   if (!store.budgetChannelId) {
     const existing = guild.channels.cache.find((c) => c.name === "budget-status");
-    if (existing) {
-      store.budgetChannelId = existing.id;
-    } else {
-      const ch = await guild.channels.create({
-        name: "budget-status",
-        type: ChannelType.GuildText,
-        topic: "💰 URT Rover budget tracker — updated automatically",
-      });
+    if (existing) { store.budgetChannelId = existing.id; store.budgetMessageId = null; }
+    else {
+      const ch = await guild.channels.create({ name: "budget-status", type: ChannelType.GuildText, topic: "💰 URT Rover budget tracker" });
       store.budgetChannelId = ch.id;
     }
   }
-
   try {
     const ch      = await guild.channels.fetch(store.budgetChannelId);
     const payload = { embeds: [buildBudgetEmbed()], components: buildBudgetButtons() };
     if (store.budgetMessageId) {
-      try { const m = await ch.messages.fetch(store.budgetMessageId); await m.edit(payload); return; } catch {}
+      try { const m = await ch.messages.fetch(store.budgetMessageId); await m.edit(payload); return; } catch { store.budgetMessageId = null; }
     }
-    // Clear old messages
+    // Clear old bot messages then post fresh
     const fetched = await ch.messages.fetch({ limit: 10 });
-    for (const msg of fetched.filter((m) => m.author.id === client.user.id).values()) {
-      try { await msg.delete(); } catch {}
-    }
+    for (const msg of fetched.filter((m) => m.author.id === client.user.id).values()) { try { await msg.delete(); } catch {} }
     const m = await ch.send(payload);
     store.budgetMessageId = m.id;
   } catch (e) { console.error("Budget dashboard update failed:", e.message); }
@@ -292,46 +237,36 @@ async function updateBudgetDashboard(guild) {
 //  TASK EMBEDS
 // ─────────────────────────────────────────
 function buildOverviewEmbed(tasks) {
-  let totalDone = 0, totalAll = 0;
+  let td = 0, ta = 0;
   const sections = SUBSYSTEMS.map((sub) => {
-    const list  = tasks[sub.id] || [];
-    const done  = list.filter((t) => t.done).length;
+    const list = tasks[sub.id] || [];
+    const done = list.filter((t) => t.done).length;
     const total = list.length;
-    totalDone += done; totalAll += total;
-    const pct  = total === 0 ? 0 : Math.round((done / total) * 100);
-    const bar  = "█".repeat(Math.round(pct / 10)) + "░".repeat(10 - Math.round(pct / 10));
-    const tick = pct === 100 && total > 0 ? "  ✅" : "";
-    return `${sub.emoji} **${sub.label}**\n\`${bar}\` ${String(pct).padStart(3)}%  (${done}/${total})${tick}`;
+    td += done; ta += total;
+    const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+    const bar = "█".repeat(Math.round(pct / 10)) + "░".repeat(10 - Math.round(pct / 10));
+    return `${sub.emoji} **${sub.label}**\n\`${bar}\` ${String(pct).padStart(3)}%  (${done}/${total})${pct === 100 && total > 0 ? "  ✅" : ""}`;
   });
-  const op = totalAll === 0 ? 0 : Math.round((totalDone / totalAll) * 100);
+  const op = ta === 0 ? 0 : Math.round((td / ta) * 100);
   const ob = "█".repeat(Math.round(op / 10)) + "░".repeat(10 - Math.round(op / 10));
-  return new EmbedBuilder()
-    .setTitle("🛸  URT ROVER — BUILD STATUS")
-    .setColor(0x38bdf8)
-    .setDescription(`**Overall**\n\`${ob}\` ${op}%  (${totalDone}/${totalAll} tasks)\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n` + sections.join("\n\n"))
-    .setTimestamp()
-    .setFooter({ text: "See your subsystem channel for details" });
+  return new EmbedBuilder().setTitle("🛸  URT ROVER — BUILD STATUS").setColor(0x38bdf8)
+    .setDescription(`**Overall**\n\`${ob}\` ${op}%  (${td}/${ta} tasks)\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n` + sections.join("\n\n"))
+    .setTimestamp().setFooter({ text: "See your subsystem channel for details" });
 }
 
 function buildLeadEmbed(sub, tasks) {
-  const list      = tasks[sub.id] || [];
-  const todo      = list.filter((t) => !t.done);
-  const done      = list.filter((t) =>  t.done);
-  const total     = list.length;
-  const doneCount = done.length;
-  const pct       = total === 0 ? 0 : Math.round((doneCount / total) * 100);
-  const bar       = "█".repeat(Math.round(pct / 10)) + "░".repeat(10 - Math.round(pct / 10));
-  const fmt       = (t) => `> ${t.done ? "✅" : "⬜"} **${t.name}**\n> 👤 ${t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "*Unassigned*"}`;
-  return new EmbedBuilder()
-    .setTitle(`${sub.emoji}  ${sub.label} — Task Board`)
-    .setColor(sub.color)
-    .setDescription(`\`${bar}\` ${pct}%  (${doneCount}/${total} tasks complete)`)
+  const list = tasks[sub.id] || [];
+  const todo = list.filter((t) => !t.done);
+  const done = list.filter((t) =>  t.done);
+  const pct  = list.length === 0 ? 0 : Math.round((done.length / list.length) * 100);
+  const bar  = "█".repeat(Math.round(pct / 10)) + "░".repeat(10 - Math.round(pct / 10));
+  const fmt  = (t) => `> ${t.done ? "✅" : "⬜"} **${t.name}**\n> 👤 ${t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "*Unassigned*"}`;
+  return new EmbedBuilder().setTitle(`${sub.emoji}  ${sub.label} — Task Board`).setColor(sub.color)
+    .setDescription(`\`${bar}\` ${pct}%  (${done.length}/${list.length} tasks complete)`)
     .addFields(
-      { name: `📋 Remaining (${todo.length})`,  value: (todo.length > 0 ? todo.map(fmt).join("\n\n") : "*No remaining tasks*").slice(0, 1024) },
-      { name: `✅ Completed (${doneCount})`,    value: (done.length > 0 ? done.map(fmt).join("\n\n") : "*None completed yet*").slice(0, 1024) },
-    )
-    .setTimestamp()
-    .setFooter({ text: "Use the buttons below to manage tasks" });
+      { name: `📋 Remaining (${todo.length})`, value: (todo.length > 0 ? todo.map(fmt).join("\n\n") : "*No remaining tasks*").slice(0, 1024) },
+      { name: `✅ Completed (${done.length})`, value: (done.length > 0 ? done.map(fmt).join("\n\n") : "*None completed yet*").slice(0, 1024) },
+    ).setTimestamp().setFooter({ text: "Use the buttons below to manage tasks" });
 }
 
 // ─────────────────────────────────────────
@@ -389,34 +324,33 @@ function addTaskModal(subId) {
   return new ModalBuilder().setCustomId(`modal_add_${subId}`).setTitle(`Add task — ${sub.label}`)
     .addComponents(
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("task_name").setLabel("Task name").setStyle(TextInputStyle.Short).setPlaceholder("e.g. Assemble wheel mounts").setMaxLength(100).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("assignees").setLabel("Assign to — User IDs (optional)").setStyle(TextInputStyle.Short).setPlaceholder("Right-click user → Copy User ID, separate with commas").setRequired(false))
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("assignees").setLabel("Assign to — User IDs (optional)").setStyle(TextInputStyle.Short).setPlaceholder("Right-click user → Copy User ID").setRequired(false))
     );
 }
 
+// ALL labels are kept under 45 characters
 function expenseModal(groupId, isRequest = false) {
   const group = FINANCE_GROUPS.find((g) => g.id === groupId);
   return new ModalBuilder()
     .setCustomId(`modal_expense_${groupId}${isRequest ? "_req" : ""}`)
-    .setTitle(`${isRequest ? "📝 Purchase Request" : "💸 Log Expense"} — ${group.label}`)
+    .setTitle(`${isRequest ? "📝 Request" : "💸 Log Expense"} — ${group.label}`)
     .addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("item").setLabel("Item Description").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 4x Motor Driver Boards").setMaxLength(100).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("item").setLabel("Item description").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 4x Motor Driver Boards").setMaxLength(100).setRequired(true)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("qty").setLabel("Quantity").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 4").setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("est_cost").setLabel("Est. Unit Cost (AUD)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 25.00").setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("final_cost").setLabel("Final Unit Cost AUD (blank = estimate)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 23.50").setRequired(false)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("receipt").setLabel("Receipt Link (SharePoint) + Reimbursement Status").setStyle(TextInputStyle.Paragraph).setPlaceholder("SharePoint link on first line\nReimbursement status on second line (e.g. Pending / Paid / N/A)").setRequired(false))
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("est_cost").setLabel("Est. unit cost (AUD)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 25.00").setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("final_cost").setLabel("Final unit cost AUD (blank = estimate)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 23.50 — leave blank if not yet known").setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("receipt").setLabel("SharePoint link + reimbursement status").setStyle(TextInputStyle.Paragraph).setPlaceholder("SharePoint link on line 1\nReimbursement status on line 2 (Pending/Paid/N/A)").setRequired(false))
     );
 }
 
 function setBudgetModal(groupId) {
   const group = FINANCE_GROUPS.find((g) => g.id === groupId);
   return new ModalBuilder().setCustomId(`modal_budget_${groupId}`).setTitle(`Set Budget — ${group.label}`)
-    .addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("amount").setLabel("New budget amount (AUD)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 1500").setRequired(true))
-    );
+    .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("amount").setLabel("New budget amount (AUD)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 1500").setRequired(true)));
 }
 
 // ─────────────────────────────────────────
-//  UPDATE ALL EMBEDS
+//  UPDATE ALL
 // ─────────────────────────────────────────
 async function updateOverview(channel) {
   const payload = { embeds: [buildOverviewEmbed(store.tasks)], components: [buildOverviewButtons()] };
@@ -450,7 +384,7 @@ async function updateAll(client) {
 }
 
 // ─────────────────────────────────────────
-//  SETUP CHANNELS
+//  SETUP LEAD CHANNELS
 // ─────────────────────────────────────────
 async function setupLeadChannels(guild, botUserId) {
   const BOT_PERMS = { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, EmbedLinks: true };
@@ -460,11 +394,11 @@ async function setupLeadChannels(guild, botUserId) {
   for (const sub of SUBSYSTEMS) {
     const channelName = sub.id.replace(/_/g, "-") + "-lead";
     if (store.leadChannelIds[sub.id]) {
-      try { const ch = await guild.channels.fetch(store.leadChannelIds[sub.id]); await ch.permissionOverwrites.edit(botUserId, BOT_PERMS); console.log(`✅ Fixed permissions: #${ch.name}`); continue; }
+      try { const ch = await guild.channels.fetch(store.leadChannelIds[sub.id]); await ch.permissionOverwrites.edit(botUserId, BOT_PERMS); console.log(`✅ Fixed: #${ch.name}`); continue; }
       catch { delete store.leadChannelIds[sub.id]; }
     }
     const existing = guild.channels.cache.find((c) => c.name === channelName && c.parentId === category.id);
-    if (existing) { await existing.permissionOverwrites.edit(botUserId, BOT_PERMS); store.leadChannelIds[sub.id] = existing.id; console.log(`✅ Found and fixed: #${channelName}`); continue; }
+    if (existing) { await existing.permissionOverwrites.edit(botUserId, BOT_PERMS); store.leadChannelIds[sub.id] = existing.id; console.log(`✅ Found: #${channelName}`); continue; }
     const ch = await guild.channels.create({
       name: channelName, type: ChannelType.GuildText, parent: category.id,
       topic: `${sub.emoji} ${sub.label} team lead channel`,
@@ -481,10 +415,7 @@ async function setupLeadChannels(guild, botUserId) {
 // ─────────────────────────────────────────
 //  CLIENT
 // ─────────────────────────────────────────
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMembers],
-});
-
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMembers] });
 const pending = new Map();
 
 client.once("clientReady", async () => {
@@ -516,39 +447,30 @@ client.on("interactionCreate", async (interaction) => {
     const uid   = interaction.user?.id;
     const guild = interaction.guild;
 
-    // ── BUTTONS ──────────────────────────────────────────────────────────
     if (interaction.isButton()) {
       const id = interaction.customId;
 
-      // Modals MUST come before any defer
+      // Modals first — no defer allowed before showModal
       if (id.startsWith("lead_add_")) return interaction.showModal(addTaskModal(id.replace("lead_add_", "")));
 
-      if (id === "log_expense") {
-        return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_expense")], flags: MessageFlags.Ephemeral });
-      }
-      if (id === "purchase_request") {
-        return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_request")], flags: MessageFlags.Ephemeral });
-      }
-      if (id === "set_budget") {
-        return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_budget")], flags: MessageFlags.Ephemeral });
+      if (id === "refresh") {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        await updateAll(client);
+        return interaction.editReply({ content: "🔄 Refreshed!" });
       }
       if (id === "refresh_budget") {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         await updateBudgetDashboard(guild);
         await saveData();
-        return interaction.editReply({ content: "🔄 Budget dashboard refreshed!" });
+        return interaction.editReply({ content: "🔄 Budget refreshed!" });
       }
-
-      if (id === "refresh") {
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-        await updateAll(client);
-        return interaction.editReply({ content: "🔄 All channels refreshed!" });
-      }
-
-      if (id === "add_task")    return interaction.reply({ content: "Which subsystem?", components: [buildSubSel("sub_for_add")],    flags: MessageFlags.Ephemeral });
-      if (id === "mark_done")   return interaction.reply({ content: "Which subsystem?", components: [buildSubSel("sub_for_done")],   flags: MessageFlags.Ephemeral });
-      if (id === "reopen_task") return interaction.reply({ content: "Which subsystem?", components: [buildSubSel("sub_for_reopen")], flags: MessageFlags.Ephemeral });
-      if (id === "remove_task") return interaction.reply({ content: "Which subsystem?", components: [buildSubSel("sub_for_remove")], flags: MessageFlags.Ephemeral });
+      if (id === "log_expense")      return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_expense")], flags: MessageFlags.Ephemeral });
+      if (id === "purchase_request") return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_request")], flags: MessageFlags.Ephemeral });
+      if (id === "set_budget")       return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_budget")],  flags: MessageFlags.Ephemeral });
+      if (id === "add_task")         return interaction.reply({ content: "Which subsystem?",    components: [buildSubSel("sub_for_add")],                flags: MessageFlags.Ephemeral });
+      if (id === "mark_done")        return interaction.reply({ content: "Which subsystem?",    components: [buildSubSel("sub_for_done")],               flags: MessageFlags.Ephemeral });
+      if (id === "reopen_task")      return interaction.reply({ content: "Which subsystem?",    components: [buildSubSel("sub_for_reopen")],             flags: MessageFlags.Ephemeral });
+      if (id === "remove_task")      return interaction.reply({ content: "Which subsystem?",    components: [buildSubSel("sub_for_remove")],             flags: MessageFlags.Ephemeral });
 
       if (id.startsWith("lead_done_")) {
         const subId = id.replace("lead_done_", "");
@@ -581,9 +503,9 @@ client.on("interactionCreate", async (interaction) => {
         const taskList = todos.map((t) => `• **${t.name}** — ${t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "*unassigned*"}`).join("\n");
         let dmCount = 0;
         for (const assigneeId of assigneeIds) {
-          try { const member = await guild.members.fetch(assigneeId); await member.send(`📣 **Progress update request — ${sub.emoji} ${sub.label}**\n\nHey ${member.displayName}! Your team lead is asking for a progress update on your assigned tasks:\n\n${taskList}\n\nPlease update the bot when done. Thanks!`); dmCount++; } catch {}
+          try { const member = await guild.members.fetch(assigneeId); await member.send(`📣 **Progress update — ${sub.emoji} ${sub.label}**\n\nHey ${member.displayName}! Your team lead is asking for a progress update:\n\n${taskList}\n\nPlease update the bot when done. Thanks!`); dmCount++; } catch {}
         }
-        await postLog(guild, logEmbed(sub.color, `📣 Reminder sent — ${sub.emoji} ${sub.label}`, [`Sent by <@${uid}>`, `DMed ${dmCount} member(s)`, "", taskList]));
+        await postLog(guild, logEmbed(sub.color, `📣 Reminder — ${sub.emoji} ${sub.label}`, [`Sent by <@${uid}>`, `DMed ${dmCount} member(s)`, "", taskList]));
         return interaction.reply({ content: `📣 Reminder sent to **${dmCount}** member(s) via DM!`, flags: MessageFlags.Ephemeral });
       }
 
@@ -596,48 +518,38 @@ client.on("interactionCreate", async (interaction) => {
         if (!req) return interaction.editReply({ content: "Request not found or already processed." });
         store.pendingRequests = store.pendingRequests.filter((r) => r.id !== reqId);
         const group = FINANCE_GROUPS.find((g) => g.id === req.groupId);
-
         if (approved) {
-          const estTotal = req.qty * req.estCost;
+          const estTotal  = req.qty * req.estCost;
           store.spent[req.groupId] = (store.spent[req.groupId] || 0) + estTotal;
           const receiptId = makeReceiptId();
-          await appendExpenseRow([
-            receiptId, new Date().toLocaleDateString("en-AU"), req.userName,
-            group.label, req.item, req.qty, fmtAUD(req.estCost), fmtAUD(estTotal),
-            "", "", "Yes — Pre-approved", req.reimbursement || "Pending", req.receipt || "", "Purchase request",
-          ]);
+          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), req.userName, group.label, req.item, req.qty, fmtAUD(req.estCost), fmtAUD(estTotal), "", "", "Yes", req.reimbursement || "Pending", req.receipt || "", "Purchase request"]);
           await updateBudgetDashboard(guild);
-          await postLog(guild, logEmbed(0x2ecc71, `✅ Purchase Request Approved — ${group.emoji} ${group.label}`,
-            [`**${req.item}** x${req.qty}`, `Est. Total: ${fmtAUD(estTotal)}`, `Approved by <@${uid}>`, `Receipt ID: ${receiptId}`]));
+          await postLog(guild, logEmbed(0x2ecc71, `✅ Request Approved — ${group.emoji} ${group.label}`, [`**${req.item}** x${req.qty}`, `Est. Total: ${fmtAUD(estTotal)}`, `Approved by <@${uid}>`, `Receipt ID: ${receiptId}`]));
           await saveData();
-          return interaction.editReply({ content: `✅ Request approved! **${receiptId}** logged — ${fmtAUD(estTotal)} charged to ${group.label}.` });
+          return interaction.editReply({ content: `✅ Approved! **${receiptId}** — ${fmtAUD(estTotal)} charged to ${group.label}.` });
         } else {
-          await postLog(guild, logEmbed(0xe74c3c, `❌ Purchase Request Rejected — ${group.emoji} ${group.label}`,
-            [`**${req.item}** x${req.qty}`, `Rejected by <@${uid}>`]));
+          await postLog(guild, logEmbed(0xe74c3c, `❌ Request Rejected — ${group.emoji} ${group.label}`, [`**${req.item}** x${req.qty}`, `Rejected by <@${uid}>`]));
           await saveData();
-          return interaction.editReply({ content: `❌ Request rejected and removed.` });
+          return interaction.editReply({ content: "❌ Request rejected." });
         }
       }
     }
 
-    // ── SELECT MENUS ──────────────────────────────────────────────────────
     if (interaction.isStringSelectMenu()) {
       const id    = interaction.customId;
       const value = interaction.values[0];
 
-      // Modals must come before any defer
-      if (id === "sub_for_add")      return interaction.showModal(addTaskModal(value));
+      // Modals first
+      if (id === "sub_for_add")       return interaction.showModal(addTaskModal(value));
       if (id === "group_for_expense") return interaction.showModal(expenseModal(value, false));
       if (id === "group_for_request") return interaction.showModal(expenseModal(value, true));
       if (id === "group_for_budget")  return interaction.showModal(setBudgetModal(value));
-
       if (id === "task_for_assign") {
         const subId = pending.get(`${uid}_assign`);
         const task  = store.tasks[subId]?.find((t) => t.id === value);
         if (!task) return interaction.update({ content: "Task not found.", components: [] });
         pending.set(`${uid}_assigntask`, value);
-        return interaction.showModal(new ModalBuilder().setCustomId(`modal_assign_${subId}`).setTitle(`Assign — ${task.name.slice(0, 40)}`)
-          .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("assignees").setLabel("Discord User IDs (comma separated)").setStyle(TextInputStyle.Short).setPlaceholder("Right-click user → Copy User ID").setRequired(true))));
+        return interaction.showModal(new ModalBuilder().setCustomId(`modal_assign_${subId}`).setTitle(`Assign — ${task.name.slice(0, 40)}`).addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("assignees").setLabel("Discord User IDs (comma separated)").setStyle(TextInputStyle.Short).setPlaceholder("Right-click user → Copy User ID").setRequired(true))));
       }
 
       if (id === "sub_for_done") {
@@ -666,7 +578,7 @@ client.on("interactionCreate", async (interaction) => {
         task.done = true; task.doneAt = Date.now();
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
-        await postLog(guild, logEmbed(0x2ecc71, `✅ Task completed — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `Marked done by <@${uid}>`]));
+        await postLog(guild, logEmbed(0x2ecc71, `✅ Task done — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `By <@${uid}>`]));
         return interaction.editReply({ content: `✅ **${task.name}** marked done!`, components: [] });
       }
       if (id === "task_for_reopen") {
@@ -677,7 +589,7 @@ client.on("interactionCreate", async (interaction) => {
         task.done = false; delete task.doneAt;
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
-        await postLog(guild, logEmbed(0xe67e22, `↩️ Task reopened — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `Reopened by <@${uid}>`]));
+        await postLog(guild, logEmbed(0xe67e22, `↩️ Task reopened — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `By <@${uid}>`]));
         return interaction.editReply({ content: `↩️ **${task.name}** reopened.`, components: [] });
       }
       if (id === "task_for_remove") {
@@ -688,16 +600,14 @@ client.on("interactionCreate", async (interaction) => {
         store.tasks[subId] = store.tasks[subId].filter((t) => t.id !== value);
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
-        await postLog(guild, logEmbed(0xe74c3c, `🗑️ Task removed — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `Removed by <@${uid}>`]));
+        await postLog(guild, logEmbed(0xe74c3c, `🗑️ Task removed — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `By <@${uid}>`]));
         return interaction.editReply({ content: `🗑️ **${task.name}** removed.`, components: [] });
       }
     }
 
-    // ── MODALS ────────────────────────────────────────────────────────────
     if (interaction.isModalSubmit()) {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-      // Add task
       if (interaction.customId.startsWith("modal_add_")) {
         const subId     = interaction.customId.replace("modal_add_", "");
         const name      = interaction.fields.getTextInputValue("task_name").trim();
@@ -708,11 +618,10 @@ client.on("interactionCreate", async (interaction) => {
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         const who = assignees.length ? assignees.map((id) => `<@${id}>`).join(", ") : "*unassigned*";
-        await postLog(guild, logEmbed(sub.color, `➕ Task added — ${sub.emoji} ${sub.label}`, [`**${name}**`, `Added by <@${uid}>`, `Assigned to: ${who}`]));
+        await postLog(guild, logEmbed(sub.color, `➕ Task added — ${sub.emoji} ${sub.label}`, [`**${name}**`, `By <@${uid}>`, `Assigned: ${who}`]));
         return interaction.editReply({ content: `${sub.emoji} **${name}** added to **${sub.label}**!\n👤 ${who}` });
       }
 
-      // Assign task
       if (interaction.customId.startsWith("modal_assign_")) {
         const subId     = interaction.customId.replace("modal_assign_", "");
         const taskId    = pending.get(`${uid}_assigntask`);
@@ -727,11 +636,10 @@ client.on("interactionCreate", async (interaction) => {
         return interaction.editReply({ content: `👤 **${task.name}** assigned to ${who}!` });
       }
 
-      // Set budget
       if (interaction.customId.startsWith("modal_budget_")) {
         const groupId = interaction.customId.replace("modal_budget_", "");
         const amount  = parseFloat(interaction.fields.getTextInputValue("amount").replace(/[^0-9.]/g, ""));
-        if (isNaN(amount) || amount < 0) return interaction.editReply({ content: "❌ Invalid amount. Enter a number like 1500" });
+        if (isNaN(amount) || amount < 0) return interaction.editReply({ content: "❌ Invalid amount." });
         const group = FINANCE_GROUPS.find((g) => g.id === groupId);
         store.budgets[groupId] = amount;
         await updateBudgetDashboard(guild);
@@ -740,7 +648,6 @@ client.on("interactionCreate", async (interaction) => {
         return interaction.editReply({ content: `⚙️ **${group.label}** budget set to **${fmtAUD(amount)}**!` });
       }
 
-      // Log expense or purchase request
       if (interaction.customId.startsWith("modal_expense_")) {
         const isRequest = interaction.customId.endsWith("_req");
         const groupId   = interaction.customId.replace("modal_expense_", "").replace("_req", "");
@@ -748,50 +655,42 @@ client.on("interactionCreate", async (interaction) => {
         const item      = interaction.fields.getTextInputValue("item").trim();
         const qty       = parseFloat(interaction.fields.getTextInputValue("qty")) || 1;
         const estCost   = parseFloat(interaction.fields.getTextInputValue("est_cost").replace(/[^0-9.]/g, "")) || 0;
-        const finalCostRaw = interaction.fields.getTextInputValue("final_cost").trim();
-        const finalCost    = finalCostRaw ? parseFloat(finalCostRaw.replace(/[^0-9.]/g, "")) : null;
+        const finalRaw  = interaction.fields.getTextInputValue("final_cost").trim();
+        const finalCost = finalRaw ? parseFloat(finalRaw.replace(/[^0-9.]/g, "")) : null;
         const receiptRaw   = interaction.fields.getTextInputValue("receipt").trim();
         const receiptLines = receiptRaw.split("\n");
         const receipt      = receiptLines[0]?.trim() || "";
         const reimbursement = receiptLines[1]?.trim() || "Pending";
-        const estTotal     = qty * estCost;
-        const finalTotal   = finalCost !== null ? qty * finalCost : null;
-        const member       = await guild.members.fetch(uid);
-        const userName     = member.displayName;
+        const estTotal   = qty * estCost;
+        const finalTotal = finalCost !== null ? qty * finalCost : null;
+        const member     = await guild.members.fetch(uid);
+        const userName   = member.displayName;
 
         if (isRequest) {
-          // Send purchase request to logs channel for approval
           const reqId = makeId();
           store.pendingRequests.push({ id: reqId, groupId, item, qty, estCost, receipt, reimbursement, userName, userId: uid });
           const logCh = await getLogChannel(guild);
-          const reqEmbed = new EmbedBuilder()
-            .setTitle(`📝 Purchase Request — ${group.emoji} ${group.label}`)
-            .setColor(group.color)
-            .setDescription(`**${item}** x${qty}\nEst. Unit Cost: ${fmtAUD(estCost)}\nEst. Total: ${fmtAUD(estTotal)}\nReceipt: ${receipt || "*none yet*"}\nRequested by: <@${uid}>`)
-            .setTimestamp();
-          const approvalRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`approve_req_${reqId}`).setLabel("✅ Approve").setStyle(ButtonStyle.Success),
-            new ButtonBuilder().setCustomId(`reject_req_${reqId}`).setLabel("❌ Reject").setStyle(ButtonStyle.Danger),
-          );
-          await logCh.send({ embeds: [reqEmbed], components: [approvalRow] });
+          await logCh.send({
+            embeds: [new EmbedBuilder().setTitle(`📝 Purchase Request — ${group.emoji} ${group.label}`).setColor(group.color)
+              .setDescription(`**${item}** x${qty}\nEst. Unit: ${fmtAUD(estCost)}  |  Est. Total: ${fmtAUD(estTotal)}\nReceipt: ${receipt || "*none yet*"}\nRequested by: <@${uid}>`)
+              .setTimestamp()],
+            components: [new ActionRowBuilder().addComponents(
+              new ButtonBuilder().setCustomId(`approve_req_${reqId}`).setLabel("✅ Approve").setStyle(ButtonStyle.Success),
+              new ButtonBuilder().setCustomId(`reject_req_${reqId}`).setLabel("❌ Reject").setStyle(ButtonStyle.Danger),
+            )],
+          });
           await saveData();
           return interaction.editReply({ content: `📝 Purchase request submitted for **${item}** x${qty} (${fmtAUD(estTotal)}) — awaiting approval in #rover-logs!` });
         } else {
-          // Direct expense log
           const receiptId  = makeReceiptId();
           const costToLog  = finalTotal !== null ? finalTotal : estTotal;
           store.spent[groupId] = (store.spent[groupId] || 0) + costToLog;
-          await appendExpenseRow([
-            receiptId, new Date().toLocaleDateString("en-AU"), userName,
-            group.label, item, qty, fmtAUD(estCost), fmtAUD(estTotal),
-            finalCost !== null ? fmtAUD(finalCost) : "", finalTotal !== null ? fmtAUD(finalTotal) : "",
-            "No", reimbursement, receipt, "",
-          ]);
+          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), userName, group.label, item, qty, fmtAUD(estCost), fmtAUD(estTotal), finalCost !== null ? fmtAUD(finalCost) : "", finalTotal !== null ? fmtAUD(finalTotal) : "", "No", reimbursement, receipt, ""]);
           await updateBudgetDashboard(guild);
           await postLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
-            [`**${item}** x${qty}`, `Est: ${fmtAUD(estTotal)}${finalTotal !== null ? `  |  Final: ${fmtAUD(finalTotal)}` : ""}`, `Logged by <@${uid}>`, `Receipt ID: ${receiptId}`, `Reimbursement: ${reimbursement}`]));
+            [`**${item}** x${qty}`, `Est: ${fmtAUD(estTotal)}${finalTotal !== null ? `  |  Final: ${fmtAUD(finalTotal)}` : ""}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `Reimbursement: ${reimbursement}`]));
           await saveData();
-          return interaction.editReply({ content: `💸 Expense logged!\n**${receiptId}** — ${item} x${qty}\nTotal: ${fmtAUD(costToLog)} charged to **${group.label}**` });
+          return interaction.editReply({ content: `💸 **${receiptId}** logged!\n${item} x${qty} — ${fmtAUD(costToLog)} charged to **${group.label}**` });
         }
       }
     }
