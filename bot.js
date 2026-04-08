@@ -10,12 +10,12 @@ const Bottleneck = require("bottleneck");
 const https = require("https");
 const { google } = require("googleapis");
 
-const DISCORD_TOKEN           = process.env.DISCORD_TOKEN;
-const JSONBIN_BIN_ID          = process.env.JSONBIN_BIN_ID;
-const JSONBIN_API_KEY         = process.env.JSONBIN_API_KEY;
-const STATUS_CHANNEL_ID       = process.env.STATUS_CHANNEL_ID;
-const GOOGLE_SHEET_ID         = process.env.GOOGLE_SHEET_ID;
-const GOOGLE_SERVICE_ACCOUNT  = process.env.GOOGLE_SERVICE_ACCOUNT;
+const DISCORD_TOKEN          = process.env.DISCORD_TOKEN;
+const JSONBIN_BIN_ID         = process.env.JSONBIN_BIN_ID;
+const JSONBIN_API_KEY        = process.env.JSONBIN_API_KEY;
+const STATUS_CHANNEL_ID      = process.env.STATUS_CHANNEL_ID;
+const GOOGLE_SHEET_ID        = process.env.GOOGLE_SHEET_ID;
+const GOOGLE_SERVICE_ACCOUNT = process.env.GOOGLE_SERVICE_ACCOUNT;
 
 const SUBSYSTEMS = [
   { id: "manipulator",   label: "Manipulator",     emoji: "🦾", color: 0xe74c3c },
@@ -43,12 +43,21 @@ const DEFAULT_BUDGETS = {
 };
 
 // ─────────────────────────────────────────
-//  HELPER — reply then auto-delete after delay
+//  HELPERS
 // ─────────────────────────────────────────
 async function replyAndDelete(interaction, content, delay = 5000) {
   await interaction.editReply({ content, components: [] });
   setTimeout(() => interaction.deleteReply().catch(() => {}), delay);
 }
+
+function makeId() { return Math.random().toString(36).slice(2, 10); }
+function makeReceiptId() {
+  const id = `RCP-${String(store.receiptCounter).padStart(4, "0")}`;
+  store.receiptCounter++;
+  return id;
+}
+function fmtAUD(n) { return `$${Number(n).toFixed(2)}`; }
+function fmtDate(ts) { return ts ? new Date(ts).toLocaleDateString("en-AU") : "—"; }
 
 // ─────────────────────────────────────────
 //  GOOGLE SHEETS
@@ -68,9 +77,9 @@ async function ensureSheetHeaders() {
   const sheets  = getSheets();
   const headers = ["Receipt ID","Date","Who Paid","Finance Group","Item Description","Qty",
     "Est. Unit Cost (AUD)","Est. Total (AUD)","Final Unit Cost (AUD)","Final Total (AUD)",
-    "Pre-Approved?","Reimbursement Status","Receipt Link","Notes"];
+    "Pre-Approved?","Reimbursement Status","Receipt Link","Justification","Notes"];
   try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1:N1" });
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1:O1" });
     if (!res.data.values?.length) {
       await sheets.spreadsheets.values.update({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1", valueInputOption: "RAW", requestBody: { values: [headers] } });
       console.log("✅ Sheet headers written");
@@ -79,12 +88,27 @@ async function ensureSheetHeaders() {
 }
 
 async function appendExpenseRow(row) {
-  const sheets = getSheets();
-  await sheets.spreadsheets.values.append({
+  await getSheets().spreadsheets.values.append({
     spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1",
     valueInputOption: "USER_ENTERED", insertDataOption: "INSERT_ROWS",
     requestBody: { values: [row] },
   });
+}
+
+async function updateReimbursementStatus(receiptId, newStatus) {
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A:L" });
+  const rows = res.data.values || [];
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === receiptId) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: GOOGLE_SHEET_ID, range: `Sheet1!L${i + 1}`,
+        valueInputOption: "RAW", requestBody: { values: [[newStatus]] },
+      });
+      return true;
+    }
+  }
+  return false;
 }
 
 // ─────────────────────────────────────────
@@ -117,17 +141,19 @@ async function loadData() {
   const res = await jsonbinRequest("GET");
   const r   = res.record || {};
   store = {
-    tasks:           r.tasks           || Object.fromEntries(SUBSYSTEMS.map((s) => [s.id, []])),
-    messageId:       r.messageId       || null,
-    leadMessageIds:  r.leadMessageIds  || {},
-    leadChannelIds:  r.leadChannelIds  || {},
-    logChannelId:    r.logChannelId    || null,
-    budgetChannelId: r.budgetChannelId || null,
-    budgetMessageId: r.budgetMessageId || null,
-    budgets:         r.budgets         || { ...DEFAULT_BUDGETS },
-    spent:           r.spent           || Object.fromEntries(FINANCE_GROUPS.map((g) => [g.id, 0])),
-    pendingRequests: r.pendingRequests || [],
-    receiptCounter:  r.receiptCounter  || 1,
+    tasks:            r.tasks            || Object.fromEntries(SUBSYSTEMS.map((s) => [s.id, []])),
+    messageId:        r.messageId        || null,
+    leadMessageIds:   r.leadMessageIds   || {},
+    leadChannelIds:   r.leadChannelIds   || {},
+    logChannelId:     r.logChannelId     || null,
+    financeLogChannelId: r.financeLogChannelId || null,
+    budgetChannelId:  r.budgetChannelId  || null,
+    budgetMessageId:  r.budgetMessageId  || null,
+    budgets:          r.budgets          || { ...DEFAULT_BUDGETS },
+    spent:            r.spent            || Object.fromEntries(FINANCE_GROUPS.map((g) => [g.id, 0])),
+    pendingRequests:  r.pendingRequests  || [],
+    receiptCounter:   r.receiptCounter   || 1,
+    expenses:         r.expenses         || [], // track logged expenses for payment status updates
   };
   for (const sub of SUBSYSTEMS) { if (!store.tasks[sub.id]) store.tasks[sub.id] = []; }
   for (const g of FINANCE_GROUPS) {
@@ -139,12 +165,8 @@ async function loadData() {
 
 const saveData = limiter.wrap(async () => { await jsonbinRequest("PUT", store); });
 
-function makeId() { return Math.random().toString(36).slice(2, 10); }
-function makeReceiptId() { const id = `RCP-${String(store.receiptCounter).padStart(4,"0")}`; store.receiptCounter++; return id; }
-function fmtAUD(n) { return `$${Number(n).toFixed(2)}`; }
-
 // ─────────────────────────────────────────
-//  LOGS
+//  LOGS — separate task and finance logs
 // ─────────────────────────────────────────
 async function getLogChannel(guild) {
   if (store.logChannelId) {
@@ -152,8 +174,20 @@ async function getLogChannel(guild) {
   }
   const existing = guild.channels.cache.find((c) => c.name === "rover-logs");
   if (existing) { store.logChannelId = existing.id; return existing; }
-  const ch = await guild.channels.create({ name: "rover-logs", type: ChannelType.GuildText, topic: "📋 URT Rover Bot — automatic task log" });
+  const ch = await guild.channels.create({ name: "rover-logs", type: ChannelType.GuildText, topic: "📋 URT Rover — task activity log" });
   store.logChannelId = ch.id;
+  await saveData();
+  return ch;
+}
+
+async function getFinanceLogChannel(guild) {
+  if (store.financeLogChannelId) {
+    try { return await guild.channels.fetch(store.financeLogChannelId); } catch { store.financeLogChannelId = null; }
+  }
+  const existing = guild.channels.cache.find((c) => c.name === "finance-logs");
+  if (existing) { store.financeLogChannelId = existing.id; return existing; }
+  const ch = await guild.channels.create({ name: "finance-logs", type: ChannelType.GuildText, topic: "💰 URT Rover — finance activity log" });
+  store.financeLogChannelId = ch.id;
   await saveData();
   return ch;
 }
@@ -161,6 +195,13 @@ async function getLogChannel(guild) {
 async function postLog(guild, embed) {
   try { const ch = await getLogChannel(guild); await ch.send({ embeds: [embed] }); }
   catch (e) { console.error("Log post failed:", e.message); }
+}
+
+async function postFinanceLog(guild, embed, components) {
+  try {
+    const ch = await getFinanceLogChannel(guild);
+    await ch.send({ embeds: [embed], ...(components ? { components } : {}) });
+  } catch (e) { console.error("Finance log post failed:", e.message); }
 }
 
 function logEmbed(color, title, lines) {
@@ -172,11 +213,16 @@ async function postSnapshot(guild) {
   const lines = SUBSYSTEMS.map((sub) => {
     const list = store.tasks[sub.id] || [];
     if (!list.length) return `${sub.emoji} **${sub.label}** — no tasks`;
-    return `${sub.emoji} **${sub.label}**\n${list.map((t) => `  ${t.done ? "✅" : "⬜"} ${t.name} — ${t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "*unassigned*"}`).join("\n")}`;
+    return `${sub.emoji} **${sub.label}**\n${list.map((t) => {
+      const who = t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "*unassigned*";
+      const due = t.dueDate ? `  📅 ${t.dueDate}` : "";
+      return `  ${t.done ? "✅" : "⬜"} ${t.name} — ${who}${due}`;
+    }).join("\n")}`;
   });
   const total = Object.values(store.tasks).flat().length;
   const done  = Object.values(store.tasks).flat().filter((t) => t.done).length;
-  await ch.send({ embeds: [new EmbedBuilder().setColor(0x38bdf8).setTitle("📋 URT Rover — Full Task Snapshot").setDescription(lines.join("\n\n")).setFooter({ text: `${done}/${total} tasks complete — posted on bot startup` }).setTimestamp()] });
+  await ch.send({ embeds: [new EmbedBuilder().setColor(0x38bdf8).setTitle("📋 URT Rover — Full Task Snapshot")
+    .setDescription(lines.join("\n\n")).setFooter({ text: `${done}/${total} tasks complete — posted on bot startup` }).setTimestamp()] });
 }
 
 // ─────────────────────────────────────────
@@ -205,10 +251,11 @@ function buildBudgetEmbed() {
 
 function buildBudgetButtons() {
   return [new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("log_expense")     .setLabel("💸 Log Expense")     .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("purchase_request").setLabel("📝 Purchase Request").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("set_budget")      .setLabel("⚙️ Set Budget")      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("refresh_budget")  .setLabel("🔄 Refresh")         .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("log_expense")      .setLabel("💸 Log Expense")      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("purchase_request") .setLabel("📝 Purchase Request") .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("update_payment")   .setLabel("💳 Update Payment")   .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("set_budget")       .setLabel("⚙️ Set Budget")       .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("refresh_budget")   .setLabel("🔄 Refresh")          .setStyle(ButtonStyle.Secondary),
   )];
 }
 
@@ -266,7 +313,12 @@ function buildLeadEmbed(sub, tasks) {
   const done = list.filter((t) =>  t.done);
   const pct  = list.length === 0 ? 0 : Math.round((done.length / list.length) * 100);
   const bar  = "█".repeat(Math.round(pct / 10)) + "░".repeat(10 - Math.round(pct / 10));
-  const fmt  = (t) => `> ${t.done ? "✅" : "⬜"} **${t.name}**\n> 👤 ${t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "*Unassigned*"}`;
+  const fmt  = (t) => {
+    const who  = t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "*Unassigned*";
+    const due  = t.dueDate ? `\n> 📅 Due: ${t.dueDate}` : "";
+    const note = t.notes   ? `\n> 📝 ${t.notes}` : "";
+    return `> ${t.done ? "✅" : "⬜"} **${t.name}**\n> 👤 ${who}${due}${note}`;
+  };
   return new EmbedBuilder().setTitle(`${sub.emoji}  ${sub.label} — Task Board`).setColor(sub.color)
     .setDescription(`\`${bar}\` ${pct}%  (${done.length}/${list.length} tasks complete)`)
     .addFields(
@@ -325,11 +377,25 @@ function buildTaskSel(customId, tasks, subId, filter) {
   );
 }
 
+// FIX: after subsystem is selected, show a button to open the form
+// This prevents the "can't reopen form" bug
+function buildOpenFormButton(subId, action) {
+  const sub = SUBSYSTEMS.find((s) => s.id === subId);
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`open_form_${action}_${subId}`)
+      .setLabel(`➕ Add task to ${sub.label}`)
+      .setStyle(ButtonStyle.Primary)
+  );
+}
+
 function addTaskModal(subId) {
   const sub = SUBSYSTEMS.find((s) => s.id === subId);
   return new ModalBuilder().setCustomId(`modal_add_${subId}`).setTitle(`Add task — ${sub.label}`)
     .addComponents(
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("task_name").setLabel("Task name").setStyle(TextInputStyle.Short).setPlaceholder("e.g. Assemble wheel mounts").setMaxLength(100).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("due_date").setLabel("Due date (optional)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 15/06/2025").setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("notes").setLabel("Notes (optional)").setStyle(TextInputStyle.Paragraph).setPlaceholder("Any extra context or notes for this task").setRequired(false)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("assignees").setLabel("Assign to — User IDs (optional)").setStyle(TextInputStyle.Short).setPlaceholder("Right-click user → Copy User ID").setRequired(false))
     );
 }
@@ -344,7 +410,7 @@ function expenseModal(groupId, isRequest = false) {
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("qty").setLabel("Quantity").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 4").setRequired(true)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("est_cost").setLabel("Est. unit cost (AUD)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 25.00").setRequired(true)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("final_cost").setLabel("Final unit cost AUD (blank = estimate)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 23.50 — leave blank if unknown").setRequired(false)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("receipt").setLabel("SharePoint link + reimbursement status").setStyle(TextInputStyle.Paragraph).setPlaceholder("SharePoint link on line 1\nReimbursement status on line 2 (Pending/Paid/N/A)").setRequired(false))
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("receipt_and_reason").setLabel("Receipt link, status & justification").setStyle(TextInputStyle.Paragraph).setPlaceholder("Line 1: SharePoint receipt link\nLine 2: Reimbursement status (Pending/Paid/N/A)\nLine 3: Justification for purchase").setRequired(false))
     );
 }
 
@@ -352,6 +418,11 @@ function setBudgetModal(groupId) {
   const group = FINANCE_GROUPS.find((g) => g.id === groupId);
   return new ModalBuilder().setCustomId(`modal_budget_${groupId}`).setTitle(`Set Budget — ${group.label}`)
     .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("amount").setLabel("New budget amount (AUD)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 1500").setRequired(true)));
+}
+
+function updatePaymentModal(receiptId) {
+  return new ModalBuilder().setCustomId(`modal_payment_${receiptId}`).setTitle(`Update Payment — ${receiptId}`)
+    .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("status").setLabel("New reimbursement status").setStyle(TextInputStyle.Short).setPlaceholder("Paid / Pending / N/A / Partial").setRequired(true)));
 }
 
 // ─────────────────────────────────────────
@@ -431,13 +502,9 @@ client.once("clientReady", async () => {
     await guild.channels.fetch();
     await setupLeadChannels(guild, client.user.id);
     await ensureSheetHeaders();
+    await saveData(); // save channel IDs before wiping message IDs
 
-    // Save channel IDs BEFORE wiping message IDs
-    await saveData();
-
-    store.messageId       = null;
-    store.leadMessageIds  = {};
-    store.budgetMessageId = null;
+    store.messageId = null; store.leadMessageIds = {}; store.budgetMessageId = null;
 
     const overviewCh = await client.channels.fetch(STATUS_CHANNEL_ID);
     const fetched    = await overviewCh.messages.fetch({ limit: 20 });
@@ -445,6 +512,8 @@ client.once("clientReady", async () => {
 
     await updateAll(client);
     await updateBudgetDashboard(guild);
+    await getLogChannel(guild);
+    await getFinanceLogChannel(guild);
     await postSnapshot(guild);
     await saveData();
     console.log("✅ All done!");
@@ -463,7 +532,14 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.isButton()) {
       const id = interaction.customId;
 
+      // These open modals — must come before any defer
       if (id.startsWith("lead_add_")) return interaction.showModal(addTaskModal(id.replace("lead_add_", "")));
+
+      // FIX: "open form" button — allows re-opening the add task form after closing it
+      if (id.startsWith("open_form_add_")) {
+        const subId = id.replace("open_form_add_", "");
+        return interaction.showModal(addTaskModal(subId));
+      }
 
       if (id === "refresh") {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -484,6 +560,21 @@ client.on("interactionCreate", async (interaction) => {
       if (id === "mark_done")        return interaction.reply({ content: "Which subsystem?",    components: [buildSubSel("sub_for_done")],               flags: MessageFlags.Ephemeral });
       if (id === "reopen_task")      return interaction.reply({ content: "Which subsystem?",    components: [buildSubSel("sub_for_reopen")],             flags: MessageFlags.Ephemeral });
       if (id === "remove_task")      return interaction.reply({ content: "Which subsystem?",    components: [buildSubSel("sub_for_remove")],             flags: MessageFlags.Ephemeral });
+
+      // Update payment status
+      if (id === "update_payment") {
+        if (!store.expenses.length) return interaction.reply({ content: "No logged expenses to update.", flags: MessageFlags.Ephemeral });
+        const options = store.expenses.slice(-25).reverse().map((e) =>
+          new StringSelectMenuOptionBuilder().setLabel(`${e.receiptId} — ${e.item} (${e.status})`).setValue(e.receiptId)
+        );
+        return interaction.reply({
+          content: "Which receipt do you want to update?",
+          components: [new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder().setCustomId("expense_for_payment").setPlaceholder("Choose a receipt...").addOptions(options)
+          )],
+          flags: MessageFlags.Ephemeral,
+        });
+      }
 
       if (id.startsWith("lead_done_")) {
         const subId = id.replace("lead_done_", "");
@@ -513,7 +604,11 @@ client.on("interactionCreate", async (interaction) => {
         if (!todos.length) return interaction.reply({ content: "✅ No incomplete tasks!", flags: MessageFlags.Ephemeral });
         const assigneeIds = [...new Set(todos.flatMap((t) => t.assignees || []))];
         if (!assigneeIds.length) return interaction.reply({ content: "⚠️ No one assigned. Use 👤 Assign first!", flags: MessageFlags.Ephemeral });
-        const taskList = todos.map((t) => `• **${t.name}** — ${t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "*unassigned*"}`).join("\n");
+        const taskList = todos.map((t) => {
+          const who = t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "*unassigned*";
+          const due = t.dueDate ? ` (due ${t.dueDate})` : "";
+          return `• **${t.name}**${due} — ${who}`;
+        }).join("\n");
         let dmCount = 0;
         for (const assigneeId of assigneeIds) {
           try { const member = await guild.members.fetch(assigneeId); await member.send(`📣 **Progress update — ${sub.emoji} ${sub.label}**\n\nHey ${member.displayName}! Your team lead is asking for a progress update:\n\n${taskList}\n\nPlease update the bot when done. Thanks!`); dmCount++; } catch {}
@@ -522,6 +617,7 @@ client.on("interactionCreate", async (interaction) => {
         return interaction.reply({ content: `📣 Reminder sent to **${dmCount}** member(s) via DM!`, flags: MessageFlags.Ephemeral });
       }
 
+      // Approve/reject purchase requests — delete original message after action
       if (id.startsWith("approve_req_") || id.startsWith("reject_req_")) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const approved = id.startsWith("approve_req_");
@@ -530,17 +626,24 @@ client.on("interactionCreate", async (interaction) => {
         if (!req) return replyAndDelete(interaction, "Request not found or already processed.");
         store.pendingRequests = store.pendingRequests.filter((r) => r.id !== reqId);
         const group = FINANCE_GROUPS.find((g) => g.id === req.groupId);
+
+        // Delete the original request message
+        try { await interaction.message.delete(); } catch {}
+
         if (approved) {
           const estTotal  = req.qty * req.estCost;
           store.spent[req.groupId] = (store.spent[req.groupId] || 0) + estTotal;
           const receiptId = makeReceiptId();
-          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), req.userName, group.label, req.item, req.qty, fmtAUD(req.estCost), fmtAUD(estTotal), "", "", "Yes", req.reimbursement || "Pending", req.receipt || "", "Purchase request"]);
+          store.expenses.push({ receiptId, item: req.item, groupId: req.groupId, status: "Pending", date: new Date().toLocaleDateString("en-AU") });
+          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), req.userName, group.label, req.item, req.qty, fmtAUD(req.estCost), fmtAUD(estTotal), "", "", "Yes", "Pending", req.receipt || "", req.justification || "", ""]);
           await updateBudgetDashboard(guild);
-          await postLog(guild, logEmbed(0x2ecc71, `✅ Request Approved — ${group.emoji} ${group.label}`, [`**${req.item}** x${req.qty}`, `Est. Total: ${fmtAUD(estTotal)}`, `Approved by <@${uid}>`, `Receipt ID: ${receiptId}`]));
+          await postFinanceLog(guild, logEmbed(0x2ecc71, `✅ Request Approved — ${group.emoji} ${group.label}`,
+            [`**${req.item}** x${req.qty}`, `Est. Total: ${fmtAUD(estTotal)}`, `Approved by <@${uid}>`, `Receipt ID: ${receiptId}`, req.justification ? `Justification: ${req.justification}` : ""]));
           await saveData();
           return replyAndDelete(interaction, `✅ Approved! **${receiptId}** — ${fmtAUD(estTotal)} charged to ${group.label}.`);
         } else {
-          await postLog(guild, logEmbed(0xe74c3c, `❌ Request Rejected — ${group.emoji} ${group.label}`, [`**${req.item}** x${req.qty}`, `Rejected by <@${uid}>`]));
+          await postFinanceLog(guild, logEmbed(0xe74c3c, `❌ Request Rejected — ${group.emoji} ${group.label}`,
+            [`**${req.item}** x${req.qty}`, `Rejected by <@${uid}>`]));
           await saveData();
           return replyAndDelete(interaction, "❌ Request rejected.");
         }
@@ -552,16 +655,35 @@ client.on("interactionCreate", async (interaction) => {
       const id    = interaction.customId;
       const value = interaction.values[0];
 
-      if (id === "sub_for_add")       return interaction.showModal(addTaskModal(value));
+      // Modals must come before any defer
       if (id === "group_for_expense") return interaction.showModal(expenseModal(value, false));
       if (id === "group_for_request") return interaction.showModal(expenseModal(value, true));
       if (id === "group_for_budget")  return interaction.showModal(setBudgetModal(value));
+
+      // FIX: subsystem selected for add task — show a button instead of immediately opening modal
+      // This lets users re-open the form if they closed it
+      if (id === "sub_for_add") {
+        const sub = SUBSYSTEMS.find((s) => s.id === value);
+        return interaction.update({
+          content: `${sub.emoji} **${sub.label}** selected — click below to open the form:`,
+          components: [buildOpenFormButton(value, "add")],
+        });
+      }
+
       if (id === "task_for_assign") {
         const subId = pending.get(`${uid}_assign`);
         const task  = store.tasks[subId]?.find((t) => t.id === value);
         if (!task) return interaction.update({ content: "Task not found.", components: [] });
         pending.set(`${uid}_assigntask`, value);
-        return interaction.showModal(new ModalBuilder().setCustomId(`modal_assign_${subId}`).setTitle(`Assign — ${task.name.slice(0, 40)}`).addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("assignees").setLabel("Discord User IDs (comma separated)").setStyle(TextInputStyle.Short).setPlaceholder("Right-click user → Copy User ID").setRequired(true))));
+        return interaction.showModal(new ModalBuilder().setCustomId(`modal_assign_${subId}`).setTitle(`Assign — ${task.name.slice(0, 40)}`).addComponents(
+          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("assignees").setLabel("Discord User IDs (comma separated)").setStyle(TextInputStyle.Short).setPlaceholder("Right-click user → Copy User ID").setRequired(true))
+        ));
+      }
+
+      // Payment status update
+      if (id === "expense_for_payment") {
+        pending.set(`${uid}_payment_receipt`, value);
+        return interaction.showModal(updatePaymentModal(value));
       }
 
       if (id === "sub_for_done") {
@@ -582,7 +704,6 @@ client.on("interactionCreate", async (interaction) => {
         pending.set(`${uid}_remove`, value);
         return interaction.update({ content: "Which task to remove?", components: [sel] });
       }
-
       if (id === "task_for_done") {
         await interaction.deferUpdate();
         const subId = pending.get(`${uid}_done`);
@@ -629,17 +750,22 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
       if (interaction.customId.startsWith("modal_add_")) {
-        const subId     = interaction.customId.replace("modal_add_", "");
-        const name      = interaction.fields.getTextInputValue("task_name").trim();
-        const rawIds    = interaction.fields.getTextInputValue("assignees").trim();
+        const subId    = interaction.customId.replace("modal_add_", "");
+        const name     = interaction.fields.getTextInputValue("task_name").trim();
+        const dueDate  = interaction.fields.getTextInputValue("due_date").trim();
+        const notes    = interaction.fields.getTextInputValue("notes").trim();
+        const rawIds   = interaction.fields.getTextInputValue("assignees").trim();
         const assignees = rawIds ? rawIds.split(",").map((s) => s.trim()).filter(Boolean) : [];
         if (!store.tasks[subId]) store.tasks[subId] = [];
-        store.tasks[subId].push({ id: makeId(), name, done: false, assignees, addedAt: Date.now() });
+        store.tasks[subId].push({ id: makeId(), name, done: false, assignees, dueDate: dueDate || null, notes: notes || null, addedAt: Date.now() });
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         const who = assignees.length ? assignees.map((id) => `<@${id}>`).join(", ") : "*unassigned*";
-        await postLog(guild, logEmbed(sub.color, `➕ Task added — ${sub.emoji} ${sub.label}`, [`**${name}**`, `By <@${uid}>`, `Assigned: ${who}`]));
-        return replyAndDelete(interaction, `${sub.emoji} **${name}** added to **${sub.label}**!\n👤 ${who}`);
+        const logLines = [`**${name}**`, `By <@${uid}>`, `Assigned: ${who}`];
+        if (dueDate) logLines.push(`Due: ${dueDate}`);
+        if (notes) logLines.push(`Notes: ${notes}`);
+        await postLog(guild, logEmbed(sub.color, `➕ Task added — ${sub.emoji} ${sub.label}`, logLines));
+        return replyAndDelete(interaction, `${sub.emoji} **${name}** added to **${sub.label}**!\n👤 ${who}${dueDate ? `\n📅 Due: ${dueDate}` : ""}`);
       }
 
       if (interaction.customId.startsWith("modal_assign_")) {
@@ -664,8 +790,20 @@ client.on("interactionCreate", async (interaction) => {
         store.budgets[groupId] = amount;
         await updateBudgetDashboard(guild);
         await saveData();
-        await postLog(guild, logEmbed(group.color, `⚙️ Budget updated — ${group.emoji} ${group.label}`, [`New budget: ${fmtAUD(amount)}`, `Set by <@${uid}>`]));
+        await postFinanceLog(guild, logEmbed(group.color, `⚙️ Budget updated — ${group.emoji} ${group.label}`, [`New budget: ${fmtAUD(amount)}`, `Set by <@${uid}>`]));
         return replyAndDelete(interaction, `⚙️ **${group.label}** budget set to **${fmtAUD(amount)}**!`);
+      }
+
+      if (interaction.customId.startsWith("modal_payment_")) {
+        const receiptId = interaction.customId.replace("modal_payment_", "");
+        const newStatus = interaction.fields.getTextInputValue("status").trim();
+        const expense   = store.expenses.find((e) => e.receiptId === receiptId);
+        if (!expense) return replyAndDelete(interaction, "Receipt not found.");
+        expense.status = newStatus;
+        await updateReimbursementStatus(receiptId, newStatus);
+        await saveData();
+        await postFinanceLog(guild, logEmbed(0x38bdf8, `💳 Payment status updated — ${receiptId}`, [`New status: **${newStatus}**`, `Updated by <@${uid}>`]));
+        return replyAndDelete(interaction, `💳 **${receiptId}** reimbursement status updated to **${newStatus}**!`);
       }
 
       if (interaction.customId.startsWith("modal_expense_")) {
@@ -677,10 +815,11 @@ client.on("interactionCreate", async (interaction) => {
         const estCost   = parseFloat(interaction.fields.getTextInputValue("est_cost").replace(/[^0-9.]/g, "")) || 0;
         const finalRaw  = interaction.fields.getTextInputValue("final_cost").trim();
         const finalCost = finalRaw ? parseFloat(finalRaw.replace(/[^0-9.]/g, "")) : null;
-        const receiptRaw    = interaction.fields.getTextInputValue("receipt").trim();
-        const receiptLines  = receiptRaw.split("\n");
-        const receipt       = receiptLines[0]?.trim() || "";
-        const reimbursement = receiptLines[1]?.trim() || "Pending";
+        const extraRaw      = interaction.fields.getTextInputValue("receipt_and_reason").trim();
+        const extraLines    = extraRaw.split("\n");
+        const receipt       = extraLines[0]?.trim() || "";
+        const reimbursement = extraLines[1]?.trim() || "Pending";
+        const justification = extraLines[2]?.trim() || "";
         const estTotal   = qty * estCost;
         const finalTotal = finalCost !== null ? qty * finalCost : null;
         const member     = await guild.members.fetch(uid);
@@ -688,27 +827,27 @@ client.on("interactionCreate", async (interaction) => {
 
         if (isRequest) {
           const reqId = makeId();
-          store.pendingRequests.push({ id: reqId, groupId, item, qty, estCost, receipt, reimbursement, userName, userId: uid });
-          const logCh = await getLogChannel(guild);
-          await logCh.send({
-            embeds: [new EmbedBuilder().setTitle(`📝 Purchase Request — ${group.emoji} ${group.label}`).setColor(group.color)
-              .setDescription(`**${item}** x${qty}\nEst. Unit: ${fmtAUD(estCost)}  |  Est. Total: ${fmtAUD(estTotal)}\nReceipt: ${receipt || "*none yet*"}\nRequested by: <@${uid}>`)
-              .setTimestamp()],
-            components: [new ActionRowBuilder().addComponents(
+          store.pendingRequests.push({ id: reqId, groupId, item, qty, estCost, receipt, reimbursement, justification, userName, userId: uid });
+          await postFinanceLog(guild,
+            new EmbedBuilder().setTitle(`📝 Purchase Request — ${group.emoji} ${group.label}`).setColor(group.color)
+              .setDescription(`**${item}** x${qty}\nEst. Unit: ${fmtAUD(estCost)}  |  Est. Total: ${fmtAUD(estTotal)}\n${justification ? `Justification: ${justification}\n` : ""}Receipt: ${receipt || "*none yet*"}\nRequested by: <@${uid}>`)
+              .setTimestamp(),
+            [new ActionRowBuilder().addComponents(
               new ButtonBuilder().setCustomId(`approve_req_${reqId}`).setLabel("✅ Approve").setStyle(ButtonStyle.Success),
               new ButtonBuilder().setCustomId(`reject_req_${reqId}`).setLabel("❌ Reject").setStyle(ButtonStyle.Danger),
-            )],
-          });
+            )]
+          );
           await saveData();
-          return replyAndDelete(interaction, `📝 Purchase request submitted for **${item}** x${qty} (${fmtAUD(estTotal)}) — awaiting approval in #rover-logs!`);
+          return replyAndDelete(interaction, `📝 Purchase request submitted for **${item}** x${qty} (${fmtAUD(estTotal)}) — awaiting approval in #finance-logs!`);
         } else {
           const receiptId  = makeReceiptId();
           const costToLog  = finalTotal !== null ? finalTotal : estTotal;
           store.spent[groupId] = (store.spent[groupId] || 0) + costToLog;
-          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), userName, group.label, item, qty, fmtAUD(estCost), fmtAUD(estTotal), finalCost !== null ? fmtAUD(finalCost) : "", finalTotal !== null ? fmtAUD(finalTotal) : "", "No", reimbursement, receipt, ""]);
+          store.expenses.push({ receiptId, item, groupId, status: reimbursement, date: new Date().toLocaleDateString("en-AU") });
+          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), userName, group.label, item, qty, fmtAUD(estCost), fmtAUD(estTotal), finalCost !== null ? fmtAUD(finalCost) : "", finalTotal !== null ? fmtAUD(finalTotal) : "", "No", reimbursement, receipt, justification, ""]);
           await updateBudgetDashboard(guild);
-          await postLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
-            [`**${item}** x${qty}`, `Est: ${fmtAUD(estTotal)}${finalTotal !== null ? `  |  Final: ${fmtAUD(finalTotal)}` : ""}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `Reimbursement: ${reimbursement}`]));
+          await postFinanceLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
+            [`**${item}** x${qty}`, `Est: ${fmtAUD(estTotal)}${finalTotal !== null ? `  |  Final: ${fmtAUD(finalTotal)}` : ""}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `Reimbursement: ${reimbursement}`, justification ? `Justification: ${justification}` : ""].filter(Boolean)));
           await saveData();
           return replyAndDelete(interaction, `💸 **${receiptId}** logged!\n${item} x${qty} — ${fmtAUD(costToLog)} charged to **${group.label}**`);
         }
