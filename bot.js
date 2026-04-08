@@ -43,6 +43,14 @@ const DEFAULT_BUDGETS = {
 };
 
 // ─────────────────────────────────────────
+//  HELPER — reply then auto-delete after delay
+// ─────────────────────────────────────────
+async function replyAndDelete(interaction, content, delay = 5000) {
+  await interaction.editReply({ content, components: [] });
+  setTimeout(() => interaction.deleteReply().catch(() => {}), delay);
+}
+
+// ─────────────────────────────────────────
 //  GOOGLE SHEETS
 // ─────────────────────────────────────────
 let sheetsClient = null;
@@ -424,15 +432,13 @@ client.once("clientReady", async () => {
     await setupLeadChannels(guild, client.user.id);
     await ensureSheetHeaders();
 
-    // ── KEY FIX: save channel IDs BEFORE wiping message IDs ──
+    // Save channel IDs BEFORE wiping message IDs
     await saveData();
 
-    // Now wipe just the message IDs so embeds get reposted fresh
-    store.messageId      = null;
-    store.leadMessageIds = {};
+    store.messageId       = null;
+    store.leadMessageIds  = {};
     store.budgetMessageId = null;
 
-    // Clean up old overview messages
     const overviewCh = await client.channels.fetch(STATUS_CHANNEL_ID);
     const fetched    = await overviewCh.messages.fetch({ limit: 20 });
     for (const msg of fetched.filter((m) => m.author.id === client.user.id).values()) { try { await msg.delete(); } catch {} }
@@ -453,6 +459,7 @@ client.on("interactionCreate", async (interaction) => {
     const uid   = interaction.user?.id;
     const guild = interaction.guild;
 
+    // ── BUTTONS ──────────────────────────────────────────────────────────
     if (interaction.isButton()) {
       const id = interaction.customId;
 
@@ -461,13 +468,13 @@ client.on("interactionCreate", async (interaction) => {
       if (id === "refresh") {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         await updateAll(client);
-        return interaction.editReply({ content: "🔄 Refreshed!" });
+        return replyAndDelete(interaction, "🔄 Refreshed!");
       }
       if (id === "refresh_budget") {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         await updateBudgetDashboard(guild);
         await saveData();
-        return interaction.editReply({ content: "🔄 Budget refreshed!" });
+        return replyAndDelete(interaction, "🔄 Budget refreshed!");
       }
 
       if (id === "log_expense")      return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_expense")], flags: MessageFlags.Ephemeral });
@@ -520,7 +527,7 @@ client.on("interactionCreate", async (interaction) => {
         const approved = id.startsWith("approve_req_");
         const reqId    = id.replace(approved ? "approve_req_" : "reject_req_", "");
         const req      = store.pendingRequests.find((r) => r.id === reqId);
-        if (!req) return interaction.editReply({ content: "Request not found or already processed." });
+        if (!req) return replyAndDelete(interaction, "Request not found or already processed.");
         store.pendingRequests = store.pendingRequests.filter((r) => r.id !== reqId);
         const group = FINANCE_GROUPS.find((g) => g.id === req.groupId);
         if (approved) {
@@ -531,15 +538,16 @@ client.on("interactionCreate", async (interaction) => {
           await updateBudgetDashboard(guild);
           await postLog(guild, logEmbed(0x2ecc71, `✅ Request Approved — ${group.emoji} ${group.label}`, [`**${req.item}** x${req.qty}`, `Est. Total: ${fmtAUD(estTotal)}`, `Approved by <@${uid}>`, `Receipt ID: ${receiptId}`]));
           await saveData();
-          return interaction.editReply({ content: `✅ Approved! **${receiptId}** — ${fmtAUD(estTotal)} charged to ${group.label}.` });
+          return replyAndDelete(interaction, `✅ Approved! **${receiptId}** — ${fmtAUD(estTotal)} charged to ${group.label}.`);
         } else {
           await postLog(guild, logEmbed(0xe74c3c, `❌ Request Rejected — ${group.emoji} ${group.label}`, [`**${req.item}** x${req.qty}`, `Rejected by <@${uid}>`]));
           await saveData();
-          return interaction.editReply({ content: "❌ Request rejected." });
+          return replyAndDelete(interaction, "❌ Request rejected.");
         }
       }
     }
 
+    // ── SELECT MENUS ──────────────────────────────────────────────────────
     if (interaction.isStringSelectMenu()) {
       const id    = interaction.customId;
       const value = interaction.values[0];
@@ -574,41 +582,49 @@ client.on("interactionCreate", async (interaction) => {
         pending.set(`${uid}_remove`, value);
         return interaction.update({ content: "Which task to remove?", components: [sel] });
       }
+
       if (id === "task_for_done") {
         await interaction.deferUpdate();
         const subId = pending.get(`${uid}_done`);
         const task  = store.tasks[subId]?.find((t) => t.id === value);
-        if (!task) return interaction.editReply({ content: "Task not found.", components: [] });
+        if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); return; }
         task.done = true; task.doneAt = Date.now();
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         await postLog(guild, logEmbed(0x2ecc71, `✅ Task done — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `By <@${uid}>`]));
-        return interaction.editReply({ content: `✅ **${task.name}** marked done!`, components: [] });
+        await interaction.editReply({ content: `✅ **${task.name}** marked done!`, components: [] });
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+        return;
       }
       if (id === "task_for_reopen") {
         await interaction.deferUpdate();
         const subId = pending.get(`${uid}_reopen`);
         const task  = store.tasks[subId]?.find((t) => t.id === value);
-        if (!task) return interaction.editReply({ content: "Task not found.", components: [] });
+        if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); return; }
         task.done = false; delete task.doneAt;
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         await postLog(guild, logEmbed(0xe67e22, `↩️ Task reopened — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `By <@${uid}>`]));
-        return interaction.editReply({ content: `↩️ **${task.name}** reopened.`, components: [] });
+        await interaction.editReply({ content: `↩️ **${task.name}** reopened.`, components: [] });
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+        return;
       }
       if (id === "task_for_remove") {
         await interaction.deferUpdate();
         const subId = pending.get(`${uid}_remove`);
         const task  = store.tasks[subId]?.find((t) => t.id === value);
-        if (!task) return interaction.editReply({ content: "Task not found.", components: [] });
+        if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); return; }
         store.tasks[subId] = store.tasks[subId].filter((t) => t.id !== value);
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         await postLog(guild, logEmbed(0xe74c3c, `🗑️ Task removed — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `By <@${uid}>`]));
-        return interaction.editReply({ content: `🗑️ **${task.name}** removed.`, components: [] });
+        await interaction.editReply({ content: `🗑️ **${task.name}** removed.`, components: [] });
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+        return;
       }
     }
 
+    // ── MODALS ────────────────────────────────────────────────────────────
     if (interaction.isModalSubmit()) {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -623,7 +639,7 @@ client.on("interactionCreate", async (interaction) => {
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         const who = assignees.length ? assignees.map((id) => `<@${id}>`).join(", ") : "*unassigned*";
         await postLog(guild, logEmbed(sub.color, `➕ Task added — ${sub.emoji} ${sub.label}`, [`**${name}**`, `By <@${uid}>`, `Assigned: ${who}`]));
-        return interaction.editReply({ content: `${sub.emoji} **${name}** added to **${sub.label}**!\n👤 ${who}` });
+        return replyAndDelete(interaction, `${sub.emoji} **${name}** added to **${sub.label}**!\n👤 ${who}`);
       }
 
       if (interaction.customId.startsWith("modal_assign_")) {
@@ -631,25 +647,25 @@ client.on("interactionCreate", async (interaction) => {
         const taskId    = pending.get(`${uid}_assigntask`);
         const assignees = interaction.fields.getTextInputValue("assignees").trim().split(",").map((s) => s.trim()).filter(Boolean);
         const task      = store.tasks[subId]?.find((t) => t.id === taskId);
-        if (!task) return interaction.editReply({ content: "Task not found." });
+        if (!task) return replyAndDelete(interaction, "Task not found.");
         task.assignees = assignees;
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         const who = assignees.map((id) => `<@${id}>`).join(", ");
         await postLog(guild, logEmbed(sub.color, `👤 Task assigned — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `Assigned to: ${who}`, `By <@${uid}>`]));
-        return interaction.editReply({ content: `👤 **${task.name}** assigned to ${who}!` });
+        return replyAndDelete(interaction, `👤 **${task.name}** assigned to ${who}!`);
       }
 
       if (interaction.customId.startsWith("modal_budget_")) {
         const groupId = interaction.customId.replace("modal_budget_", "");
         const amount  = parseFloat(interaction.fields.getTextInputValue("amount").replace(/[^0-9.]/g, ""));
-        if (isNaN(amount) || amount < 0) return interaction.editReply({ content: "❌ Invalid amount." });
+        if (isNaN(amount) || amount < 0) return replyAndDelete(interaction, "❌ Invalid amount.");
         const group = FINANCE_GROUPS.find((g) => g.id === groupId);
         store.budgets[groupId] = amount;
         await updateBudgetDashboard(guild);
         await saveData();
         await postLog(guild, logEmbed(group.color, `⚙️ Budget updated — ${group.emoji} ${group.label}`, [`New budget: ${fmtAUD(amount)}`, `Set by <@${uid}>`]));
-        return interaction.editReply({ content: `⚙️ **${group.label}** budget set to **${fmtAUD(amount)}**!` });
+        return replyAndDelete(interaction, `⚙️ **${group.label}** budget set to **${fmtAUD(amount)}**!`);
       }
 
       if (interaction.customId.startsWith("modal_expense_")) {
@@ -684,7 +700,7 @@ client.on("interactionCreate", async (interaction) => {
             )],
           });
           await saveData();
-          return interaction.editReply({ content: `📝 Purchase request submitted for **${item}** x${qty} (${fmtAUD(estTotal)}) — awaiting approval in #rover-logs!` });
+          return replyAndDelete(interaction, `📝 Purchase request submitted for **${item}** x${qty} (${fmtAUD(estTotal)}) — awaiting approval in #rover-logs!`);
         } else {
           const receiptId  = makeReceiptId();
           const costToLog  = finalTotal !== null ? finalTotal : estTotal;
@@ -694,7 +710,7 @@ client.on("interactionCreate", async (interaction) => {
           await postLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
             [`**${item}** x${qty}`, `Est: ${fmtAUD(estTotal)}${finalTotal !== null ? `  |  Final: ${fmtAUD(finalTotal)}` : ""}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `Reimbursement: ${reimbursement}`]));
           await saveData();
-          return interaction.editReply({ content: `💸 **${receiptId}** logged!\n${item} x${qty} — ${fmtAUD(costToLog)} charged to **${group.label}**` });
+          return replyAndDelete(interaction, `💸 **${receiptId}** logged!\n${item} x${qty} — ${fmtAUD(costToLog)} charged to **${group.label}**`);
         }
       }
     }
