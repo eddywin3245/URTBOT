@@ -4,7 +4,7 @@ const {
   Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder,
   ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder,
   TextInputStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
-  PermissionsBitField, ChannelType, MessageFlags,
+  UserSelectMenuBuilder, PermissionsBitField, ChannelType, MessageFlags,
 } = require("discord.js");
 const Bottleneck = require("bottleneck");
 const https = require("https");
@@ -57,7 +57,6 @@ function makeReceiptId() {
   return id;
 }
 function fmtAUD(n) { return `$${Number(n).toFixed(2)}`; }
-function fmtDate(ts) { return ts ? new Date(ts).toLocaleDateString("en-AU") : "—"; }
 
 // ─────────────────────────────────────────
 //  GOOGLE SHEETS
@@ -95,15 +94,15 @@ async function appendExpenseRow(row) {
   });
 }
 
-async function updateReimbursementStatus(receiptId, newStatus) {
+async function updateSheetRow(receiptId, colLetter, value) {
   const sheets = getSheets();
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A:L" });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A:A" });
   const rows = res.data.values || [];
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][0] === receiptId) {
       await sheets.spreadsheets.values.update({
-        spreadsheetId: GOOGLE_SHEET_ID, range: `Sheet1!L${i + 1}`,
-        valueInputOption: "RAW", requestBody: { values: [[newStatus]] },
+        spreadsheetId: GOOGLE_SHEET_ID, range: `Sheet1!${colLetter}${i + 1}`,
+        valueInputOption: "RAW", requestBody: { values: [[value]] },
       });
       return true;
     }
@@ -141,19 +140,19 @@ async function loadData() {
   const res = await jsonbinRequest("GET");
   const r   = res.record || {};
   store = {
-    tasks:            r.tasks            || Object.fromEntries(SUBSYSTEMS.map((s) => [s.id, []])),
-    messageId:        r.messageId        || null,
-    leadMessageIds:   r.leadMessageIds   || {},
-    leadChannelIds:   r.leadChannelIds   || {},
-    logChannelId:     r.logChannelId     || null,
+    tasks:               r.tasks               || Object.fromEntries(SUBSYSTEMS.map((s) => [s.id, []])),
+    messageId:           r.messageId           || null,
+    leadMessageIds:      r.leadMessageIds      || {},
+    leadChannelIds:      r.leadChannelIds      || {},
+    logChannelId:        r.logChannelId        || null,
     financeLogChannelId: r.financeLogChannelId || null,
-    budgetChannelId:  r.budgetChannelId  || null,
-    budgetMessageId:  r.budgetMessageId  || null,
-    budgets:          r.budgets          || { ...DEFAULT_BUDGETS },
-    spent:            r.spent            || Object.fromEntries(FINANCE_GROUPS.map((g) => [g.id, 0])),
-    pendingRequests:  r.pendingRequests  || [],
-    receiptCounter:   r.receiptCounter   || 1,
-    expenses:         r.expenses         || [], // track logged expenses for payment status updates
+    budgetChannelId:     r.budgetChannelId     || null,
+    budgetMessageId:     r.budgetMessageId     || null,
+    budgets:             r.budgets             || { ...DEFAULT_BUDGETS },
+    spent:               r.spent               || Object.fromEntries(FINANCE_GROUPS.map((g) => [g.id, 0])),
+    pendingRequests:     r.pendingRequests     || [],
+    receiptCounter:      r.receiptCounter      || 1,
+    expenses:            r.expenses            || [],
   };
   for (const sub of SUBSYSTEMS) { if (!store.tasks[sub.id]) store.tasks[sub.id] = []; }
   for (const g of FINANCE_GROUPS) {
@@ -166,7 +165,7 @@ async function loadData() {
 const saveData = limiter.wrap(async () => { await jsonbinRequest("PUT", store); });
 
 // ─────────────────────────────────────────
-//  LOGS — separate task and finance logs
+//  LOGS
 // ─────────────────────────────────────────
 async function getLogChannel(guild) {
   if (store.logChannelId) {
@@ -205,7 +204,7 @@ async function postFinanceLog(guild, embed, components) {
 }
 
 function logEmbed(color, title, lines) {
-  return new EmbedBuilder().setColor(color).setTitle(title).setDescription(lines.join("\n")).setTimestamp();
+  return new EmbedBuilder().setColor(color).setTitle(title).setDescription(lines.filter(Boolean).join("\n")).setTimestamp();
 }
 
 async function postSnapshot(guild) {
@@ -377,15 +376,10 @@ function buildTaskSel(customId, tasks, subId, filter) {
   );
 }
 
-// FIX: after subsystem is selected, show a button to open the form
-// This prevents the "can't reopen form" bug
-function buildOpenFormButton(subId, action) {
+function buildOpenFormButton(subId) {
   const sub = SUBSYSTEMS.find((s) => s.id === subId);
   return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`open_form_${action}_${subId}`)
-      .setLabel(`➕ Add task to ${sub.label}`)
-      .setStyle(ButtonStyle.Primary)
+    new ButtonBuilder().setCustomId(`open_form_add_${subId}`).setLabel(`➕ Open form for ${sub.label}`).setStyle(ButtonStyle.Primary)
   );
 }
 
@@ -395,22 +389,32 @@ function addTaskModal(subId) {
     .addComponents(
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("task_name").setLabel("Task name").setStyle(TextInputStyle.Short).setPlaceholder("e.g. Assemble wheel mounts").setMaxLength(100).setRequired(true)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("due_date").setLabel("Due date (optional)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 15/06/2025").setRequired(false)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("notes").setLabel("Notes (optional)").setStyle(TextInputStyle.Paragraph).setPlaceholder("Any extra context or notes for this task").setRequired(false)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("assignees").setLabel("Assign to — User IDs (optional)").setStyle(TextInputStyle.Short).setPlaceholder("Right-click user → Copy User ID").setRequired(false))
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("notes").setLabel("Notes (optional)").setStyle(TextInputStyle.Paragraph).setPlaceholder("Any extra context for this task").setRequired(false))
     );
 }
 
-function expenseModal(groupId, isRequest = false) {
+// Two separate expense modals — basic info and receipt details
+function expenseModalBasic(groupId, isRequest = false) {
   const group = FINANCE_GROUPS.find((g) => g.id === groupId);
   return new ModalBuilder()
-    .setCustomId(`modal_expense_${groupId}${isRequest ? "_req" : ""}`)
+    .setCustomId(`modal_expense1_${groupId}${isRequest ? "_req" : ""}`)
     .setTitle(`${isRequest ? "📝 Request" : "💸 Expense"} — ${group.label}`)
     .addComponents(
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("item").setLabel("Item description").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 4x Motor Driver Boards").setMaxLength(100).setRequired(true)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("qty").setLabel("Quantity").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 4").setRequired(true)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("est_cost").setLabel("Est. unit cost (AUD)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 25.00").setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("final_cost").setLabel("Final unit cost AUD (blank = estimate)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 23.50 — leave blank if unknown").setRequired(false)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("receipt_and_reason").setLabel("Receipt link, status & justification").setStyle(TextInputStyle.Paragraph).setPlaceholder("Link | Status (Pending/Paid/N/A) | Justification").setRequired(false))
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("final_cost").setLabel("Final unit cost AUD (blank = estimate)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 23.50 — leave blank if unknown").setRequired(false))
+    );
+}
+
+function expenseModalDetails(groupId, isRequest, tempId) {
+  return new ModalBuilder()
+    .setCustomId(`modal_expense2_${groupId}_${isRequest ? "req" : "log"}_${tempId}`)
+    .setTitle("Receipt & Details")
+    .addComponents(
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("receipt").setLabel("Receipt link (SharePoint)").setStyle(TextInputStyle.Short).setPlaceholder("Paste your SharePoint link here").setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("reimbursement").setLabel("Reimbursement status").setStyle(TextInputStyle.Short).setPlaceholder("Pending / Paid / N/A").setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("justification").setLabel("Justification for purchase").setStyle(TextInputStyle.Paragraph).setPlaceholder("Why is this purchase needed?").setRequired(false))
     );
 }
 
@@ -466,7 +470,6 @@ async function setupLeadChannels(guild, botUserId) {
   const BOT_PERMS = { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, EmbedLinks: true };
   let category = guild.channels.cache.find((c) => c.type === ChannelType.GuildCategory && c.name.toUpperCase() === "SUBSYSTEM LEADS");
   if (!category) category = await guild.channels.create({ name: "SUBSYSTEM LEADS", type: ChannelType.GuildCategory });
-
   for (const sub of SUBSYSTEMS) {
     const channelName = sub.id.replace(/_/g, "-") + "-lead";
     if (store.leadChannelIds[sub.id]) {
@@ -502,7 +505,7 @@ client.once("clientReady", async () => {
     await guild.channels.fetch();
     await setupLeadChannels(guild, client.user.id);
     await ensureSheetHeaders();
-    await saveData(); // save channel IDs before wiping message IDs
+    await saveData();
 
     store.messageId = null; store.leadMessageIds = {}; store.budgetMessageId = null;
 
@@ -532,14 +535,9 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.isButton()) {
       const id = interaction.customId;
 
-      // These open modals — must come before any defer
-      if (id.startsWith("lead_add_")) return interaction.showModal(addTaskModal(id.replace("lead_add_", "")));
-
-      // FIX: "open form" button — allows re-opening the add task form after closing it
-      if (id.startsWith("open_form_add_")) {
-        const subId = id.replace("open_form_add_", "");
-        return interaction.showModal(addTaskModal(subId));
-      }
+      // Modals must come before any defer
+      if (id.startsWith("lead_add_"))      return interaction.showModal(addTaskModal(id.replace("lead_add_", "")));
+      if (id.startsWith("open_form_add_")) return interaction.showModal(addTaskModal(id.replace("open_form_add_", "")));
 
       if (id === "refresh") {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -561,7 +559,6 @@ client.on("interactionCreate", async (interaction) => {
       if (id === "reopen_task")      return interaction.reply({ content: "Which subsystem?",    components: [buildSubSel("sub_for_reopen")],             flags: MessageFlags.Ephemeral });
       if (id === "remove_task")      return interaction.reply({ content: "Which subsystem?",    components: [buildSubSel("sub_for_remove")],             flags: MessageFlags.Ephemeral });
 
-      // Update payment status
       if (id === "update_payment") {
         if (!store.expenses.length) return interaction.reply({ content: "No logged expenses to update.", flags: MessageFlags.Ephemeral });
         const options = store.expenses.slice(-25).reverse().map((e) =>
@@ -569,9 +566,7 @@ client.on("interactionCreate", async (interaction) => {
         );
         return interaction.reply({
           content: "Which receipt do you want to update?",
-          components: [new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder().setCustomId("expense_for_payment").setPlaceholder("Choose a receipt...").addOptions(options)
-          )],
+          components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("expense_for_payment").setPlaceholder("Choose a receipt...").addOptions(options))],
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -617,7 +612,6 @@ client.on("interactionCreate", async (interaction) => {
         return interaction.reply({ content: `📣 Reminder sent to **${dmCount}** member(s) via DM!`, flags: MessageFlags.Ephemeral });
       }
 
-      // Approve/reject purchase requests — delete original message after action
       if (id.startsWith("approve_req_") || id.startsWith("reject_req_")) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const approved = id.startsWith("approve_req_");
@@ -626,27 +620,44 @@ client.on("interactionCreate", async (interaction) => {
         if (!req) return replyAndDelete(interaction, "Request not found or already processed.");
         store.pendingRequests = store.pendingRequests.filter((r) => r.id !== reqId);
         const group = FINANCE_GROUPS.find((g) => g.id === req.groupId);
-
-        // Delete the original request message
         try { await interaction.message.delete(); } catch {}
-
         if (approved) {
           const estTotal  = req.qty * req.estCost;
           store.spent[req.groupId] = (store.spent[req.groupId] || 0) + estTotal;
           const receiptId = makeReceiptId();
-          store.expenses.push({ receiptId, item: req.item, groupId: req.groupId, status: "Pending", date: new Date().toLocaleDateString("en-AU") });
-          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), req.userName, group.label, req.item, req.qty, fmtAUD(req.estCost), fmtAUD(estTotal), "", "", "Yes", "Pending", req.receipt || "", req.justification || "", ""]);
+          store.expenses.push({ receiptId, item: req.item, groupId: req.groupId, status: req.reimbursement || "Pending", date: new Date().toLocaleDateString("en-AU") });
+          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), req.userName, group.label, req.item, req.qty, fmtAUD(req.estCost), fmtAUD(estTotal), "", "", "Yes", req.reimbursement || "Pending", req.receipt || "", req.justification || "", ""]);
           await updateBudgetDashboard(guild);
           await postFinanceLog(guild, logEmbed(0x2ecc71, `✅ Request Approved — ${group.emoji} ${group.label}`,
-            [`**${req.item}** x${req.qty}`, `Est. Total: ${fmtAUD(estTotal)}`, `Approved by <@${uid}>`, `Receipt ID: ${receiptId}`, req.justification ? `Justification: ${req.justification}` : ""]));
+            [`**${req.item}** x${req.qty}`, `Est. Total: ${fmtAUD(estTotal)}`, `Approved by <@${uid}>`, `Receipt ID: ${receiptId}`, req.justification ? `Justification: ${req.justification}` : null]));
           await saveData();
           return replyAndDelete(interaction, `✅ Approved! **${receiptId}** — ${fmtAUD(estTotal)} charged to ${group.label}.`);
         } else {
-          await postFinanceLog(guild, logEmbed(0xe74c3c, `❌ Request Rejected — ${group.emoji} ${group.label}`,
-            [`**${req.item}** x${req.qty}`, `Rejected by <@${uid}>`]));
+          await postFinanceLog(guild, logEmbed(0xe74c3c, `❌ Request Rejected — ${group.emoji} ${group.label}`, [`**${req.item}** x${req.qty}`, `Rejected by <@${uid}>`]));
           await saveData();
           return replyAndDelete(interaction, "❌ Request rejected.");
         }
+      }
+    }
+
+    // ── USER SELECT MENU ──────────────────────────────────────────────────
+    if (interaction.isUserSelectMenu()) {
+      const id = interaction.customId;
+      if (id.startsWith("users_for_assign_")) {
+        await interaction.deferUpdate();
+        const subId     = id.replace("users_for_assign_", "");
+        const taskId    = pending.get(`${uid}_assigntask`);
+        const assignees = interaction.values;
+        const task      = store.tasks[subId]?.find((t) => t.id === taskId);
+        if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); return; }
+        task.assignees = assignees;
+        await updateAll(client);
+        const sub = SUBSYSTEMS.find((s) => s.id === subId);
+        const who = assignees.map((id) => `<@${id}>`).join(", ");
+        await postLog(guild, logEmbed(sub.color, `👤 Task assigned — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `Assigned to: ${who}`, `By <@${uid}>`]));
+        await interaction.editReply({ content: `👤 **${task.name}** assigned to ${who}!`, components: [] });
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+        return;
       }
     }
 
@@ -656,17 +667,16 @@ client.on("interactionCreate", async (interaction) => {
       const value = interaction.values[0];
 
       // Modals must come before any defer
-      if (id === "group_for_expense") return interaction.showModal(expenseModal(value, false));
-      if (id === "group_for_request") return interaction.showModal(expenseModal(value, true));
+      if (id === "group_for_expense") return interaction.showModal(expenseModalBasic(value, false));
+      if (id === "group_for_request") return interaction.showModal(expenseModalBasic(value, true));
       if (id === "group_for_budget")  return interaction.showModal(setBudgetModal(value));
 
-      // FIX: subsystem selected for add task — show a button instead of immediately opening modal
-      // This lets users re-open the form if they closed it
+      // FIX: subsystem selected → show button to open form (allows reentry)
       if (id === "sub_for_add") {
         const sub = SUBSYSTEMS.find((s) => s.id === value);
         return interaction.update({
-          content: `${sub.emoji} **${sub.label}** selected — click below to open the form:`,
-          components: [buildOpenFormButton(value, "add")],
+          content: `${sub.emoji} **${sub.label}** selected — click below to open the task form:`,
+          components: [buildOpenFormButton(value)],
         });
       }
 
@@ -675,12 +685,19 @@ client.on("interactionCreate", async (interaction) => {
         const task  = store.tasks[subId]?.find((t) => t.id === value);
         if (!task) return interaction.update({ content: "Task not found.", components: [] });
         pending.set(`${uid}_assigntask`, value);
-        return interaction.showModal(new ModalBuilder().setCustomId(`modal_assign_${subId}`).setTitle(`Assign — ${task.name.slice(0, 40)}`).addComponents(
-          new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("assignees").setLabel("Discord User IDs (comma separated)").setStyle(TextInputStyle.Short).setPlaceholder("Right-click user → Copy User ID").setRequired(true))
-        ));
+        // Show user select menu
+        return interaction.update({
+          content: `👤 Who do you want to assign **${task.name}** to?`,
+          components: [new ActionRowBuilder().addComponents(
+            new UserSelectMenuBuilder()
+              .setCustomId(`users_for_assign_${subId}`)
+              .setPlaceholder("Search for a member...")
+              .setMinValues(1)
+              .setMaxValues(5)
+          )],
+        });
       }
 
-      // Payment status update
       if (id === "expense_for_payment") {
         pending.set(`${uid}_payment_receipt`, value);
         return interaction.showModal(updatePaymentModal(value));
@@ -754,32 +771,15 @@ client.on("interactionCreate", async (interaction) => {
         const name     = interaction.fields.getTextInputValue("task_name").trim();
         const dueDate  = interaction.fields.getTextInputValue("due_date").trim();
         const notes    = interaction.fields.getTextInputValue("notes").trim();
-        const rawIds   = interaction.fields.getTextInputValue("assignees").trim();
-        const assignees = rawIds ? rawIds.split(",").map((s) => s.trim()).filter(Boolean) : [];
         if (!store.tasks[subId]) store.tasks[subId] = [];
-        store.tasks[subId].push({ id: makeId(), name, done: false, assignees, dueDate: dueDate || null, notes: notes || null, addedAt: Date.now() });
+        store.tasks[subId].push({ id: makeId(), name, done: false, assignees: [], dueDate: dueDate || null, notes: notes || null, addedAt: Date.now() });
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
-        const who = assignees.length ? assignees.map((id) => `<@${id}>`).join(", ") : "*unassigned*";
-        const logLines = [`**${name}**`, `By <@${uid}>`, `Assigned: ${who}`];
+        const logLines = [`**${name}**`, `By <@${uid}>`, `Assigned: *unassigned*`];
         if (dueDate) logLines.push(`Due: ${dueDate}`);
         if (notes) logLines.push(`Notes: ${notes}`);
         await postLog(guild, logEmbed(sub.color, `➕ Task added — ${sub.emoji} ${sub.label}`, logLines));
-        return replyAndDelete(interaction, `${sub.emoji} **${name}** added to **${sub.label}**!\n👤 ${who}${dueDate ? `\n📅 Due: ${dueDate}` : ""}`);
-      }
-
-      if (interaction.customId.startsWith("modal_assign_")) {
-        const subId     = interaction.customId.replace("modal_assign_", "");
-        const taskId    = pending.get(`${uid}_assigntask`);
-        const assignees = interaction.fields.getTextInputValue("assignees").trim().split(",").map((s) => s.trim()).filter(Boolean);
-        const task      = store.tasks[subId]?.find((t) => t.id === taskId);
-        if (!task) return replyAndDelete(interaction, "Task not found.");
-        task.assignees = assignees;
-        await updateAll(client);
-        const sub = SUBSYSTEMS.find((s) => s.id === subId);
-        const who = assignees.map((id) => `<@${id}>`).join(", ");
-        await postLog(guild, logEmbed(sub.color, `👤 Task assigned — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `Assigned to: ${who}`, `By <@${uid}>`]));
-        return replyAndDelete(interaction, `👤 **${task.name}** assigned to ${who}!`);
+        return replyAndDelete(interaction, `${sub.emoji} **${name}** added to **${sub.label}**!${dueDate ? `\n📅 Due: ${dueDate}` : ""}`);
       }
 
       if (interaction.customId.startsWith("modal_budget_")) {
@@ -800,30 +800,53 @@ client.on("interactionCreate", async (interaction) => {
         const expense   = store.expenses.find((e) => e.receiptId === receiptId);
         if (!expense) return replyAndDelete(interaction, "Receipt not found.");
         expense.status = newStatus;
-        await updateReimbursementStatus(receiptId, newStatus);
+        await updateSheetRow(receiptId, "L", newStatus);
         await saveData();
-        await postFinanceLog(guild, logEmbed(0x38bdf8, `💳 Payment status updated — ${receiptId}`, [`New status: **${newStatus}**`, `Updated by <@${uid}>`]));
-        return replyAndDelete(interaction, `💳 **${receiptId}** reimbursement status updated to **${newStatus}**!`);
+        await postFinanceLog(guild, logEmbed(0x38bdf8, `💳 Payment updated — ${receiptId}`, [`New status: **${newStatus}**`, `By <@${uid}>`]));
+        return replyAndDelete(interaction, `💳 **${receiptId}** updated to **${newStatus}**!`);
       }
 
-      if (interaction.customId.startsWith("modal_expense_")) {
-        const isRequest = interaction.customId.endsWith("_req");
-        const groupId   = interaction.customId.replace("modal_expense_", "").replace("_req", "");
-        const group     = FINANCE_GROUPS.find((g) => g.id === groupId);
+      // Step 1 of expense — basic info
+      if (interaction.customId.startsWith("modal_expense1_")) {
+        const rest      = interaction.customId.replace("modal_expense1_", "");
+        const isRequest = rest.endsWith("_req");
+        const groupId   = rest.replace("_req", "");
         const item      = interaction.fields.getTextInputValue("item").trim();
         const qty       = parseFloat(interaction.fields.getTextInputValue("qty")) || 1;
         const estCost   = parseFloat(interaction.fields.getTextInputValue("est_cost").replace(/[^0-9.]/g, "")) || 0;
         const finalRaw  = interaction.fields.getTextInputValue("final_cost").trim();
         const finalCost = finalRaw ? parseFloat(finalRaw.replace(/[^0-9.]/g, "")) : null;
-        const extraRaw      = interaction.fields.getTextInputValue("receipt_and_reason").trim();
-        const extraLines    = extraRaw.split("\n");
-        const receipt       = extraLines[0]?.trim() || "";
-        const reimbursement = extraLines[1]?.trim() || "Pending";
-        const justification = extraLines[2]?.trim() || "";
-        const estTotal   = qty * estCost;
-        const finalTotal = finalCost !== null ? qty * finalCost : null;
-        const member     = await guild.members.fetch(uid);
-        const userName   = member.displayName;
+        // Store step 1 data in pending
+        const tempId = makeId();
+        pending.set(`${uid}_expense_${tempId}`, { groupId, isRequest, item, qty, estCost, finalCost });
+        // Show step 2 modal for receipt details
+        await interaction.deleteReply().catch(() => {});
+        return interaction.followUp({
+          content: `✅ Basic info saved! Now fill in the receipt details:`,
+          components: [new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`open_expense2_${tempId}`).setLabel("📋 Add Receipt Details").setStyle(ButtonStyle.Primary)
+          )],
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      // Step 2 of expense — receipt details
+      if (interaction.customId.startsWith("modal_expense2_")) {
+        const parts         = interaction.customId.replace("modal_expense2_", "").split("_");
+        const tempId        = parts[parts.length - 1];
+        const expData       = pending.get(`${uid}_expense_${tempId}`);
+        if (!expData) return replyAndDelete(interaction, "Session expired — please start again.");
+        pending.delete(`${uid}_expense_${tempId}`);
+
+        const { groupId, isRequest, item, qty, estCost, finalCost } = expData;
+        const group         = FINANCE_GROUPS.find((g) => g.id === groupId);
+        const receipt       = interaction.fields.getTextInputValue("receipt").trim();
+        const reimbursement = interaction.fields.getTextInputValue("reimbursement").trim() || "Pending";
+        const justification = interaction.fields.getTextInputValue("justification").trim();
+        const estTotal      = qty * estCost;
+        const finalTotal    = finalCost !== null ? qty * finalCost : null;
+        const member        = await guild.members.fetch(uid);
+        const userName      = member.displayName;
 
         if (isRequest) {
           const reqId = makeId();
@@ -847,10 +870,22 @@ client.on("interactionCreate", async (interaction) => {
           await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), userName, group.label, item, qty, fmtAUD(estCost), fmtAUD(estTotal), finalCost !== null ? fmtAUD(finalCost) : "", finalTotal !== null ? fmtAUD(finalTotal) : "", "No", reimbursement, receipt, justification, ""]);
           await updateBudgetDashboard(guild);
           await postFinanceLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
-            [`**${item}** x${qty}`, `Est: ${fmtAUD(estTotal)}${finalTotal !== null ? `  |  Final: ${fmtAUD(finalTotal)}` : ""}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `Reimbursement: ${reimbursement}`, justification ? `Justification: ${justification}` : ""].filter(Boolean)));
+            [`**${item}** x${qty}`, `Est: ${fmtAUD(estTotal)}${finalTotal !== null ? `  |  Final: ${fmtAUD(finalTotal)}` : ""}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `Reimbursement: ${reimbursement}`, justification ? `Justification: ${justification}` : null].filter(Boolean)));
           await saveData();
           return replyAndDelete(interaction, `💸 **${receiptId}** logged!\n${item} x${qty} — ${fmtAUD(costToLog)} charged to **${group.label}**`);
         }
+      }
+    }
+
+    // ── EXPENSE STEP 2 BUTTON ────────────────────────────────────────────
+    if (interaction.isButton()) {
+      const id = interaction.customId;
+      if (id.startsWith("open_expense2_")) {
+        const tempId  = id.replace("open_expense2_", "");
+        const expData = pending.get(`${uid}_expense_${tempId}`);
+        if (!expData) return interaction.reply({ content: "Session expired — please start again.", flags: MessageFlags.Ephemeral });
+        const isRequest = expData.isRequest;
+        return interaction.showModal(expenseModalDetails(expData.groupId, isRequest, tempId));
       }
     }
 
