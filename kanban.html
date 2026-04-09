@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>URT Rover — Kanban Board</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #080c14;
+    --surface: #0e1521;
+    --surface2: #141d2e;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8edf5;
+    --muted: #6b7a96;
+    --dim: #3a4560;
+
+    --manipulator: #e74c3c;
+    --drivetrain: #e67e22;
+    --rf_antenna: #3498db;
+    --vision: #9b59b6;
+    --power: #f1c40f;
+    --onboard_comms: #1abc9c;
+    --science: #2ecc71;
+    --automation: #e91e63;
+  }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── SETUP SCREEN ── */
+  #setup {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: var(--bg);
+    background-image:
+      radial-gradient(ellipse at 20% 50%, rgba(52,152,219,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 20%, rgba(231,76,60,0.04) 0%, transparent 60%);
+  }
+
+  .setup-card {
+    width: 100%;
+    max-width: 440px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    padding: 2.5rem;
+  }
+
+  .setup-logo {
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 0.5rem;
+  }
+
+  .setup-title {
+    font-size: 2rem;
+    font-weight: 800;
+    margin-bottom: 0.25rem;
+    color: var(--text);
+  }
+
+  .setup-sub {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+  }
+
+  .field { margin-bottom: 1.25rem; }
+
+  .field label {
+    display: block;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 0.5rem;
+  }
+
+  .field input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .field input:focus { border-color: #3498db; }
+
+  .btn-connect {
+    width: 100%;
+    padding: 0.9rem;
+    background: #1d4ed8;
+    border: none;
+    border-radius: 8px;
+    color: #e8edf5;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-top: 0.5rem;
+  }
+  .btn-connect:hover { background: #1e40af; }
+
+  .setup-error {
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: rgba(231,76,60,0.1);
+    border: 1px solid rgba(231,76,60,0.3);
+    border-radius: 8px;
+    color: #f87171;
+    font-size: 0.8rem;
+    font-family: 'JetBrains Mono', monospace;
+    display: none;
+  }
+
+  /* ── BOARD ── */
+  #board { display: none; min-height: 100vh; }
+
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(8,12,20,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .header-left { display: flex; align-items: center; gap: 1.5rem; }
+
+  .header-wordmark {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .header-title {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text);
+  }
+
+  .overall-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .overall-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .overall-track {
+    width: 120px;
+    height: 4px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .overall-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #1d4ed8, #3498db);
+    border-radius: 2px;
+    transition: width 0.8s ease;
+  }
+
+  .overall-pct {
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    color: #3498db;
+    min-width: 32px;
+  }
+
+  .header-right { display: flex; align-items: center; gap: 0.75rem; }
+
+  .sync-info {
+    font-size: 0.65rem;
+    color: var(--dim);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .btn-refresh {
+    padding: 0.45rem 0.9rem;
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    color: #3498db;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-refresh:hover { background: rgba(52,152,219,0.08); border-color: #3498db; }
+
+  .btn-disconnect {
+    padding: 0.45rem 0.9rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-disconnect:hover { color: var(--muted); border-color: var(--border2); }
+
+  /* ── FILTER BAR ── */
+  .filter-bar {
+    padding: 0.75rem 2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-wrap: wrap;
+  }
+
+  .filter-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    margin-right: 0.25rem;
+  }
+
+  .filter-chip {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .filter-chip:hover { border-color: var(--border2); color: var(--text); }
+  .filter-chip.active { background: rgba(52,152,219,0.15); border-color: #3498db; color: #3498db; }
+  .filter-chip.done-filter.active { background: rgba(46,204,113,0.15); border-color: #2ecc71; color: #2ecc71; }
+
+  /* ── KANBAN SCROLL ── */
+  .kanban-scroll {
+    overflow-x: auto;
+    padding: 1.5rem 2rem 2rem;
+    display: flex;
+    gap: 1rem;
+    min-height: calc(100vh - 130px);
+    align-items: flex-start;
+  }
+
+  .kanban-scroll::-webkit-scrollbar { height: 6px; }
+  .kanban-scroll::-webkit-scrollbar-track { background: transparent; }
+  .kanban-scroll::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 3px; }
+
+  /* ── COLUMN ── */
+  .col {
+    flex-shrink: 0;
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .col-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    border-left: 3px solid;
+    background: var(--surface);
+    margin-bottom: 0.25rem;
+  }
+
+  .col-name {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
+  .col-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .col-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .col-count {
+    font-size: 0.65rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--muted);
+    background: var(--surface2);
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+  }
+
+  .col-pct {
+    font-size: 0.65rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--muted);
+  }
+
+  .col-progress {
+    height: 2px;
+    background: var(--surface2);
+    border-radius: 1px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+  }
+
+  .col-progress-fill {
+    height: 100%;
+    border-radius: 1px;
+    transition: width 0.8s ease;
+  }
+
+  .col-empty {
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--dim);
+    font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+  }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.85rem;
+    transition: border-color 0.2s, transform 0.15s;
+    border-left: 3px solid;
+    cursor: default;
+  }
+  .card:hover { border-color: var(--border2); transform: translateY(-1px); }
+  .card.done { opacity: 0.5; }
+  .card.done .card-name { text-decoration: line-through; }
+
+  .card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .card-status {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1.5px solid;
+    flex-shrink: 0;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+  }
+
+  .card-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1.4;
+    flex: 1;
+    color: var(--text);
+  }
+
+  .card-notes {
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-bottom: 0.6rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .card-assignees {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+  }
+
+  .assignee-chip {
+    font-size: 0.62rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    background: var(--surface2);
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .unassigned-chip {
+    font-size: 0.62rem;
+    color: var(--dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-style: italic;
+  }
+
+  .card-due {
+    font-size: 0.62rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .card-due.overdue { color: #e74c3c; }
+
+  /* ── LOADING ── */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+  }
+
+  @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+  .loading-dot { animation: pulse 1.2s ease-in-out infinite; }
+  .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+</style>
+</head>
+<body>
+
+<!-- SETUP SCREEN -->
+<div id="setup">
+  <div class="setup-card">
+    <div class="setup-logo">UNIVERSITY ROVER TEAM</div>
+    <div class="setup-title">Kanban Board</div>
+    <div class="setup-sub">Connect your JSONBin to view live task data</div>
+
+    <div class="field">
+      <label>JSONBIN BIN ID</label>
+      <input type="text" id="binId" placeholder="69d5d38c36566621a88c9d8c" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>JSONBIN MASTER KEY</label>
+      <input type="password" id="apiKey" placeholder="$2a$10$...">
+    </div>
+
+    <button class="btn-connect" onclick="connect()">→ Connect</button>
+    <div class="setup-error" id="setup-error"></div>
+
+    <div style="margin-top:1.5rem; font-size:0.7rem; color:var(--dim); font-family:'JetBrains Mono',monospace; text-align:center; line-height:1.8;">
+      Credentials stay in your browser only<br>Tasks are managed via your Discord bot
+    </div>
+  </div>
+</div>
+
+<!-- BOARD -->
+<div id="board">
+  <div class="header">
+    <div class="header-left">
+      <div>
+        <div class="header-wordmark">URT ROVER TEAM</div>
+        <div class="header-title">Kanban Board</div>
+      </div>
+      <div class="overall-bar">
+        <div class="overall-label">OVERALL</div>
+        <div class="overall-track">
+          <div class="overall-fill" id="overall-fill" style="width:0%"></div>
+        </div>
+        <div class="overall-pct" id="overall-pct">0%</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="sync-info" id="sync-info">—</div>
+      <button class="btn-refresh" onclick="refresh()">↻ REFRESH</button>
+      <button class="btn-disconnect" onclick="disconnect()">DISCONNECT</button>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <span class="filter-label">SHOW:</span>
+    <button class="filter-chip active" data-filter="all" onclick="setFilter('all',this)">All tasks</button>
+    <button class="filter-chip" data-filter="todo" onclick="setFilter('todo',this)">Remaining</button>
+    <button class="filter-chip done-filter" data-filter="done" onclick="setFilter('done',this)">Completed</button>
+    <button class="filter-chip" data-filter="unassigned" onclick="setFilter('unassigned',this)">Unassigned</button>
+    <button class="filter-chip" data-filter="overdue" onclick="setFilter('overdue',this)">Overdue</button>
+  </div>
+
+  <div class="kanban-scroll" id="kanban">
+    <div class="loading">
+      <span class="loading-dot">●</span>&nbsp;
+      <span class="loading-dot">●</span>&nbsp;
+      <span class="loading-dot">●</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUBS = [
+  { id:'manipulator',   label:'Manipulator',     emoji:'🦾', color:'#e74c3c' },
+  { id:'drivetrain',    label:'Drivetrain',       emoji:'🚗', color:'#e67e22' },
+  { id:'rf_antenna',   label:'RF & Antenna',     emoji:'📡', color:'#3498db' },
+  { id:'vision',        label:'Vision & Cameras', emoji:'📷', color:'#9b59b6' },
+  { id:'power',         label:'Power',            emoji:'⚡', color:'#f1c40f' },
+  { id:'onboard_comms', label:'Onboard Comms',   emoji:'🔌', color:'#1abc9c' },
+  { id:'science',       label:'Science',          emoji:'🔬', color:'#2ecc71' },
+  { id:'automation',    label:'Automation',       emoji:'🤖', color:'#e91e63' },
+];
+
+let creds = null;
+let tasks = {};
+let filterMode = 'all';
+let refreshTimer = null;
+let memberCache = {};
+
+// ── SETUP ──
+function connect() {
+  const binId  = document.getElementById('binId').value.trim();
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (!binId || !apiKey) { showError('Both fields are required.'); return; }
+  creds = { binId, apiKey };
+  document.querySelector('.btn-connect').textContent = 'Connecting...';
+  loadData().then(() => {
+    document.getElementById('setup').style.display = 'none';
+    document.getElementById('board').style.display = 'block';
+    startAutoRefresh();
+  }).catch(e => {
+    creds = null;
+    showError(e.message);
+    document.querySelector('.btn-connect').textContent = '→ Connect';
+  });
+}
+
+function showError(msg) {
+  const el = document.getElementById('setup-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function disconnect() {
+  creds = null; tasks = {}; memberCache = {};
+  clearInterval(refreshTimer);
+  document.getElementById('setup').style.display = 'flex';
+  document.getElementById('board').style.display = 'none';
+  document.querySelector('.btn-connect').textContent = '→ Connect';
+  document.getElementById('setup-error').style.display = 'none';
+}
+
+// ── DATA ──
+async function loadData() {
+  const res = await fetch(`https://api.jsonbin.io/v3/b/${creds.binId}`, {
+    headers: { 'X-Master-Key': creds.apiKey }
+  });
+  if (!res.ok) throw new Error(`JSONBin error ${res.status} — check your credentials`);
+  const data = await res.json();
+  tasks = data.record?.tasks || {};
+
+  // Resolve member names from Discord IDs stored in tasks
+  // We collect all unique IDs and try to display them nicely
+  const allIds = new Set();
+  Object.values(tasks).flat().forEach(t => (t.assignees||[]).forEach(id => allIds.add(id)));
+
+  updateBoard();
+  document.getElementById('sync-info').textContent = 'SYNCED ' + new Date().toLocaleTimeString();
+}
+
+function refresh() {
+  document.querySelector('.btn-refresh').textContent = '↻ SYNCING...';
+  loadData().finally(() => {
+    document.querySelector('.btn-refresh').textContent = '↻ REFRESH';
+  });
+}
+
+function startAutoRefresh() {
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => loadData().catch(()=>{}), 30000);
+}
+
+// ── FILTERS ──
+function setFilter(mode, el) {
+  filterMode = mode;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  updateBoard();
+}
+
+function isOverdue(t) {
+  if (!t.dueDate || t.done) return false;
+  const parts = t.dueDate.split('/');
+  if (parts.length !== 3) return false;
+  const due = new Date(parts[2], parts[1]-1, parts[0]);
+  return due < new Date();
+}
+
+function filterTask(t) {
+  if (filterMode === 'todo')       return !t.done;
+  if (filterMode === 'done')       return t.done;
+  if (filterMode === 'unassigned') return !t.done && (!t.assignees || t.assignees.length === 0);
+  if (filterMode === 'overdue')    return isOverdue(t);
+  return true;
+}
+
+// ── RENDER ──
+function updateBoard() {
+  let totalDone = 0, totalAll = 0;
+  SUBS.forEach(s => {
+    const list = tasks[s.id] || [];
+    totalDone += list.filter(t=>t.done).length;
+    totalAll  += list.length;
+  });
+  const pct = totalAll === 0 ? 0 : Math.round(totalDone/totalAll*100);
+  document.getElementById('overall-fill').style.width = pct + '%';
+  document.getElementById('overall-pct').textContent  = pct + '%';
+
+  const kanban = document.getElementById('kanban');
+  kanban.innerHTML = '';
+
+  SUBS.forEach(sub => {
+    const list    = tasks[sub.id] || [];
+    const visible = list.filter(filterTask);
+    const done    = list.filter(t=>t.done).length;
+    const total   = list.length;
+    const subPct  = total === 0 ? 0 : Math.round(done/total*100);
+
+    const col = document.createElement('div');
+    col.className = 'col';
+
+    // Header
+    const hdr = document.createElement('div');
+    hdr.className = 'col-header';
+    hdr.style.borderLeftColor = sub.color;
+    hdr.innerHTML = `
+      <div class="col-name">
+        <div class="col-dot" style="background:${sub.color}"></div>
+        ${sub.label}
+      </div>
+      <div class="col-meta">
+        <span class="col-count">${done}/${total}</span>
+        <span class="col-pct">${subPct}%</span>
+      </div>
+    `;
+    col.appendChild(hdr);
+
+    // Progress bar
+    const prog = document.createElement('div');
+    prog.className = 'col-progress';
+    prog.innerHTML = `<div class="col-progress-fill" style="width:${subPct}%;background:${sub.color}"></div>`;
+    col.appendChild(prog);
+
+    // Cards
+    if (visible.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'col-empty';
+      empty.textContent = filterMode === 'all' ? 'No tasks yet' : 'No matches';
+      col.appendChild(empty);
+    } else {
+      // Sort: incomplete first, then done; within each group by due date
+      const sorted = [...visible].sort((a,b) => {
+        if (a.done !== b.done) return a.done ? 1 : -1;
+        return (a.addedAt||0) - (b.addedAt||0);
+      });
+
+      sorted.forEach(task => {
+        const card = document.createElement('div');
+        card.className = 'card' + (task.done ? ' done' : '');
+        card.style.borderLeftColor = sub.color;
+
+        const overdue = isOverdue(task);
+
+        // Status circle
+        const statusColor = task.done ? sub.color : (overdue ? '#e74c3c' : 'var(--dim)');
+        const statusIcon  = task.done ? '✓' : '';
+
+        // Assignees
+        let assigneeHtml = '';
+        if (!task.assignees || task.assignees.length === 0) {
+          assigneeHtml = `<span class="unassigned-chip">unassigned</span>`;
+        } else {
+          assigneeHtml = task.assignees.map(id => {
+            const name = memberCache[id] || shortId(id);
+            return `<span class="assignee-chip">${escHtml(name)}</span>`;
+          }).join('');
+        }
+
+        // Due date
+        let dueHtml = '';
+        if (task.dueDate) {
+          const cls = overdue ? 'card-due overdue' : 'card-due';
+          const icon = overdue ? '⚠' : '📅';
+          dueHtml = `<span class="${cls}">${icon} ${escHtml(task.dueDate)}</span>`;
+        }
+
+        // Notes
+        const notesHtml = task.notes
+          ? `<div class="card-notes">${escHtml(task.notes)}</div>`
+          : '';
+
+        card.innerHTML = `
+          <div class="card-top">
+            <div class="card-status" style="border-color:${statusColor};color:${statusColor}">${statusIcon}</div>
+            <div class="card-name">${escHtml(task.name)}</div>
+          </div>
+          ${notesHtml}
+          <div class="card-footer">
+            <div class="card-assignees">${assigneeHtml}</div>
+            ${dueHtml}
+          </div>
+        `;
+        col.appendChild(card);
+      });
+    }
+
+    kanban.appendChild(col);
+  });
+}
+
+function shortId(id) {
+  return id ? '…' + id.slice(-4) : '?';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Enter to connect
+document.getElementById('apiKey').addEventListener('keydown', e => {
+  if (e.key === 'Enter') connect();
+});
+document.getElementById('binId').addEventListener('keydown', e => {
+  if (e.key === 'Enter') connect();
+});
+</script>
+</body>
+</html>
