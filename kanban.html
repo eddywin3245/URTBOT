@@ -146,12 +146,17 @@ async function jbGet() {
 }
 
 async function jbPut(data) {
+  console.log('PUT request starting...');
   const r = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY, 'X-Bin-Versioning': 'false' },
     body: JSON.stringify(data)
   });
+  console.log('PUT response status:', r.status);
+  const body = await r.json();
+  console.log('PUT response body:', body);
   if (!r.ok) throw new Error(`Save error ${r.status}`);
+  return body;
 }
 
 async function loadData() {
@@ -164,7 +169,9 @@ async function loadData() {
 }
 
 async function saveData() {
-  await jbPut(store);
+  console.log('Saving store:', JSON.stringify(store).slice(0, 200));
+  const result = await jbPut(store);
+  console.log('Save result:', result);
   document.getElementById('sync-info').textContent = 'SAVED ' + new Date().toLocaleTimeString();
 }
 
