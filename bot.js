@@ -17,24 +17,26 @@ const STATUS_CHANNEL_ID      = process.env.STATUS_CHANNEL_ID;
 const GOOGLE_SHEET_ID        = process.env.GOOGLE_SHEET_ID;
 const GOOGLE_SERVICE_ACCOUNT = process.env.GOOGLE_SERVICE_ACCOUNT;
 
+// ─────────────────────────────────────────
+//  6 SUBSYSTEMS (merged)
+// ─────────────────────────────────────────
 const SUBSYSTEMS = [
-  { id: "manipulator",   label: "Manipulator",     emoji: "🦾", color: 0xe74c3c },
-  { id: "drivetrain",    label: "Drivetrain",       emoji: "🚗", color: 0xe67e22 },
-  { id: "rf_antenna",   label: "RF & Antenna",     emoji: "📡", color: 0x3498db },
-  { id: "vision",        label: "Vision & Cameras", emoji: "📷", color: 0x9b59b6 },
-  { id: "power",         label: "Power",            emoji: "⚡", color: 0xf1c40f },
-  { id: "onboard_comms", label: "Onboard Comms",   emoji: "🔌", color: 0x1abc9c },
-  { id: "science",       label: "Science",          emoji: "🔬", color: 0x2ecc71 },
-  { id: "automation",    label: "Automation",       emoji: "🤖", color: 0xe91e63 },
+  { id: "manipulator", label: "Manipulator", emoji: "🦾", color: 0xe74c3c },
+  { id: "drivetrain",  label: "Drivetrain",  emoji: "🚗", color: 0xe67e22 },
+  { id: "comms",       label: "Comms",       emoji: "📡", color: 0x3498db },
+  { id: "electrical",  label: "Electrical",  emoji: "⚡", color: 0xf1c40f },
+  { id: "science",     label: "Science",     emoji: "🔬", color: 0x2ecc71 },
+  { id: "automation",  label: "Automation",  emoji: "🤖", color: 0xe91e63 },
 ];
 
+// Finance groups match subsystems exactly now
 const FINANCE_GROUPS = [
-  { id: "manipulator", label: "Manipulator", emoji: "🦾", subsystems: ["manipulator"],            color: 0xe74c3c },
-  { id: "drivetrain",  label: "Drivetrain",  emoji: "🚗", subsystems: ["drivetrain"],             color: 0xe67e22 },
-  { id: "comms",       label: "Comms",       emoji: "📡", subsystems: ["rf_antenna","vision"],    color: 0x3498db },
-  { id: "electrical",  label: "Electrical",  emoji: "⚡", subsystems: ["power","onboard_comms"],  color: 0xf1c40f },
-  { id: "science",     label: "Science",     emoji: "🔬", subsystems: ["science"],                color: 0x2ecc71 },
-  { id: "automation",  label: "Automation",  emoji: "🤖", subsystems: ["automation"],             color: 0xe91e63 },
+  { id: "manipulator", label: "Manipulator", emoji: "🦾", color: 0xe74c3c },
+  { id: "drivetrain",  label: "Drivetrain",  emoji: "🚗", color: 0xe67e22 },
+  { id: "comms",       label: "Comms",       emoji: "📡", color: 0x3498db },
+  { id: "electrical",  label: "Electrical",  emoji: "⚡", color: 0xf1c40f },
+  { id: "science",     label: "Science",     emoji: "🔬", color: 0x2ecc71 },
+  { id: "automation",  label: "Automation",  emoji: "🤖", color: 0xe91e63 },
 ];
 
 const DEFAULT_BUDGETS = {
@@ -45,24 +47,11 @@ const DEFAULT_BUDGETS = {
 // ─────────────────────────────────────────
 //  HELPERS
 // ─────────────────────────────────────────
-
-// Reply ephemerally, show content, then delete after delay
 async function replyAndDelete(interaction, content, delay = 4000) {
   await interaction.editReply({ content, components: [] });
   setTimeout(() => interaction.deleteReply().catch(() => {}), delay);
 }
 
-// For interactions that used reply() not deferReply() — update then delete
-async function updateThenDelete(interaction, content, delay = 4000) {
-  try {
-    await interaction.editReply({ content, components: [] });
-  } catch {
-    try { await interaction.update({ content, components: [] }); } catch {}
-  }
-  setTimeout(() => interaction.deleteReply().catch(() => {}), delay);
-}
-
-// Auto-delete an ephemeral reply message after delay
 function scheduleDelete(interaction, delay = 4000) {
   setTimeout(() => interaction.deleteReply().catch(() => {}), delay);
 }
@@ -163,6 +152,7 @@ async function loadData() {
     leadChannelIds:      r.leadChannelIds      || {},
     logChannelId:        r.logChannelId        || null,
     financeLogChannelId: r.financeLogChannelId || null,
+    approvalChannelId:   r.approvalChannelId   || null,
     budgetChannelId:     r.budgetChannelId     || null,
     budgetMessageId:     r.budgetMessageId     || null,
     budgets:             r.budgets             || { ...DEFAULT_BUDGETS },
@@ -208,16 +198,42 @@ async function getFinanceLogChannel(guild) {
   return ch;
 }
 
+async function getApprovalChannel(guild, botUserId) {
+  if (store.approvalChannelId) {
+    try { return await guild.channels.fetch(store.approvalChannelId); } catch { store.approvalChannelId = null; }
+  }
+  const existing = guild.channels.cache.find((c) => c.name === "purchase-approvals");
+  if (existing) { store.approvalChannelId = existing.id; return existing; }
+  // Create private channel — only team leads (bot manages access)
+  const ch = await guild.channels.create({
+    name: "purchase-approvals",
+    type: ChannelType.GuildText,
+    topic: "📝 URT Rover — purchase request approvals",
+    permissionOverwrites: [
+      { id: guild.roles.everyone, deny: [PermissionsBitField.Flags.ViewChannel] },
+      { id: botUserId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory, PermissionsBitField.Flags.EmbedLinks] },
+    ],
+  });
+  store.approvalChannelId = ch.id;
+  await saveData();
+  return ch;
+}
+
 async function postLog(guild, embed) {
   try { const ch = await getLogChannel(guild); await ch.send({ embeds: [embed] }); }
   catch (e) { console.error("Log post failed:", e.message); }
 }
 
-async function postFinanceLog(guild, embed, components) {
+async function postFinanceLog(guild, embed) {
+  try { const ch = await getFinanceLogChannel(guild); await ch.send({ embeds: [embed] }); }
+  catch (e) { console.error("Finance log post failed:", e.message); }
+}
+
+async function postApprovalRequest(guild, embed, components, botUserId) {
   try {
-    const ch = await getFinanceLogChannel(guild);
-    await ch.send({ embeds: [embed], ...(components ? { components } : {}) });
-  } catch (e) { console.error("Finance log post failed:", e.message); }
+    const ch = await getApprovalChannel(guild, botUserId);
+    await ch.send({ embeds: [embed], components });
+  } catch (e) { console.error("Approval post failed:", e.message); }
 }
 
 function logEmbed(color, title, lines) {
@@ -252,8 +268,7 @@ function buildBudgetEmbed() {
     const pct    = budget === 0 ? 0 : Math.min(100, Math.round((spent / budget) * 100));
     const bar    = "█".repeat(Math.round(pct / 10)) + "░".repeat(10 - Math.round(pct / 10));
     const dot    = left < 0 ? "🔴" : left < budget * 0.2 ? "🟡" : "🟢";
-    const subs   = g.subsystems.map((sid) => SUBSYSTEMS.find((s) => s.id === sid)?.label).join(" + ");
-    return `${g.emoji} **${g.label}** ${dot}\n\`${bar}\` ${pct}% spent\n${fmtAUD(spent)} / ${fmtAUD(budget)} — **${fmtAUD(left)} remaining**\n*${subs}*`;
+    return `${g.emoji} **${g.label}** ${dot}\n\`${bar}\` ${pct}% spent\n${fmtAUD(spent)} / ${fmtAUD(budget)} — **${fmtAUD(left)} remaining**`;
   });
   const tb = Object.values(store.budgets).reduce((a, b) => a + b, 0);
   const ts = Object.values(store.spent).reduce((a, b) => a + b, 0);
@@ -486,6 +501,7 @@ async function setupLeadChannels(guild, botUserId) {
   const BOT_PERMS = { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, EmbedLinks: true };
   let category = guild.channels.cache.find((c) => c.type === ChannelType.GuildCategory && c.name.toUpperCase() === "SUBSYSTEM LEADS");
   if (!category) category = await guild.channels.create({ name: "SUBSYSTEM LEADS", type: ChannelType.GuildCategory });
+
   for (const sub of SUBSYSTEMS) {
     const channelName = sub.id.replace(/_/g, "-") + "-lead";
     if (store.leadChannelIds[sub.id]) {
@@ -521,6 +537,9 @@ client.once("clientReady", async () => {
     await guild.channels.fetch();
     await setupLeadChannels(guild, client.user.id);
     await ensureSheetHeaders();
+    await getLogChannel(guild);
+    await getFinanceLogChannel(guild);
+    await getApprovalChannel(guild, client.user.id);
     await saveData();
 
     store.messageId = null; store.leadMessageIds = {}; store.budgetMessageId = null;
@@ -531,8 +550,6 @@ client.once("clientReady", async () => {
 
     await updateAll(client);
     await updateBudgetDashboard(guild);
-    await getLogChannel(guild);
-    await getFinanceLogChannel(guild);
     await postSnapshot(guild);
     await saveData();
     console.log("✅ All done!");
@@ -547,15 +564,12 @@ client.on("interactionCreate", async (interaction) => {
     const uid   = interaction.user?.id;
     const guild = interaction.guild;
 
-    // ── BUTTONS ──────────────────────────────────────────────────────────
     if (interaction.isButton()) {
       const id = interaction.customId;
 
-      // Modals must come before any defer
       if (id.startsWith("lead_add_"))      return interaction.showModal(addTaskModal(id.replace("lead_add_", "")));
       if (id.startsWith("open_form_add_")) return interaction.showModal(addTaskModal(id.replace("open_form_add_", "")));
 
-      // Expense step 2 button
       if (id.startsWith("open_expense2_")) {
         const tempId  = id.replace("open_expense2_", "");
         const expData = pending.get(`${uid}_expense_${tempId}`);
@@ -577,56 +591,25 @@ client.on("interactionCreate", async (interaction) => {
         return replyAndDelete(interaction, "🔄 Budget refreshed!");
       }
 
-      // Finance dropdowns — show then auto-delete after modal opens (handled in select menu)
-      if (id === "log_expense") {
-        await interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_expense")], flags: MessageFlags.Ephemeral });
+      const replyWithMenu = async (content, components) => {
+        await interaction.reply({ content, components, flags: MessageFlags.Ephemeral });
         scheduleDelete(interaction, 30000);
-        return;
-      }
-      if (id === "purchase_request") {
-        await interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_request")], flags: MessageFlags.Ephemeral });
-        scheduleDelete(interaction, 30000);
-        return;
-      }
-      if (id === "set_budget") {
-        await interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_budget")], flags: MessageFlags.Ephemeral });
-        scheduleDelete(interaction, 30000);
-        return;
-      }
+      };
+
+      if (id === "log_expense")      return replyWithMenu("Which budget group?", [buildFinanceGroupSel("group_for_expense")]);
+      if (id === "purchase_request") return replyWithMenu("Which budget group?", [buildFinanceGroupSel("group_for_request")]);
+      if (id === "set_budget")       return replyWithMenu("Which budget group?", [buildFinanceGroupSel("group_for_budget")]);
+      if (id === "add_task")         return replyWithMenu("Which subsystem?",    [buildSubSel("sub_for_add")]);
+      if (id === "mark_done")        return replyWithMenu("Which subsystem?",    [buildSubSel("sub_for_done")]);
+      if (id === "reopen_task")      return replyWithMenu("Which subsystem?",    [buildSubSel("sub_for_reopen")]);
+      if (id === "remove_task")      return replyWithMenu("Which subsystem?",    [buildSubSel("sub_for_remove")]);
+
       if (id === "update_payment") {
-        if (!store.expenses.length) {
-          await interaction.reply({ content: "No logged expenses to update.", flags: MessageFlags.Ephemeral });
-          scheduleDelete(interaction, 4000);
-          return;
-        }
+        if (!store.expenses.length) { await interaction.reply({ content: "No logged expenses to update.", flags: MessageFlags.Ephemeral }); scheduleDelete(interaction, 4000); return; }
         const options = store.expenses.slice(-25).reverse().map((e) =>
           new StringSelectMenuOptionBuilder().setLabel(`${e.receiptId} — ${e.item} (${e.status})`).setValue(e.receiptId)
         );
-        await interaction.reply({
-          content: "Which receipt do you want to update?",
-          components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("expense_for_payment").setPlaceholder("Choose a receipt...").addOptions(options))],
-          flags: MessageFlags.Ephemeral,
-        });
-        scheduleDelete(interaction, 30000);
-        return;
-      }
-      if (id === "add_task") {
-        await interaction.reply({ content: "Which subsystem?", components: [buildSubSel("sub_for_add")], flags: MessageFlags.Ephemeral });
-        scheduleDelete(interaction, 30000);
-        return;
-      }
-      if (id === "mark_done") {
-        await interaction.reply({ content: "Which subsystem?", components: [buildSubSel("sub_for_done")], flags: MessageFlags.Ephemeral });
-        scheduleDelete(interaction, 30000);
-        return;
-      }
-      if (id === "reopen_task") {
-        await interaction.reply({ content: "Which subsystem?", components: [buildSubSel("sub_for_reopen")], flags: MessageFlags.Ephemeral });
-        scheduleDelete(interaction, 30000);
-        return;
-      }
-      if (id === "remove_task") {
-        await interaction.reply({ content: "Which subsystem?", components: [buildSubSel("sub_for_remove")], flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: "Which receipt to update?", components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("expense_for_payment").setPlaceholder("Choose a receipt...").addOptions(options))], flags: MessageFlags.Ephemeral });
         scheduleDelete(interaction, 30000);
         return;
       }
@@ -634,11 +617,7 @@ client.on("interactionCreate", async (interaction) => {
       if (id.startsWith("lead_done_")) {
         const subId = id.replace("lead_done_", "");
         const sel   = buildTaskSel("task_for_done", store.tasks, subId, "todo");
-        if (!sel) {
-          await interaction.reply({ content: "No incomplete tasks!", flags: MessageFlags.Ephemeral });
-          scheduleDelete(interaction, 4000);
-          return;
-        }
+        if (!sel) { await interaction.reply({ content: "No incomplete tasks!", flags: MessageFlags.Ephemeral }); scheduleDelete(interaction, 4000); return; }
         pending.set(`${uid}_done`, subId);
         await interaction.reply({ content: "Which task is done?", components: [sel], flags: MessageFlags.Ephemeral });
         scheduleDelete(interaction, 60000);
@@ -647,11 +626,7 @@ client.on("interactionCreate", async (interaction) => {
       if (id.startsWith("lead_assign_")) {
         const subId = id.replace("lead_assign_", "");
         const sel   = buildTaskSel("task_for_assign", store.tasks, subId, "all");
-        if (!sel) {
-          await interaction.reply({ content: "No tasks to assign!", flags: MessageFlags.Ephemeral });
-          scheduleDelete(interaction, 4000);
-          return;
-        }
+        if (!sel) { await interaction.reply({ content: "No tasks to assign!", flags: MessageFlags.Ephemeral }); scheduleDelete(interaction, 4000); return; }
         pending.set(`${uid}_assign`, subId);
         await interaction.reply({ content: "Which task to assign?", components: [sel], flags: MessageFlags.Ephemeral });
         scheduleDelete(interaction, 60000);
@@ -660,42 +635,23 @@ client.on("interactionCreate", async (interaction) => {
       if (id.startsWith("lead_remove_")) {
         const subId = id.replace("lead_remove_", "");
         const sel   = buildTaskSel("task_for_remove", store.tasks, subId, "all");
-        if (!sel) {
-          await interaction.reply({ content: "No tasks to remove!", flags: MessageFlags.Ephemeral });
-          scheduleDelete(interaction, 4000);
-          return;
-        }
+        if (!sel) { await interaction.reply({ content: "No tasks to remove!", flags: MessageFlags.Ephemeral }); scheduleDelete(interaction, 4000); return; }
         pending.set(`${uid}_remove`, subId);
         await interaction.reply({ content: "Which task to remove?", components: [sel], flags: MessageFlags.Ephemeral });
         scheduleDelete(interaction, 60000);
         return;
       }
-
-      // ── PER-TASK REMINDER — step 1: pick the task ──
       if (id.startsWith("lead_remind_")) {
         const subId = id.replace("lead_remind_", "");
         const todos = (store.tasks[subId] || []).filter((t) => !t.done);
-        if (!todos.length) {
-          await interaction.reply({ content: "✅ No incomplete tasks to remind about!", flags: MessageFlags.Ephemeral });
-          scheduleDelete(interaction, 4000);
-          return;
-        }
-        // Show task picker — only incomplete tasks with assignees get listed
-        // All incomplete tasks shown, unassigned ones indicated
+        if (!todos.length) { await interaction.reply({ content: "✅ No incomplete tasks to remind about!", flags: MessageFlags.Ephemeral }); scheduleDelete(interaction, 4000); return; }
         const options = todos.slice(0, 25).map((t) => {
-          const who = t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "unassigned";
           const label = t.name.slice(0, 80) + (t.assignees?.length ? "" : " ⚠️");
-          const desc  = t.assignees?.length ? `Assigned to: ${t.assignees.length} member(s)` : "No one assigned";
+          const desc  = t.assignees?.length ? `${t.assignees.length} member(s) assigned` : "No one assigned";
           return new StringSelectMenuOptionBuilder().setLabel(label).setDescription(desc).setValue(t.id);
         });
         pending.set(`${uid}_remind_sub`, subId);
-        await interaction.reply({
-          content: "📣 Which task do you want to send a reminder for?",
-          components: [new ActionRowBuilder().addComponents(
-            new StringSelectMenuBuilder().setCustomId("task_for_remind").setPlaceholder("Choose a task...").addOptions(options)
-          )],
-          flags: MessageFlags.Ephemeral,
-        });
+        await interaction.reply({ content: "📣 Which task to send a reminder for?", components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("task_for_remind").setPlaceholder("Choose a task...").addOptions(options))], flags: MessageFlags.Ephemeral });
         scheduleDelete(interaction, 60000);
         return;
       }
@@ -728,7 +684,6 @@ client.on("interactionCreate", async (interaction) => {
       }
     }
 
-    // ── USER SELECT MENU ──────────────────────────────────────────────────
     if (interaction.isUserSelectMenu()) {
       const id = interaction.customId;
       if (id.startsWith("users_for_assign_")) {
@@ -749,41 +704,18 @@ client.on("interactionCreate", async (interaction) => {
       }
     }
 
-    // ── SELECT MENUS ──────────────────────────────────────────────────────
     if (interaction.isStringSelectMenu()) {
       const id    = interaction.customId;
       const value = interaction.values[0];
 
-      // Modals must come before any defer — and delete the dropdown message after
-      if (id === "group_for_expense") {
-        await interaction.showModal(expenseModalBasic(value, false));
-        setTimeout(() => interaction.deleteReply().catch(() => {}), 500);
-        return;
-      }
-      if (id === "group_for_request") {
-        await interaction.showModal(expenseModalBasic(value, true));
-        setTimeout(() => interaction.deleteReply().catch(() => {}), 500);
-        return;
-      }
-      if (id === "group_for_budget") {
-        await interaction.showModal(setBudgetModal(value));
-        setTimeout(() => interaction.deleteReply().catch(() => {}), 500);
-        return;
-      }
-      if (id === "expense_for_payment") {
-        pending.set(`${uid}_payment_receipt`, value);
-        await interaction.showModal(updatePaymentModal(value));
-        setTimeout(() => interaction.deleteReply().catch(() => {}), 500);
-        return;
-      }
+      if (id === "group_for_expense") { await interaction.showModal(expenseModalBasic(value, false)); setTimeout(() => interaction.deleteReply().catch(() => {}), 500); return; }
+      if (id === "group_for_request") { await interaction.showModal(expenseModalBasic(value, true));  setTimeout(() => interaction.deleteReply().catch(() => {}), 500); return; }
+      if (id === "group_for_budget")  { await interaction.showModal(setBudgetModal(value));            setTimeout(() => interaction.deleteReply().catch(() => {}), 500); return; }
+      if (id === "expense_for_payment") { pending.set(`${uid}_payment_receipt`, value); await interaction.showModal(updatePaymentModal(value)); setTimeout(() => interaction.deleteReply().catch(() => {}), 500); return; }
 
-      // Subsystem selected for add task — show button then delete dropdown
       if (id === "sub_for_add") {
         const sub = SUBSYSTEMS.find((s) => s.id === value);
-        await interaction.update({
-          content: `${sub.emoji} **${sub.label}** selected — click below to open the task form:`,
-          components: [buildOpenFormButton(value)],
-        });
+        await interaction.update({ content: `${sub.emoji} **${sub.label}** selected — click below to open the task form:`, components: [buildOpenFormButton(value)] });
         setTimeout(() => interaction.deleteReply().catch(() => {}), 30000);
         return;
       }
@@ -793,71 +725,35 @@ client.on("interactionCreate", async (interaction) => {
         const task  = store.tasks[subId]?.find((t) => t.id === value);
         if (!task) { await interaction.update({ content: "Task not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
         pending.set(`${uid}_assigntask`, value);
-        await interaction.update({
-          content: `👤 Who do you want to assign **${task.name}** to?`,
-          components: [new ActionRowBuilder().addComponents(
-            new UserSelectMenuBuilder().setCustomId(`users_for_assign_${subId}`).setPlaceholder("Search for a member...").setMinValues(1).setMaxValues(5)
-          )],
-        });
+        await interaction.update({ content: `👤 Who to assign **${task.name}** to?`, components: [new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`users_for_assign_${subId}`).setPlaceholder("Search for a member...").setMinValues(1).setMaxValues(5))] });
         setTimeout(() => interaction.deleteReply().catch(() => {}), 60000);
         return;
       }
 
-      // ── PER-TASK REMINDER — step 2: task selected, send DM ──
       if (id === "task_for_remind") {
         const subId = pending.get(`${uid}_remind_sub`);
         const sub   = SUBSYSTEMS.find((s) => s.id === subId);
         const task  = store.tasks[subId]?.find((t) => t.id === value);
         if (!task) { await interaction.update({ content: "Task not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
-
-        if (!task.assignees?.length) {
-          await interaction.update({ content: `⚠️ **${task.name}** has no one assigned. Use 👤 Assign first!`, components: [] });
-          setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
-          return;
-        }
-
+        if (!task.assignees?.length) { await interaction.update({ content: `⚠️ **${task.name}** has no one assigned. Use 👤 Assign first!`, components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 5000); return; }
         const due = task.dueDate ? ` (due ${task.dueDate})` : "";
         let dmCount = 0;
         for (const assigneeId of task.assignees) {
-          try {
-            const member = await guild.members.fetch(assigneeId);
-            await member.send(
-              `📣 **Progress update request — ${sub.emoji} ${sub.label}**\n\n` +
-              `Hey ${member.displayName}! Your team lead is asking for an update on:\n\n` +
-              `• **${task.name}**${due}\n\n` +
-              `Please update the bot in your subsystem lead channel when this is done. Thanks!`
-            );
-            dmCount++;
-          } catch {}
+          try { const member = await guild.members.fetch(assigneeId); await member.send(`📣 **Progress update — ${sub.emoji} ${sub.label}**\n\nHey ${member.displayName}! Your team lead is asking for an update on:\n\n• **${task.name}**${due}\n\nPlease update the bot when done. Thanks!`); dmCount++; } catch {}
         }
-
-        await postLog(guild, logEmbed(sub.color, `📣 Reminder sent — ${sub.emoji} ${sub.label}`,
-          [`Task: **${task.name}**`, `Sent by <@${uid}>`, `DMed ${dmCount} member(s)`]));
-
+        await postLog(guild, logEmbed(sub.color, `📣 Reminder sent — ${sub.emoji} ${sub.label}`, [`Task: **${task.name}**`, `Sent by <@${uid}>`, `DMed ${dmCount} member(s)`]));
         await interaction.update({ content: `📣 Reminder sent to **${dmCount}** member(s) for **${task.name}**!`, components: [] });
         setTimeout(() => interaction.deleteReply().catch(() => {}), 4000);
         return;
       }
 
-      if (id === "sub_for_done") {
-        const sel = buildTaskSel("task_for_done", store.tasks, value, "todo");
-        if (!sel) { await interaction.update({ content: "No incomplete tasks!", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
-        pending.set(`${uid}_done`, value);
-        await interaction.update({ content: "Which task is done?", components: [sel] });
-        return;
-      }
-      if (id === "sub_for_reopen") {
-        const sel = buildTaskSel("task_for_reopen", store.tasks, value, "done");
-        if (!sel) { await interaction.update({ content: "No completed tasks!", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
-        pending.set(`${uid}_reopen`, value);
-        await interaction.update({ content: "Which task to reopen?", components: [sel] });
-        return;
-      }
-      if (id === "sub_for_remove") {
-        const sel = buildTaskSel("task_for_remove", store.tasks, value, "all");
-        if (!sel) { await interaction.update({ content: "No tasks.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
-        pending.set(`${uid}_remove`, value);
-        await interaction.update({ content: "Which task to remove?", components: [sel] });
+      const deferredSelects = { "sub_for_done": ["task_for_done", "todo", `${uid}_done`], "sub_for_reopen": ["task_for_reopen", "done", `${uid}_reopen`], "sub_for_remove": ["task_for_remove", "all", `${uid}_remove`] };
+      if (deferredSelects[id]) {
+        const [selId, filter, pendingKey] = deferredSelects[id];
+        const sel = buildTaskSel(selId, store.tasks, value, filter);
+        if (!sel) { await interaction.update({ content: "No matching tasks!", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
+        pending.set(pendingKey, value);
+        await interaction.update({ content: `Which task?`, components: [sel] });
         return;
       }
 
@@ -902,7 +798,6 @@ client.on("interactionCreate", async (interaction) => {
       }
     }
 
-    // ── MODALS ────────────────────────────────────────────────────────────
     if (interaction.isModalSubmit()) {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -915,10 +810,7 @@ client.on("interactionCreate", async (interaction) => {
         store.tasks[subId].push({ id: makeId(), name, done: false, assignees: [], dueDate: dueDate || null, notes: notes || null, addedAt: Date.now() });
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
-        const logLines = [`**${name}**`, `By <@${uid}>`, `Assigned: *unassigned*`];
-        if (dueDate) logLines.push(`Due: ${dueDate}`);
-        if (notes) logLines.push(`Notes: ${notes}`);
-        await postLog(guild, logEmbed(sub.color, `➕ Task added — ${sub.emoji} ${sub.label}`, logLines));
+        await postLog(guild, logEmbed(sub.color, `➕ Task added — ${sub.emoji} ${sub.label}`, [`**${name}**`, `By <@${uid}>`, dueDate ? `Due: ${dueDate}` : null, notes ? `Notes: ${notes}` : null].filter(Boolean)));
         return replyAndDelete(interaction, `${sub.emoji} **${name}** added to **${sub.label}**!${dueDate ? `\n📅 Due: ${dueDate}` : ""}`);
       }
 
@@ -959,9 +851,7 @@ client.on("interactionCreate", async (interaction) => {
         pending.set(`${uid}_expense_${tempId}`, { groupId, isRequest, item, qty, estCost, finalCost });
         await interaction.editReply({
           content: `✅ Basic info saved! Now add receipt details:`,
-          components: [new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`open_expense2_${tempId}`).setLabel("📋 Add Receipt Details").setStyle(ButtonStyle.Primary)
-          )],
+          components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`open_expense2_${tempId}`).setLabel("📋 Add Receipt Details").setStyle(ButtonStyle.Primary))],
         });
         setTimeout(() => interaction.deleteReply().catch(() => {}), 300000);
         return;
@@ -987,17 +877,19 @@ client.on("interactionCreate", async (interaction) => {
         if (isRequest) {
           const reqId = makeId();
           store.pendingRequests.push({ id: reqId, groupId, item, qty, estCost, receipt, reimbursement, justification, userName, userId: uid });
-          await postFinanceLog(guild,
+          // Post to #purchase-approvals (private, team leads only)
+          await postApprovalRequest(guild,
             new EmbedBuilder().setTitle(`📝 Purchase Request — ${group.emoji} ${group.label}`).setColor(group.color)
               .setDescription(`**${item}** x${qty}\nEst. Unit: ${fmtAUD(estCost)}  |  Est. Total: ${fmtAUD(estTotal)}\n${justification ? `Justification: ${justification}\n` : ""}Receipt: ${receipt || "*none yet*"}\nRequested by: <@${uid}>`)
               .setTimestamp(),
             [new ActionRowBuilder().addComponents(
               new ButtonBuilder().setCustomId(`approve_req_${reqId}`).setLabel("✅ Approve").setStyle(ButtonStyle.Success),
               new ButtonBuilder().setCustomId(`reject_req_${reqId}`).setLabel("❌ Reject").setStyle(ButtonStyle.Danger),
-            )]
+            )],
+            client.user.id
           );
           await saveData();
-          return replyAndDelete(interaction, `📝 Purchase request submitted for **${item}** x${qty} (${fmtAUD(estTotal)}) — awaiting approval in #finance-logs!`);
+          return replyAndDelete(interaction, `📝 Purchase request submitted for **${item}** x${qty} (${fmtAUD(estTotal)}) — awaiting approval in #purchase-approvals!`);
         } else {
           const receiptId  = makeReceiptId();
           const costToLog  = finalTotal !== null ? finalTotal : estTotal;
