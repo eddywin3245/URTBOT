@@ -50,6 +50,12 @@ async function replyAndDelete(interaction, content, delay = 5000) {
   setTimeout(() => interaction.deleteReply().catch(() => {}), delay);
 }
 
+// Update ephemeral reply then delete it after delay
+async function updateAndDelete(interaction, content, delay = 4000) {
+  await interaction.editReply({ content, components: [] });
+  setTimeout(() => interaction.deleteReply().catch(() => {}), delay);
+}
+
 function makeId() { return Math.random().toString(36).slice(2, 10); }
 function makeReceiptId() {
   const id = `RCP-${String(store.receiptCounter).padStart(4, "0")}`;
@@ -393,7 +399,6 @@ function addTaskModal(subId) {
     );
 }
 
-// Two separate expense modals — basic info and receipt details
 function expenseModalBasic(groupId, isRequest = false) {
   const group = FINANCE_GROUPS.find((g) => g.id === groupId);
   return new ModalBuilder()
@@ -539,6 +544,17 @@ client.on("interactionCreate", async (interaction) => {
       if (id.startsWith("lead_add_"))      return interaction.showModal(addTaskModal(id.replace("lead_add_", "")));
       if (id.startsWith("open_form_add_")) return interaction.showModal(addTaskModal(id.replace("open_form_add_", "")));
 
+      // Expense step 2 button — show modal then delete the "add receipt details" message
+      if (id.startsWith("open_expense2_")) {
+        const tempId  = id.replace("open_expense2_", "");
+        const expData = pending.get(`${uid}_expense_${tempId}`);
+        if (!expData) return interaction.reply({ content: "Session expired — please start again.", flags: MessageFlags.Ephemeral });
+        await interaction.showModal(expenseModalDetails(expData.groupId, expData.isRequest, tempId));
+        // Delete the "add receipt details" button message after modal opens
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 500);
+        return;
+      }
+
       if (id === "refresh") {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         await updateAll(client);
@@ -551,6 +567,7 @@ client.on("interactionCreate", async (interaction) => {
         return replyAndDelete(interaction, "🔄 Budget refreshed!");
       }
 
+      // These show a dropdown then auto-delete after the user picks
       if (id === "log_expense")      return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_expense")], flags: MessageFlags.Ephemeral });
       if (id === "purchase_request") return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_request")], flags: MessageFlags.Ephemeral });
       if (id === "set_budget")       return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_budget")],  flags: MessageFlags.Ephemeral });
@@ -655,8 +672,9 @@ client.on("interactionCreate", async (interaction) => {
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         const who = assignees.map((id) => `<@${id}>`).join(", ");
         await postLog(guild, logEmbed(sub.color, `👤 Task assigned — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `Assigned to: ${who}`, `By <@${uid}>`]));
+        // Show confirmation then delete
         await interaction.editReply({ content: `👤 **${task.name}** assigned to ${who}!`, components: [] });
-        setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 4000);
         return;
       }
     }
@@ -671,13 +689,16 @@ client.on("interactionCreate", async (interaction) => {
       if (id === "group_for_request") return interaction.showModal(expenseModalBasic(value, true));
       if (id === "group_for_budget")  return interaction.showModal(setBudgetModal(value));
 
-      // FIX: subsystem selected → show button to open form (allows reentry)
+      // Subsystem selected for add task — show button then delete dropdown
       if (id === "sub_for_add") {
         const sub = SUBSYSTEMS.find((s) => s.id === value);
-        return interaction.update({
+        await interaction.update({
           content: `${sub.emoji} **${sub.label}** selected — click below to open the task form:`,
           components: [buildOpenFormButton(value)],
         });
+        // Auto-delete after 30s in case user doesn't click
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 30000);
+        return;
       }
 
       if (id === "task_for_assign") {
@@ -685,8 +706,8 @@ client.on("interactionCreate", async (interaction) => {
         const task  = store.tasks[subId]?.find((t) => t.id === value);
         if (!task) return interaction.update({ content: "Task not found.", components: [] });
         pending.set(`${uid}_assigntask`, value);
-        // Show user select menu
-        return interaction.update({
+        // Show user select menu — delete after 60s if no action
+        await interaction.update({
           content: `👤 Who do you want to assign **${task.name}** to?`,
           components: [new ActionRowBuilder().addComponents(
             new UserSelectMenuBuilder()
@@ -696,6 +717,8 @@ client.on("interactionCreate", async (interaction) => {
               .setMaxValues(5)
           )],
         });
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 60000);
+        return;
       }
 
       if (id === "expense_for_payment") {
@@ -703,61 +726,63 @@ client.on("interactionCreate", async (interaction) => {
         return interaction.showModal(updatePaymentModal(value));
       }
 
+      // Task selects — update then delete after action completes
       if (id === "sub_for_done") {
         const sel = buildTaskSel("task_for_done", store.tasks, value, "todo");
-        if (!sel) return interaction.update({ content: "No incomplete tasks!", components: [] });
+        if (!sel) { await interaction.update({ content: "No incomplete tasks!", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
         pending.set(`${uid}_done`, value);
         return interaction.update({ content: "Which task is done?", components: [sel] });
       }
       if (id === "sub_for_reopen") {
         const sel = buildTaskSel("task_for_reopen", store.tasks, value, "done");
-        if (!sel) return interaction.update({ content: "No completed tasks!", components: [] });
+        if (!sel) { await interaction.update({ content: "No completed tasks!", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
         pending.set(`${uid}_reopen`, value);
         return interaction.update({ content: "Which task to reopen?", components: [sel] });
       }
       if (id === "sub_for_remove") {
         const sel = buildTaskSel("task_for_remove", store.tasks, value, "all");
-        if (!sel) return interaction.update({ content: "No tasks.", components: [] });
+        if (!sel) { await interaction.update({ content: "No tasks.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
         pending.set(`${uid}_remove`, value);
         return interaction.update({ content: "Which task to remove?", components: [sel] });
       }
+
       if (id === "task_for_done") {
         await interaction.deferUpdate();
         const subId = pending.get(`${uid}_done`);
         const task  = store.tasks[subId]?.find((t) => t.id === value);
-        if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); return; }
+        if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
         task.done = true; task.doneAt = Date.now();
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         await postLog(guild, logEmbed(0x2ecc71, `✅ Task done — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `By <@${uid}>`]));
         await interaction.editReply({ content: `✅ **${task.name}** marked done!`, components: [] });
-        setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 4000);
         return;
       }
       if (id === "task_for_reopen") {
         await interaction.deferUpdate();
         const subId = pending.get(`${uid}_reopen`);
         const task  = store.tasks[subId]?.find((t) => t.id === value);
-        if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); return; }
+        if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
         task.done = false; delete task.doneAt;
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         await postLog(guild, logEmbed(0xe67e22, `↩️ Task reopened — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `By <@${uid}>`]));
         await interaction.editReply({ content: `↩️ **${task.name}** reopened.`, components: [] });
-        setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 4000);
         return;
       }
       if (id === "task_for_remove") {
         await interaction.deferUpdate();
         const subId = pending.get(`${uid}_remove`);
         const task  = store.tasks[subId]?.find((t) => t.id === value);
-        if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); return; }
+        if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
         store.tasks[subId] = store.tasks[subId].filter((t) => t.id !== value);
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         await postLog(guild, logEmbed(0xe74c3c, `🗑️ Task removed — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `By <@${uid}>`]));
         await interaction.editReply({ content: `🗑️ **${task.name}** removed.`, components: [] });
-        setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 4000);
         return;
       }
     }
@@ -767,10 +792,10 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
       if (interaction.customId.startsWith("modal_add_")) {
-        const subId    = interaction.customId.replace("modal_add_", "");
-        const name     = interaction.fields.getTextInputValue("task_name").trim();
-        const dueDate  = interaction.fields.getTextInputValue("due_date").trim();
-        const notes    = interaction.fields.getTextInputValue("notes").trim();
+        const subId   = interaction.customId.replace("modal_add_", "");
+        const name    = interaction.fields.getTextInputValue("task_name").trim();
+        const dueDate = interaction.fields.getTextInputValue("due_date").trim();
+        const notes   = interaction.fields.getTextInputValue("notes").trim();
         if (!store.tasks[subId]) store.tasks[subId] = [];
         store.tasks[subId].push({ id: makeId(), name, done: false, assignees: [], dueDate: dueDate || null, notes: notes || null, addedAt: Date.now() });
         await updateAll(client);
@@ -806,7 +831,7 @@ client.on("interactionCreate", async (interaction) => {
         return replyAndDelete(interaction, `💳 **${receiptId}** updated to **${newStatus}**!`);
       }
 
-      // Step 1 of expense — basic info
+      // Expense step 1 — save data, show "Add Receipt Details" button
       if (interaction.customId.startsWith("modal_expense1_")) {
         const rest      = interaction.customId.replace("modal_expense1_", "");
         const isRequest = rest.endsWith("_req");
@@ -816,25 +841,24 @@ client.on("interactionCreate", async (interaction) => {
         const estCost   = parseFloat(interaction.fields.getTextInputValue("est_cost").replace(/[^0-9.]/g, "")) || 0;
         const finalRaw  = interaction.fields.getTextInputValue("final_cost").trim();
         const finalCost = finalRaw ? parseFloat(finalRaw.replace(/[^0-9.]/g, "")) : null;
-        // Store step 1 data in pending
-        const tempId = makeId();
+        const tempId    = makeId();
         pending.set(`${uid}_expense_${tempId}`, { groupId, isRequest, item, qty, estCost, finalCost });
-        // Show step 2 modal for receipt details
-        await interaction.deleteReply().catch(() => {});
-        return interaction.followUp({
-          content: `✅ Basic info saved! Now fill in the receipt details:`,
+        await interaction.editReply({
+          content: `✅ Basic info saved! Now add receipt details:`,
           components: [new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`open_expense2_${tempId}`).setLabel("📋 Add Receipt Details").setStyle(ButtonStyle.Primary)
           )],
-          flags: MessageFlags.Ephemeral,
         });
+        // Auto-delete if user doesn't click within 5 minutes
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 300000);
+        return;
       }
 
-      // Step 2 of expense — receipt details
+      // Expense step 2 — process and log
       if (interaction.customId.startsWith("modal_expense2_")) {
-        const parts         = interaction.customId.replace("modal_expense2_", "").split("_");
-        const tempId        = parts[parts.length - 1];
-        const expData       = pending.get(`${uid}_expense_${tempId}`);
+        const parts     = interaction.customId.replace("modal_expense2_", "").split("_");
+        const tempId    = parts[parts.length - 1];
+        const expData   = pending.get(`${uid}_expense_${tempId}`);
         if (!expData) return replyAndDelete(interaction, "Session expired — please start again.");
         pending.delete(`${uid}_expense_${tempId}`);
 
@@ -874,18 +898,6 @@ client.on("interactionCreate", async (interaction) => {
           await saveData();
           return replyAndDelete(interaction, `💸 **${receiptId}** logged!\n${item} x${qty} — ${fmtAUD(costToLog)} charged to **${group.label}**`);
         }
-      }
-    }
-
-    // ── EXPENSE STEP 2 BUTTON ────────────────────────────────────────────
-    if (interaction.isButton()) {
-      const id = interaction.customId;
-      if (id.startsWith("open_expense2_")) {
-        const tempId  = id.replace("open_expense2_", "");
-        const expData = pending.get(`${uid}_expense_${tempId}`);
-        if (!expData) return interaction.reply({ content: "Session expired — please start again.", flags: MessageFlags.Ephemeral });
-        const isRequest = expData.isRequest;
-        return interaction.showModal(expenseModalDetails(expData.groupId, isRequest, tempId));
       }
     }
 
