@@ -542,7 +542,9 @@ client.once("clientReady", async () => {
     await getApprovalChannel(guild, client.user.id);
     await saveData();
 
-    store.messageId = null; store.leadMessageIds = {}; store.budgetMessageId = null;
+    // Only wipe overview and budget message IDs — lead channels keep theirs to avoid duplicate posts
+    store.messageId = null;
+    store.budgetMessageId = null;
 
     const overviewCh = await client.channels.fetch(STATUS_CHANNEL_ID);
     const fetched    = await overviewCh.messages.fetch({ limit: 20 });
@@ -774,7 +776,7 @@ client.on("interactionCreate", async (interaction) => {
         const subId = pending.get(`${uid}_done`);
         const task  = store.tasks[subId]?.find((t) => t.id === value);
         if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
-        task.done = true; task.doneAt = Date.now();
+        task.done = true; task.status = 'done'; task.doneAt = Date.now();
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         await postLog(guild, logEmbed(0x2ecc71, `✅ Task done — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `By <@${uid}>`]));
@@ -787,7 +789,7 @@ client.on("interactionCreate", async (interaction) => {
         const subId = pending.get(`${uid}_reopen`);
         const task  = store.tasks[subId]?.find((t) => t.id === value);
         if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
-        task.done = false; delete task.doneAt;
+        task.done = false; task.status = 'todo'; delete task.doneAt;
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         await postLog(guild, logEmbed(0xe67e22, `↩️ Task reopened — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `By <@${uid}>`]));
@@ -819,7 +821,7 @@ client.on("interactionCreate", async (interaction) => {
         const dueDate = interaction.fields.getTextInputValue("due_date").trim();
         const notes   = interaction.fields.getTextInputValue("notes").trim();
         if (!store.tasks[subId]) store.tasks[subId] = [];
-        store.tasks[subId].push({ id: makeId(), name, done: false, assignees: [], dueDate: dueDate || null, notes: notes || null, addedAt: Date.now() });
+        store.tasks[subId].push({ id: makeId(), name, done: false, status: 'todo', assignees: [], dueDate: dueDate || null, notes: notes || null, addedAt: Date.now() });
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         await postLog(guild, logEmbed(sub.color, `➕ Task added — ${sub.emoji} ${sub.label}`, [`**${name}**`, `By <@${uid}>`, dueDate ? `Due: ${dueDate}` : null, notes ? `Notes: ${notes}` : null].filter(Boolean)));
