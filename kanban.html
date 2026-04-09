@@ -383,7 +383,7 @@ function buildCard(task, sub, compact) {
 
   card.innerHTML = `
     <div class="card-top">
-      <div class="card-status" style="border-color:${sc};color:${sc}" title="${status.label}">${task.status === 'done' ? '✓' : task.status === 'inprogress' ? '◑' : ''}</div>
+      <div class="card-status" style="border-color:${sc};color:${sc}" onclick="cycleStatus('${sub.id}','${task.id}')" title="Click to advance status">${task.status === 'done' ? '✓' : task.status === 'inprogress' ? '◑' : ''}</div>
       <div class="card-name">${esc(task.name)}</div>
       <div class="card-actions">
         <div class="card-btn" onclick="openEditModal('${sub.id}','${task.id}')" title="Edit">✎</div>
@@ -408,6 +408,21 @@ function shortId(id) { return id ? '…' + id.slice(-4) : '?'; }
 function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
 // ── TASK ACTIONS ──
+async function cycleStatus(subId, taskId) {
+  const task = store.tasks[subId]?.find(t => t.id === taskId);
+  if (!task) return;
+  const order = ['todo', 'inprogress', 'done'];
+  const current = order.indexOf(task.status || 'todo');
+  task.status = order[(current + 1) % order.length];
+  task.done = task.status === 'done';
+  renderTabs(); renderBoard();
+  try {
+    await saveData();
+    const label = task.status === 'todo' ? 'To Do' : task.status === 'inprogress' ? 'In Progress' : 'Done';
+    toast(`→ ${label}`, 'success');
+  } catch { toast('Save failed', 'error'); }
+}
+
 async function deleteTask(subId, taskId) {
   if (!confirm('Delete this task?')) return;
   store.tasks[subId] = store.tasks[subId].filter(t => t.id !== taskId);

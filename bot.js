@@ -553,6 +553,18 @@ client.once("clientReady", async () => {
     await postSnapshot(guild);
     await saveData();
     console.log("✅ All done!");
+
+    // Poll JSONBin every 30s to pick up changes from Kanban board
+    setInterval(async () => {
+      try {
+        const prev = JSON.stringify(store.tasks);
+        await loadData();
+        if (JSON.stringify(store.tasks) !== prev) {
+          console.log("🔄 External change detected — refreshing embeds");
+          await updateAll(client);
+        }
+      } catch (e) { console.error("Poll error:", e.message); }
+    }, 30000);
   } catch (e) { console.error("Startup error:", e); }
 });
 
