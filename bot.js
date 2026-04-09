@@ -45,14 +45,25 @@ const DEFAULT_BUDGETS = {
 // ─────────────────────────────────────────
 //  HELPERS
 // ─────────────────────────────────────────
-async function replyAndDelete(interaction, content, delay = 5000) {
+
+// Reply ephemerally, show content, then delete after delay
+async function replyAndDelete(interaction, content, delay = 4000) {
   await interaction.editReply({ content, components: [] });
   setTimeout(() => interaction.deleteReply().catch(() => {}), delay);
 }
 
-// Update ephemeral reply then delete it after delay
-async function updateAndDelete(interaction, content, delay = 4000) {
-  await interaction.editReply({ content, components: [] });
+// For interactions that used reply() not deferReply() — update then delete
+async function updateThenDelete(interaction, content, delay = 4000) {
+  try {
+    await interaction.editReply({ content, components: [] });
+  } catch {
+    try { await interaction.update({ content, components: [] }); } catch {}
+  }
+  setTimeout(() => interaction.deleteReply().catch(() => {}), delay);
+}
+
+// Auto-delete an ephemeral reply message after delay
+function scheduleDelete(interaction, delay = 4000) {
   setTimeout(() => interaction.deleteReply().catch(() => {}), delay);
 }
 
@@ -544,13 +555,12 @@ client.on("interactionCreate", async (interaction) => {
       if (id.startsWith("lead_add_"))      return interaction.showModal(addTaskModal(id.replace("lead_add_", "")));
       if (id.startsWith("open_form_add_")) return interaction.showModal(addTaskModal(id.replace("open_form_add_", "")));
 
-      // Expense step 2 button — show modal then delete the "add receipt details" message
+      // Expense step 2 button
       if (id.startsWith("open_expense2_")) {
         const tempId  = id.replace("open_expense2_", "");
         const expData = pending.get(`${uid}_expense_${tempId}`);
         if (!expData) return interaction.reply({ content: "Session expired — please start again.", flags: MessageFlags.Ephemeral });
         await interaction.showModal(expenseModalDetails(expData.groupId, expData.isRequest, tempId));
-        // Delete the "add receipt details" button message after modal opens
         setTimeout(() => interaction.deleteReply().catch(() => {}), 500);
         return;
       }
@@ -567,66 +577,127 @@ client.on("interactionCreate", async (interaction) => {
         return replyAndDelete(interaction, "🔄 Budget refreshed!");
       }
 
-      // These show a dropdown then auto-delete after the user picks
-      if (id === "log_expense")      return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_expense")], flags: MessageFlags.Ephemeral });
-      if (id === "purchase_request") return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_request")], flags: MessageFlags.Ephemeral });
-      if (id === "set_budget")       return interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_budget")],  flags: MessageFlags.Ephemeral });
-      if (id === "add_task")         return interaction.reply({ content: "Which subsystem?",    components: [buildSubSel("sub_for_add")],                flags: MessageFlags.Ephemeral });
-      if (id === "mark_done")        return interaction.reply({ content: "Which subsystem?",    components: [buildSubSel("sub_for_done")],               flags: MessageFlags.Ephemeral });
-      if (id === "reopen_task")      return interaction.reply({ content: "Which subsystem?",    components: [buildSubSel("sub_for_reopen")],             flags: MessageFlags.Ephemeral });
-      if (id === "remove_task")      return interaction.reply({ content: "Which subsystem?",    components: [buildSubSel("sub_for_remove")],             flags: MessageFlags.Ephemeral });
-
+      // Finance dropdowns — show then auto-delete after modal opens (handled in select menu)
+      if (id === "log_expense") {
+        await interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_expense")], flags: MessageFlags.Ephemeral });
+        scheduleDelete(interaction, 30000);
+        return;
+      }
+      if (id === "purchase_request") {
+        await interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_request")], flags: MessageFlags.Ephemeral });
+        scheduleDelete(interaction, 30000);
+        return;
+      }
+      if (id === "set_budget") {
+        await interaction.reply({ content: "Which budget group?", components: [buildFinanceGroupSel("group_for_budget")], flags: MessageFlags.Ephemeral });
+        scheduleDelete(interaction, 30000);
+        return;
+      }
       if (id === "update_payment") {
-        if (!store.expenses.length) return interaction.reply({ content: "No logged expenses to update.", flags: MessageFlags.Ephemeral });
+        if (!store.expenses.length) {
+          await interaction.reply({ content: "No logged expenses to update.", flags: MessageFlags.Ephemeral });
+          scheduleDelete(interaction, 4000);
+          return;
+        }
         const options = store.expenses.slice(-25).reverse().map((e) =>
           new StringSelectMenuOptionBuilder().setLabel(`${e.receiptId} — ${e.item} (${e.status})`).setValue(e.receiptId)
         );
-        return interaction.reply({
+        await interaction.reply({
           content: "Which receipt do you want to update?",
           components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("expense_for_payment").setPlaceholder("Choose a receipt...").addOptions(options))],
           flags: MessageFlags.Ephemeral,
         });
+        scheduleDelete(interaction, 30000);
+        return;
+      }
+      if (id === "add_task") {
+        await interaction.reply({ content: "Which subsystem?", components: [buildSubSel("sub_for_add")], flags: MessageFlags.Ephemeral });
+        scheduleDelete(interaction, 30000);
+        return;
+      }
+      if (id === "mark_done") {
+        await interaction.reply({ content: "Which subsystem?", components: [buildSubSel("sub_for_done")], flags: MessageFlags.Ephemeral });
+        scheduleDelete(interaction, 30000);
+        return;
+      }
+      if (id === "reopen_task") {
+        await interaction.reply({ content: "Which subsystem?", components: [buildSubSel("sub_for_reopen")], flags: MessageFlags.Ephemeral });
+        scheduleDelete(interaction, 30000);
+        return;
+      }
+      if (id === "remove_task") {
+        await interaction.reply({ content: "Which subsystem?", components: [buildSubSel("sub_for_remove")], flags: MessageFlags.Ephemeral });
+        scheduleDelete(interaction, 30000);
+        return;
       }
 
       if (id.startsWith("lead_done_")) {
         const subId = id.replace("lead_done_", "");
         const sel   = buildTaskSel("task_for_done", store.tasks, subId, "todo");
-        if (!sel) return interaction.reply({ content: "No incomplete tasks!", flags: MessageFlags.Ephemeral });
+        if (!sel) {
+          await interaction.reply({ content: "No incomplete tasks!", flags: MessageFlags.Ephemeral });
+          scheduleDelete(interaction, 4000);
+          return;
+        }
         pending.set(`${uid}_done`, subId);
-        return interaction.reply({ content: "Which task is done?", components: [sel], flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: "Which task is done?", components: [sel], flags: MessageFlags.Ephemeral });
+        scheduleDelete(interaction, 60000);
+        return;
       }
       if (id.startsWith("lead_assign_")) {
         const subId = id.replace("lead_assign_", "");
         const sel   = buildTaskSel("task_for_assign", store.tasks, subId, "all");
-        if (!sel) return interaction.reply({ content: "No tasks to assign!", flags: MessageFlags.Ephemeral });
+        if (!sel) {
+          await interaction.reply({ content: "No tasks to assign!", flags: MessageFlags.Ephemeral });
+          scheduleDelete(interaction, 4000);
+          return;
+        }
         pending.set(`${uid}_assign`, subId);
-        return interaction.reply({ content: "Which task to assign?", components: [sel], flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: "Which task to assign?", components: [sel], flags: MessageFlags.Ephemeral });
+        scheduleDelete(interaction, 60000);
+        return;
       }
       if (id.startsWith("lead_remove_")) {
         const subId = id.replace("lead_remove_", "");
         const sel   = buildTaskSel("task_for_remove", store.tasks, subId, "all");
-        if (!sel) return interaction.reply({ content: "No tasks to remove!", flags: MessageFlags.Ephemeral });
-        pending.set(`${uid}_remove`, subId);
-        return interaction.reply({ content: "Which task to remove?", components: [sel], flags: MessageFlags.Ephemeral });
-      }
-      if (id.startsWith("lead_remind_")) {
-        const subId      = id.replace("lead_remind_", "");
-        const sub        = SUBSYSTEMS.find((s) => s.id === subId);
-        const todos      = (store.tasks[subId] || []).filter((t) => !t.done);
-        if (!todos.length) return interaction.reply({ content: "✅ No incomplete tasks!", flags: MessageFlags.Ephemeral });
-        const assigneeIds = [...new Set(todos.flatMap((t) => t.assignees || []))];
-        if (!assigneeIds.length) return interaction.reply({ content: "⚠️ No one assigned. Use 👤 Assign first!", flags: MessageFlags.Ephemeral });
-        const taskList = todos.map((t) => {
-          const who = t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "*unassigned*";
-          const due = t.dueDate ? ` (due ${t.dueDate})` : "";
-          return `• **${t.name}**${due} — ${who}`;
-        }).join("\n");
-        let dmCount = 0;
-        for (const assigneeId of assigneeIds) {
-          try { const member = await guild.members.fetch(assigneeId); await member.send(`📣 **Progress update — ${sub.emoji} ${sub.label}**\n\nHey ${member.displayName}! Your team lead is asking for a progress update:\n\n${taskList}\n\nPlease update the bot when done. Thanks!`); dmCount++; } catch {}
+        if (!sel) {
+          await interaction.reply({ content: "No tasks to remove!", flags: MessageFlags.Ephemeral });
+          scheduleDelete(interaction, 4000);
+          return;
         }
-        await postLog(guild, logEmbed(sub.color, `📣 Reminder — ${sub.emoji} ${sub.label}`, [`Sent by <@${uid}>`, `DMed ${dmCount} member(s)`, "", taskList]));
-        return interaction.reply({ content: `📣 Reminder sent to **${dmCount}** member(s) via DM!`, flags: MessageFlags.Ephemeral });
+        pending.set(`${uid}_remove`, subId);
+        await interaction.reply({ content: "Which task to remove?", components: [sel], flags: MessageFlags.Ephemeral });
+        scheduleDelete(interaction, 60000);
+        return;
+      }
+
+      // ── PER-TASK REMINDER — step 1: pick the task ──
+      if (id.startsWith("lead_remind_")) {
+        const subId = id.replace("lead_remind_", "");
+        const todos = (store.tasks[subId] || []).filter((t) => !t.done);
+        if (!todos.length) {
+          await interaction.reply({ content: "✅ No incomplete tasks to remind about!", flags: MessageFlags.Ephemeral });
+          scheduleDelete(interaction, 4000);
+          return;
+        }
+        // Show task picker — only incomplete tasks with assignees get listed
+        // All incomplete tasks shown, unassigned ones indicated
+        const options = todos.slice(0, 25).map((t) => {
+          const who = t.assignees?.length ? t.assignees.map((id) => `<@${id}>`).join(", ") : "unassigned";
+          const label = t.name.slice(0, 80) + (t.assignees?.length ? "" : " ⚠️");
+          const desc  = t.assignees?.length ? `Assigned to: ${t.assignees.length} member(s)` : "No one assigned";
+          return new StringSelectMenuOptionBuilder().setLabel(label).setDescription(desc).setValue(t.id);
+        });
+        pending.set(`${uid}_remind_sub`, subId);
+        await interaction.reply({
+          content: "📣 Which task do you want to send a reminder for?",
+          components: [new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder().setCustomId("task_for_remind").setPlaceholder("Choose a task...").addOptions(options)
+          )],
+          flags: MessageFlags.Ephemeral,
+        });
+        scheduleDelete(interaction, 60000);
+        return;
       }
 
       if (id.startsWith("approve_req_") || id.startsWith("reject_req_")) {
@@ -666,13 +737,12 @@ client.on("interactionCreate", async (interaction) => {
         const taskId    = pending.get(`${uid}_assigntask`);
         const assignees = interaction.values;
         const task      = store.tasks[subId]?.find((t) => t.id === taskId);
-        if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); return; }
+        if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
         task.assignees = assignees;
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         const who = assignees.map((id) => `<@${id}>`).join(", ");
         await postLog(guild, logEmbed(sub.color, `👤 Task assigned — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `Assigned to: ${who}`, `By <@${uid}>`]));
-        // Show confirmation then delete
         await interaction.editReply({ content: `👤 **${task.name}** assigned to ${who}!`, components: [] });
         setTimeout(() => interaction.deleteReply().catch(() => {}), 4000);
         return;
@@ -684,10 +754,28 @@ client.on("interactionCreate", async (interaction) => {
       const id    = interaction.customId;
       const value = interaction.values[0];
 
-      // Modals must come before any defer
-      if (id === "group_for_expense") return interaction.showModal(expenseModalBasic(value, false));
-      if (id === "group_for_request") return interaction.showModal(expenseModalBasic(value, true));
-      if (id === "group_for_budget")  return interaction.showModal(setBudgetModal(value));
+      // Modals must come before any defer — and delete the dropdown message after
+      if (id === "group_for_expense") {
+        await interaction.showModal(expenseModalBasic(value, false));
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 500);
+        return;
+      }
+      if (id === "group_for_request") {
+        await interaction.showModal(expenseModalBasic(value, true));
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 500);
+        return;
+      }
+      if (id === "group_for_budget") {
+        await interaction.showModal(setBudgetModal(value));
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 500);
+        return;
+      }
+      if (id === "expense_for_payment") {
+        pending.set(`${uid}_payment_receipt`, value);
+        await interaction.showModal(updatePaymentModal(value));
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 500);
+        return;
+      }
 
       // Subsystem selected for add task — show button then delete dropdown
       if (id === "sub_for_add") {
@@ -696,7 +784,6 @@ client.on("interactionCreate", async (interaction) => {
           content: `${sub.emoji} **${sub.label}** selected — click below to open the task form:`,
           components: [buildOpenFormButton(value)],
         });
-        // Auto-delete after 30s in case user doesn't click
         setTimeout(() => interaction.deleteReply().catch(() => {}), 30000);
         return;
       }
@@ -704,46 +791,74 @@ client.on("interactionCreate", async (interaction) => {
       if (id === "task_for_assign") {
         const subId = pending.get(`${uid}_assign`);
         const task  = store.tasks[subId]?.find((t) => t.id === value);
-        if (!task) return interaction.update({ content: "Task not found.", components: [] });
+        if (!task) { await interaction.update({ content: "Task not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
         pending.set(`${uid}_assigntask`, value);
-        // Show user select menu — delete after 60s if no action
         await interaction.update({
           content: `👤 Who do you want to assign **${task.name}** to?`,
           components: [new ActionRowBuilder().addComponents(
-            new UserSelectMenuBuilder()
-              .setCustomId(`users_for_assign_${subId}`)
-              .setPlaceholder("Search for a member...")
-              .setMinValues(1)
-              .setMaxValues(5)
+            new UserSelectMenuBuilder().setCustomId(`users_for_assign_${subId}`).setPlaceholder("Search for a member...").setMinValues(1).setMaxValues(5)
           )],
         });
         setTimeout(() => interaction.deleteReply().catch(() => {}), 60000);
         return;
       }
 
-      if (id === "expense_for_payment") {
-        pending.set(`${uid}_payment_receipt`, value);
-        return interaction.showModal(updatePaymentModal(value));
+      // ── PER-TASK REMINDER — step 2: task selected, send DM ──
+      if (id === "task_for_remind") {
+        const subId = pending.get(`${uid}_remind_sub`);
+        const sub   = SUBSYSTEMS.find((s) => s.id === subId);
+        const task  = store.tasks[subId]?.find((t) => t.id === value);
+        if (!task) { await interaction.update({ content: "Task not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
+
+        if (!task.assignees?.length) {
+          await interaction.update({ content: `⚠️ **${task.name}** has no one assigned. Use 👤 Assign first!`, components: [] });
+          setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+          return;
+        }
+
+        const due = task.dueDate ? ` (due ${task.dueDate})` : "";
+        let dmCount = 0;
+        for (const assigneeId of task.assignees) {
+          try {
+            const member = await guild.members.fetch(assigneeId);
+            await member.send(
+              `📣 **Progress update request — ${sub.emoji} ${sub.label}**\n\n` +
+              `Hey ${member.displayName}! Your team lead is asking for an update on:\n\n` +
+              `• **${task.name}**${due}\n\n` +
+              `Please update the bot in your subsystem lead channel when this is done. Thanks!`
+            );
+            dmCount++;
+          } catch {}
+        }
+
+        await postLog(guild, logEmbed(sub.color, `📣 Reminder sent — ${sub.emoji} ${sub.label}`,
+          [`Task: **${task.name}**`, `Sent by <@${uid}>`, `DMed ${dmCount} member(s)`]));
+
+        await interaction.update({ content: `📣 Reminder sent to **${dmCount}** member(s) for **${task.name}**!`, components: [] });
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 4000);
+        return;
       }
 
-      // Task selects — update then delete after action completes
       if (id === "sub_for_done") {
         const sel = buildTaskSel("task_for_done", store.tasks, value, "todo");
         if (!sel) { await interaction.update({ content: "No incomplete tasks!", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
         pending.set(`${uid}_done`, value);
-        return interaction.update({ content: "Which task is done?", components: [sel] });
+        await interaction.update({ content: "Which task is done?", components: [sel] });
+        return;
       }
       if (id === "sub_for_reopen") {
         const sel = buildTaskSel("task_for_reopen", store.tasks, value, "done");
         if (!sel) { await interaction.update({ content: "No completed tasks!", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
         pending.set(`${uid}_reopen`, value);
-        return interaction.update({ content: "Which task to reopen?", components: [sel] });
+        await interaction.update({ content: "Which task to reopen?", components: [sel] });
+        return;
       }
       if (id === "sub_for_remove") {
         const sel = buildTaskSel("task_for_remove", store.tasks, value, "all");
         if (!sel) { await interaction.update({ content: "No tasks.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
         pending.set(`${uid}_remove`, value);
-        return interaction.update({ content: "Which task to remove?", components: [sel] });
+        await interaction.update({ content: "Which task to remove?", components: [sel] });
+        return;
       }
 
       if (id === "task_for_done") {
@@ -831,7 +946,6 @@ client.on("interactionCreate", async (interaction) => {
         return replyAndDelete(interaction, `💳 **${receiptId}** updated to **${newStatus}**!`);
       }
 
-      // Expense step 1 — save data, show "Add Receipt Details" button
       if (interaction.customId.startsWith("modal_expense1_")) {
         const rest      = interaction.customId.replace("modal_expense1_", "");
         const isRequest = rest.endsWith("_req");
@@ -849,12 +963,10 @@ client.on("interactionCreate", async (interaction) => {
             new ButtonBuilder().setCustomId(`open_expense2_${tempId}`).setLabel("📋 Add Receipt Details").setStyle(ButtonStyle.Primary)
           )],
         });
-        // Auto-delete if user doesn't click within 5 minutes
         setTimeout(() => interaction.deleteReply().catch(() => {}), 300000);
         return;
       }
 
-      // Expense step 2 — process and log
       if (interaction.customId.startsWith("modal_expense2_")) {
         const parts     = interaction.customId.replace("modal_expense2_", "").split("_");
         const tempId    = parts[parts.length - 1];
