@@ -829,15 +829,11 @@ ${desc ? `**Description:** ${desc}` : ''}`)
           const p = ms.date.split('/');
           const daysLeft = Math.round((new Date(p[2],p[1]-1,p[0]) - now) / 86400000);
           const icon = daysLeft < 0 ? '✅' : daysLeft <= 7 ? '🔴' : daysLeft <= 30 ? '🟡' : '🟢';
-          const when = daysLeft < 0 ? `${Math.abs(daysLeft)}d ago` : daysLeft === 0 ? 'TODAY' : `in ${daysLeft}d`;
-          return `${icon} **${ms.name}** — ${ms.date} (${when})${ms.description ? `
-  *${ms.description}*` : ''}`;
-        }).join('
-
-');
-        await interaction.editReply({ content: `🏁 **Upcoming Milestones**
-
-${lines}` });
+          const when = daysLeft < 0 ? Math.abs(daysLeft) + 'd ago' : daysLeft === 0 ? 'TODAY' : 'in ' + daysLeft + 'd';
+          const desc = ms.description ? '\n  *' + ms.description + '*' : '';
+          return icon + ' **' + ms.name + '** \u2014 ' + ms.date + ' (' + when + ')' + desc;
+        }).join('\n\n');
+        await interaction.editReply({ content: '\ud83c\udfc1 **Upcoming Milestones**\n\n' + lines });
         return;
       }
 
