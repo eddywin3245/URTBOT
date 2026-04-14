@@ -13,6 +13,7 @@ html{font-size:clamp(13px,1.1vw,16px)}
   --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
   --text:#e8edf5;--muted:#6b7a96;--dim:#3a4560;
   --pad:clamp(.75rem,2vw,1.5rem);
+  --pri-high:#e74c3c;--pri-medium:#f1c40f;--pri-low:#2ecc71;
 }
 body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
 
@@ -27,11 +28,11 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .overall-track{width:clamp(60px,8vw,120px);height:3px;background:var(--surface2);border-radius:2px;overflow:hidden}
 .overall-fill{height:100%;background:linear-gradient(90deg,#1d4ed8,#3498db);border-radius:2px;transition:width .8s ease}
 .overall-pct{font-size:.7em;font-weight:600;font-family:'JetBrains Mono',monospace;color:#3498db;min-width:28px}
-.header-right{display:flex;align-items:center;gap:.5rem}
-.sync-info{font-size:.6em;color:var(--dim);font-family:'JetBrains Mono',monospace;display:none}
-@media(min-width:600px){.sync-info{display:block}}
+.header-right{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.sync-info{font-size:.6em;color:var(--dim);font-family:'JetBrains Mono',monospace}
 .hbtn{padding:.35rem .7rem;background:transparent;border:1px solid var(--border2);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:.65em;letter-spacing:.06em;cursor:pointer;transition:all .2s;white-space:nowrap}
 .hbtn.blue{color:#3498db;border-color:rgba(52,152,219,.3)}.hbtn.blue:hover{background:rgba(52,152,219,.1);border-color:#3498db}
+.hbtn.green{color:#2ecc71;border-color:rgba(46,204,113,.3)}.hbtn.green:hover{background:rgba(46,204,113,.1);border-color:#2ecc71}
 
 /* TABS */
 .tab-bar{display:flex;align-items:stretch;overflow-x:auto;border-bottom:1px solid var(--border);padding:0 var(--pad);scrollbar-width:none}
@@ -42,17 +43,18 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .tab-dot{width:6px;height:6px;border-radius:50%;background:var(--tab-color,#3498db);flex-shrink:0}
 .tab-badge{font-size:.58em;font-family:'JetBrains Mono',monospace;background:var(--surface2);color:var(--muted);padding:.1rem .4rem;border-radius:10px;line-height:1.4}
 
-/* SUBSYSTEM BOARD — 3 columns */
+/* BOARD — 3 status columns */
 .board-area{padding:var(--pad);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(.5rem,1.5vw,1rem);align-items:start}
 @media(max-width:640px){.board-area{grid-template-columns:1fr}}
 
-/* ALL GRID — 6 cols down to 2 */
+/* ALL GRID */
 .all-grid{padding:var(--pad);display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:clamp(.5rem,1.2vw,.85rem);align-items:start}
 @media(max-width:1100px){.all-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:640px){.all-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 /* COLUMN */
-.col-wrap{display:flex;flex-direction:column;gap:.4rem}
+.col-wrap{display:flex;flex-direction:column;gap:.4rem;min-height:120px;border-radius:10px;transition:background .2s}
+.col-wrap.drag-over{background:rgba(52,152,219,.06)}
 .col-header{padding:.5rem .7rem;border-radius:8px;background:var(--surface);display:flex;align-items:center;justify-content:space-between;margin-bottom:.15rem}
 .col-title{font-size:.72em;font-weight:600;letter-spacing:.05em;display:flex;align-items:center;gap:.4rem}
 .col-count-badge{font-size:.6em;font-family:'JetBrains Mono',monospace;background:var(--surface2);color:var(--muted);padding:.1rem .4rem;border-radius:10px}
@@ -62,49 +64,67 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .col-add-btn{width:100%;padding:.45rem;background:transparent;border:1px dashed var(--border);border-radius:8px;color:var(--dim);font-size:.67em;font-family:'JetBrains Mono',monospace;cursor:pointer;transition:all .2s;letter-spacing:.04em}
 .col-add-btn:hover{border-color:var(--border2);color:var(--muted);background:var(--surface)}
 
+/* PRIORITY GROUP HEADERS */
+.pri-group-header{font-size:.58em;letter-spacing:.12em;font-family:'JetBrains Mono',monospace;color:var(--dim);padding:.2rem .4rem;margin-top:.3rem;display:flex;align-items:center;gap:.3rem}
+.pri-group-header:first-of-type{margin-top:0}
+
 /* MINI COL (all tab) */
 .mini-col{display:flex;flex-direction:column;gap:.35rem}
-.mini-header{padding:.45rem .6rem;border-radius:8px;border-left:3px solid;background:var(--surface);display:flex;align-items:center;justify-content:space-between;margin-bottom:.15rem}
+.mini-header{padding:.45rem .6rem;border-radius:8px;border-left:3px solid;background:var(--surface);display:flex;align-items:center;justify-content:space-between;margin-bottom:.15rem;cursor:pointer;transition:background .2s}
+.mini-header:hover{background:var(--surface2)}
 .mini-name{font-size:.68em;font-weight:600;display:flex;align-items:center;gap:.3rem}
 .mini-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .mini-meta{font-size:.58em;font-family:'JetBrains Mono',monospace;color:var(--muted)}
 .mini-progress{height:2px;background:var(--surface2);border-radius:1px;overflow:hidden;margin-bottom:.3rem}
 
 /* CARD */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.6rem;border-left:3px solid;transition:border-color .2s,transform .15s;cursor:default}
-.card:hover{border-color:var(--border2);transform:translateY(-1px)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.6rem;border-left:3px solid;transition:border-color .2s,transform .15s,box-shadow .2s;cursor:pointer}
+.card:hover{border-color:var(--border2);transform:translateY(-1px);box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.card.dragging{opacity:.4;transform:scale(.97)}
 .card-top{display:flex;align-items:flex-start;gap:.35rem;margin-bottom:.35rem}
 .card-status{width:14px;height:14px;border-radius:50%;border:1.5px solid;flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:7px;cursor:pointer;transition:all .2s;user-select:none}
 .card-status:hover{transform:scale(1.2)}
 .card-name{font-size:.78em;font-weight:600;line-height:1.4;flex:1;color:var(--text);word-break:break-word}
-.card-actions{display:flex;gap:.2rem;opacity:0;transition:opacity .15s;flex-shrink:0}
-.card:hover .card-actions{opacity:1}
-.card-btn{width:16px;height:16px;border-radius:3px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
-.card-btn:hover{background:var(--surface3);color:var(--text)}
-.card-btn.danger:hover{background:rgba(231,76,60,.15);color:#e74c3c;border-color:rgba(231,76,60,.3)}
+.card-priority{font-size:.56em;font-family:'JetBrains Mono',monospace;padding:.1rem .4rem;border-radius:4px;font-weight:700;letter-spacing:.06em;flex-shrink:0;margin-top:1px}
+.pri-high{background:rgba(231,76,60,.15);color:var(--pri-high);border:1px solid rgba(231,76,60,.25)}
+.pri-medium{background:rgba(241,196,15,.12);color:var(--pri-medium);border:1px solid rgba(241,196,15,.2)}
+.pri-low{background:rgba(46,204,113,.12);color:var(--pri-low);border:1px solid rgba(46,204,113,.2)}
 .card-notes{font-size:.66em;color:var(--muted);line-height:1.5;margin-bottom:.35rem;font-family:'JetBrains Mono',monospace;word-break:break-word}
 .card-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.2rem;margin-top:.3rem;padding-top:.3rem;border-top:1px solid var(--border)}
+.card-assignees{display:flex;align-items:center;gap:.2rem;flex-wrap:wrap}
 .achip{font-size:.58em;padding:.1rem .38rem;border-radius:8px;background:var(--surface2);color:var(--muted);font-family:'JetBrains Mono',monospace;white-space:nowrap}
 .uchip{font-size:.58em;color:var(--dim);font-family:'JetBrains Mono',monospace;font-style:italic}
+.card-dates{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
 .card-due{font-size:.58em;font-family:'JetBrains Mono',monospace;color:var(--muted);white-space:nowrap}
 .card-due.overdue{color:#e74c3c}
+.card-start{font-size:.58em;font-family:'JetBrains Mono',monospace;color:var(--dim);white-space:nowrap}
 .status-pip{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:.3rem;flex-shrink:0}
 .pip-todo{background:var(--dim)}.pip-inprogress{background:#3498db}.pip-done{background:#2ecc71}
 
 /* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(4px)}
-.modal{background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:clamp(1.25rem,3vw,1.75rem);width:100%;max-width:440px;max-height:90vh;overflow-y:auto}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:clamp(1.25rem,3vw,1.75rem);width:100%;max-width:460px;max-height:90vh;overflow-y:auto}
 .modal-title{font-size:1em;font-weight:700;margin-bottom:1.1rem}
 .mfield{margin-bottom:.8rem}
 .mfield label{display:block;font-size:.62em;letter-spacing:.12em;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:.3rem}
 .mfield input,.mfield textarea,.mfield select{width:100%;padding:.55rem .75rem;background:var(--bg);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.82em;outline:none;transition:border-color .2s;resize:vertical}
+.mfield input[type=date]{color-scheme:dark}
 .mfield input:focus,.mfield textarea:focus,.mfield select:focus{border-color:#3498db}
 .mfield select option{background:var(--surface)}
+.mrow{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
 .modal-footer{display:flex;gap:.5rem;margin-top:1.1rem;justify-content:flex-end;flex-wrap:wrap}
 .mbtn{padding:.5rem 1rem;border-radius:7px;font-family:'Syne',sans-serif;font-size:.82em;font-weight:600;cursor:pointer;border:none;transition:all .2s;white-space:nowrap}
 .mbtn.primary{background:#1d4ed8;color:#e8edf5}.mbtn.primary:hover{background:#1e40af}
 .mbtn.secondary{background:var(--surface2);color:var(--muted);border:1px solid var(--border2)}.mbtn.secondary:hover{color:var(--text)}
 .mbtn.danger{background:rgba(231,76,60,.15);color:#e74c3c;border:1px solid rgba(231,76,60,.3)}.mbtn.danger:hover{background:rgba(231,76,60,.25)}
+
+/* MEMBER LIST in modal */
+.member-list{display:flex;flex-direction:column;gap:.4rem;margin-top:.4rem;max-height:200px;overflow-y:auto}
+.member-row{display:flex;align-items:center;justify-content:space-between;padding:.4rem .6rem;background:var(--surface2);border-radius:6px;font-size:.75em;font-family:'JetBrains Mono',monospace}
+.member-name{color:var(--text);font-weight:500}
+.member-id{color:var(--dim);font-size:.85em}
+.member-del{background:none;border:none;color:var(--dim);cursor:pointer;font-size:.9em;padding:.1rem .3rem;border-radius:3px;transition:color .15s}
+.member-del:hover{color:#e74c3c}
 
 /* TOAST */
 .toast{position:fixed;bottom:1.25rem;right:1.25rem;z-index:2000;padding:.6rem 1rem;border-radius:8px;font-size:.75em;font-family:'JetBrains Mono',monospace;background:var(--surface);border:1px solid var(--border2);color:var(--text);transform:translateY(2rem);opacity:0;transition:all .3s;pointer-events:none;max-width:calc(100vw - 2.5rem)}
@@ -131,6 +151,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
     </div>
     <div class="header-right">
       <div class="sync-info" id="sync-info">Connecting...</div>
+      <button class="hbtn green" onclick="openMembersModal()">👥 Members</button>
       <button class="hbtn blue" id="refresh-btn" onclick="refresh()">↻ REFRESH</button>
     </div>
   </div>
@@ -149,6 +170,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 <script>
 const BIN_ID  = '69d5d38c36566621a88c9d8c';
 const API_KEY = '$2a$10$DbpaQeAX21FZZuIOP3ZUmOdE0RC.hGmsLq.dYzkx/WOHVaS0RtoYG';
+const KANBAN_URL = 'https://eddywin3245.github.io/URTBOT/kanban.html';
 
 const SUBS = [
   { id:'manipulator', label:'Manipulator', color:'#e74c3c' },
@@ -160,12 +182,36 @@ const SUBS = [
 ];
 
 const STATUSES = [
-  { id:'todo',       label:'To Do',       icon:'○', color:'#3a4560' },
-  { id:'inprogress', label:'In Progress', icon:'◑', color:'#3498db' },
-  { id:'done',       label:'Done',        icon:'●', color:'#2ecc71' },
+  { id:'todo',       label:'To Do',       color:'#3a4560' },
+  { id:'inprogress', label:'In Progress', color:'#3498db' },
+  { id:'done',       label:'Done',        color:'#2ecc71' },
 ];
 
+const PRI_ORDER = { high:0, medium:1, low:2, '':3 };
+const PRI_LABELS = { high:'HIGH', medium:'MED', low:'LOW' };
+
 let store = {}, activeTab = 'all', refreshTimer = null;
+let dragData = null;
+
+// ── DATE HELPERS ──
+function dmyToYmd(dmy) {
+  if (!dmy) return '';
+  const p = dmy.split('/');
+  if (p.length !== 3) return '';
+  return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+}
+function ymdToDmy(ymd) {
+  if (!ymd) return '';
+  const p = ymd.split('-');
+  if (p.length !== 3) return '';
+  return `${p[2]}/${p[1]}/${p[0]}`;
+}
+function parseDmy(dmy) {
+  if (!dmy) return Infinity;
+  const p = dmy.split('/');
+  if (p.length !== 3) return Infinity;
+  return new Date(p[2], p[1]-1, p[0]).getTime();
+}
 
 // ── API ──
 async function jbGet() {
@@ -173,7 +219,6 @@ async function jbGet() {
   if (!r.ok) throw new Error(`JSONBin error ${r.status}`);
   return (await r.json()).record || {};
 }
-
 async function jbPut(data) {
   const r = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
     method: 'PUT',
@@ -186,129 +231,118 @@ async function jbPut(data) {
 async function loadData() {
   const rec = await jbGet();
   store = rec;
-  if (!store.tasks) store.tasks = {};
+  if (!store.tasks)   store.tasks   = {};
+  if (!store.members) store.members = {};
   SUBS.forEach(s => {
     if (!store.tasks[s.id]) store.tasks[s.id] = [];
-    // Migrate old tasks: if no status field, set based on done
     store.tasks[s.id].forEach(t => {
       if (!t.status) t.status = t.done ? 'done' : 'todo';
+      if (!t.priority) t.priority = '';
     });
   });
-  renderTabs();
-  renderBoard();
+  renderTabs(); renderBoard();
   document.getElementById('sync-info').textContent = 'SYNCED ' + new Date().toLocaleTimeString();
 }
-
 async function saveData() {
   await jbPut(store);
   document.getElementById('sync-info').textContent = 'SAVED ' + new Date().toLocaleTimeString();
 }
-
 function refresh() {
   const btn = document.getElementById('refresh-btn');
   btn.textContent = '↻ SYNCING...';
   loadData().finally(() => btn.textContent = '↻ REFRESH');
 }
-
 function startAutoRefresh() {
   clearInterval(refreshTimer);
   refreshTimer = setInterval(() => loadData().catch(() => {}), 30000);
 }
-
 function makeId() { return Math.random().toString(36).slice(2, 10); }
+
+// ── MEMBER HELPERS ──
+function memberName(id) {
+  return store.members?.[id] || ('…' + (id || '').slice(-4));
+}
+
+// ── SORTING ──
+function sortedTasks(tasks) {
+  return [...tasks].sort((a, b) => {
+    const pa = PRI_ORDER[a.priority || ''] ?? 3;
+    const pb = PRI_ORDER[b.priority || ''] ?? 3;
+    if (pa !== pb) return pa - pb;
+    const da = parseDmy(a.dueDate);
+    const db = parseDmy(b.dueDate);
+    if (da !== db) return da - db;
+    return (a.addedAt || 0) - (b.addedAt || 0);
+  });
+}
 
 // ── TABS ──
 function renderTabs() {
   const bar = document.getElementById('tab-bar');
   bar.innerHTML = '';
-
-  // All tab
   const allTotal = Object.values(store.tasks).flat().length;
-  const allDone  = Object.values(store.tasks).flat().filter(t => t.status === 'done').length;
-  const allTab   = makeTab('all', 'All', '#3498db', allDone, allTotal);
-  bar.appendChild(allTab);
-
+  const allRem   = Object.values(store.tasks).flat().filter(t => t.status !== 'done').length;
+  bar.appendChild(makeTab('all', 'All', '#3498db', allRem, allTotal));
   SUBS.forEach(sub => {
-    const list  = store.tasks[sub.id] || [];
-    const done  = list.filter(t => t.status === 'done').length;
-    const total = list.length;
-    bar.appendChild(makeTab(sub.id, sub.label, sub.color, done, total));
+    const list = store.tasks[sub.id] || [];
+    const rem  = list.filter(t => t.status !== 'done').length;
+    bar.appendChild(makeTab(sub.id, sub.label, sub.color, rem, list.length));
   });
 }
 
-function makeTab(id, label, color, done, total) {
+function makeTab(id, label, color, remaining, total) {
   const tab = document.createElement('button');
   tab.className = 'tab' + (activeTab === id ? ' active' : '');
   tab.style.setProperty('--tab-color', color);
-  const remaining = total - done;
-  tab.innerHTML = `
-    <span class="tab-dot" style="background:${color}"></span>
-    ${esc(label)}
-    ${remaining > 0 ? `<span class="tab-badge">${remaining}</span>` : ''}
-  `;
+  tab.innerHTML = `<span class="tab-dot" style="background:${color}"></span>${esc(label)}${remaining > 0 ? `<span class="tab-badge">${remaining}</span>` : ''}`;
   tab.onclick = () => { activeTab = id; renderTabs(); renderBoard(); };
   return tab;
 }
 
 // ── BOARD ──
 function renderBoard() {
-  // Overall stats
   const allTasks = Object.values(store.tasks).flat();
   const total    = allTasks.length;
   const done     = allTasks.filter(t => t.status === 'done').length;
   const pct      = total === 0 ? 0 : Math.round(done / total * 100);
   document.getElementById('overall-fill').style.width = pct + '%';
   document.getElementById('overall-pct').textContent  = pct + '%';
-
   const area = document.getElementById('main-area');
-
-  if (activeTab === 'all') {
-    renderAllView(area);
-  } else {
-    renderSubView(area, activeTab);
-  }
+  activeTab === 'all' ? renderAllView(area) : renderSubView(area, activeTab);
 }
 
 function renderAllView(area) {
   area.className = 'all-grid';
   area.innerHTML = '';
-
   SUBS.forEach(sub => {
-    const list  = store.tasks[sub.id] || [];
-    const done  = list.filter(t => t.status === 'done').length;
-    const total = list.length;
-    const pct   = total === 0 ? 0 : Math.round(done / total * 100);
-    const remaining = list.filter(t => t.status !== 'done');
-
-    const col = document.createElement('div');
+    const list = store.tasks[sub.id] || [];
+    const done = list.filter(t => t.status === 'done').length;
+    const rem  = list.filter(t => t.status !== 'done');
+    const pct  = list.length === 0 ? 0 : Math.round(done / list.length * 100);
+    const col  = document.createElement('div');
     col.className = 'mini-col';
-    col.innerHTML = `
-      <div class="mini-header" style="border-left-color:${sub.color}">
-        <div class="mini-name"><div class="mini-dot" style="background:${sub.color}"></div>${esc(sub.label)}</div>
-        <div class="mini-meta">${done}/${total}</div>
-      </div>
-      <div class="mini-progress"><div class="col-fill" style="width:${pct}%;background:${sub.color}"></div></div>
-    `;
-
-    if (remaining.length === 0 && total === 0) {
+    const hdr = document.createElement('div');
+    hdr.className = 'mini-header';
+    hdr.style.borderLeftColor = sub.color;
+    hdr.innerHTML = `<div class="mini-name"><div class="mini-dot" style="background:${sub.color}"></div>${esc(sub.label)}</div><div class="mini-meta">${done}/${list.length}</div>`;
+    hdr.onclick = () => { activeTab = sub.id; renderTabs(); renderBoard(); };
+    col.appendChild(hdr);
+    const prog = document.createElement('div');
+    prog.className = 'mini-progress';
+    prog.innerHTML = `<div class="col-fill" style="width:${pct}%;background:${sub.color}"></div>`;
+    col.appendChild(prog);
+    if (list.length === 0) {
       col.innerHTML += `<div class="col-empty">No tasks</div>`;
-    } else if (remaining.length === 0) {
+    } else if (rem.length === 0) {
       col.innerHTML += `<div class="col-empty" style="color:#2ecc71">All done ✓</div>`;
     } else {
-      const sorted = [...remaining].sort((a, b) => {
-        const order = { inprogress: 0, todo: 1, done: 2 };
-        return (order[a.status] ?? 1) - (order[b.status] ?? 1);
-      });
-      sorted.forEach(task => col.appendChild(buildCard(task, sub, true)));
+      sortedTasks(rem).forEach(task => col.appendChild(buildCard(task, sub, true)));
     }
-
-    // Add button
     const addBtn = document.createElement('button');
     addBtn.className = 'col-add-btn';
     addBtn.textContent = '+ Add task';
-    addBtn.onclick = () => openAddModal(sub.id);
+    addBtn.onclick = (e) => { e.stopPropagation(); openAddModal(sub.id); };
     col.appendChild(addBtn);
-
     area.appendChild(col);
   });
 }
@@ -318,111 +352,154 @@ function renderSubView(area, subId) {
   area.innerHTML = '';
   const sub  = SUBS.find(s => s.id === subId);
   const list = store.tasks[subId] || [];
-
   STATUSES.forEach(status => {
     const tasks = list.filter(t => t.status === status.id);
     const wrap  = document.createElement('div');
     wrap.className = 'col-wrap';
+    // Drag and drop handlers
+    wrap.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      wrap.classList.add('drag-over');
+    });
+    wrap.addEventListener('dragleave', () => wrap.classList.remove('drag-over'));
+    wrap.addEventListener('drop', e => {
+      e.preventDefault();
+      wrap.classList.remove('drag-over');
+      if (!dragData) return;
+      const task = store.tasks[dragData.subId]?.find(t => t.id === dragData.taskId);
+      if (!task) return;
+      task.status = status.id;
+      task.done   = status.id === 'done';
+      renderTabs(); renderBoard();
+      saveData().then(() => toast(`→ ${status.label}`, 'success')).catch(() => toast('Save failed', 'error'));
+      dragData = null;
+    });
 
-    // Column header
     const hdr = document.createElement('div');
     hdr.className = 'col-header';
-    hdr.innerHTML = `
-      <div class="col-title">
-        <span class="status-pip pip-${status.id}"></span>
-        ${esc(status.label)}
-      </div>
-      <span class="col-count-badge">${tasks.length}</span>
-    `;
+    hdr.innerHTML = `<div class="col-title"><span class="status-pip pip-${status.id}"></span>${esc(status.label)}</div><span class="col-count-badge">${tasks.length}</span>`;
     wrap.appendChild(hdr);
 
-    // Progress bar for done column
     if (status.id === 'done') {
-      const total = list.length;
-      const pct   = total === 0 ? 0 : Math.round(tasks.length / total * 100);
-      const prog  = document.createElement('div');
+      const pct  = list.length === 0 ? 0 : Math.round(tasks.length / list.length * 100);
+      const prog = document.createElement('div');
       prog.className = 'col-progress';
       prog.innerHTML = `<div class="col-fill" style="width:${pct}%;background:${sub.color}"></div>`;
       wrap.appendChild(prog);
     }
 
-    // Cards
     if (tasks.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'col-empty';
-      empty.textContent = status.id === 'todo' ? 'No tasks yet' : status.id === 'inprogress' ? 'Nothing in progress' : 'Nothing completed yet';
+      empty.textContent = status.id === 'todo' ? 'No tasks yet' : status.id === 'inprogress' ? 'Nothing in progress' : 'Nothing completed';
       wrap.appendChild(empty);
     } else {
-      tasks.forEach(task => wrap.appendChild(buildCard(task, sub, false)));
+      // Group by priority
+      const groups = [
+        { key:'high',   tasks: tasks.filter(t => t.priority === 'high') },
+        { key:'medium', tasks: tasks.filter(t => t.priority === 'medium') },
+        { key:'low',    tasks: tasks.filter(t => t.priority === 'low') },
+        { key:'',       tasks: tasks.filter(t => !t.priority) },
+      ].filter(g => g.tasks.length > 0);
+
+      groups.forEach((group, gi) => {
+        if (group.key && groups.length > 1) {
+          const ghdr = document.createElement('div');
+          ghdr.className = 'pri-group-header';
+          const colors = { high:'var(--pri-high)', medium:'var(--pri-medium)', low:'var(--pri-low)' };
+          ghdr.innerHTML = `<span style="color:${colors[group.key] || 'var(--dim)'}">${PRI_LABELS[group.key] || 'NONE'}</span>`;
+          if (gi > 0) ghdr.style.marginTop = '.5rem';
+          wrap.appendChild(ghdr);
+        }
+        sortedTasks(group.tasks).forEach(task => wrap.appendChild(buildCard(task, sub, false)));
+      });
     }
 
-    // Add button only on To Do column
     if (status.id === 'todo') {
       const addBtn = document.createElement('button');
       addBtn.className = 'col-add-btn';
       addBtn.textContent = '+ Add task';
-      addBtn.onclick = () => openAddModal(subId);
+      addBtn.onclick = (e) => { e.stopPropagation(); openAddModal(subId); };
       wrap.appendChild(addBtn);
     }
-
     area.appendChild(wrap);
   });
 }
 
 // ── CARD ──
 function buildCard(task, sub, compact) {
-  const card = document.createElement('div');
+  const card   = document.createElement('div');
   card.className = 'card';
   card.style.borderLeftColor = sub.color;
+  card.draggable = true;
 
-  const overdue = isOverdue(task);
-  const status  = STATUSES.find(s => s.id === task.status) || STATUSES[0];
-  const sc      = task.status === 'done' ? '#2ecc71' : (overdue ? '#e74c3c' : status.color);
+  // Drag events
+  card.addEventListener('dragstart', e => {
+    dragData = { subId: sub.id, taskId: task.id };
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  card.addEventListener('dragend', () => card.classList.remove('dragging'));
 
-  const aHtml   = (!task.assignees || !task.assignees.length)
+  // Click whole card = edit
+  card.addEventListener('click', () => openEditModal(sub.id, task.id));
+
+  const overdue  = isOverdue(task);
+  const status   = STATUSES.find(s => s.id === task.status) || STATUSES[0];
+  const sc       = task.status === 'done' ? '#2ecc71' : (overdue ? '#e74c3c' : status.color);
+
+  const assigneeHtml = (!task.assignees || !task.assignees.length)
     ? `<span class="uchip">unassigned</span>`
-    : task.assignees.map(id => `<span class="achip">${esc(shortId(id))}</span>`).join('');
-  const dueHtml = task.dueDate ? `<span class="card-due${overdue ? ' overdue' : ''}">${overdue ? '⚠' : '📅'} ${esc(task.dueDate)}</span>` : '';
-  const noteHtml = (!compact && task.notes) ? `<div class="card-notes">${esc(task.notes)}</div>` : '';
+    : task.assignees.map(id => `<span class="achip">${esc(memberName(id))}</span>`).join('');
+
+  const dueHtml   = task.dueDate ? `<span class="card-due${overdue ? ' overdue' : ''}">${overdue ? '⚠' : '📅'} ${esc(task.dueDate)}</span>` : '';
+  const startHtml = (!compact && task.startDate) ? `<span class="card-start">▶ ${esc(task.startDate)}</span>` : '';
+  const noteHtml  = (!compact && task.notes) ? `<div class="card-notes">${esc(task.notes)}</div>` : '';
+  const priHtml   = task.priority ? `<span class="card-priority pri-${task.priority}">${PRI_LABELS[task.priority]}</span>` : '';
+  const statusIcon = task.status === 'done' ? '✓' : task.status === 'inprogress' ? '◑' : '';
 
   card.innerHTML = `
     <div class="card-top">
-      <div class="card-status" style="border-color:${sc};color:${sc}" onclick="cycleStatus('${sub.id}','${task.id}')" title="Click to advance status">${task.status === 'done' ? '✓' : task.status === 'inprogress' ? '◑' : ''}</div>
+      <div class="card-status" style="border-color:${sc};color:${sc}" title="Click to advance status">${statusIcon}</div>
       <div class="card-name">${esc(task.name)}</div>
-      <div class="card-actions">
-        <div class="card-btn" onclick="openEditModal('${sub.id}','${task.id}')" title="Edit">✎</div>
-        <div class="card-btn danger" onclick="deleteTask('${sub.id}','${task.id}')" title="Delete">✕</div>
-      </div>
+      ${priHtml}
     </div>
     ${noteHtml}
-    <div class="card-footer"><div style="display:flex;gap:.25rem;flex-wrap:wrap">${aHtml}</div>${dueHtml}</div>
+    <div class="card-footer">
+      <div class="card-assignees">${assigneeHtml}</div>
+      <div class="card-dates">${startHtml}${dueHtml}</div>
+    </div>
   `;
+
+  // Status circle click — cycle status, don't open modal
+  card.querySelector('.card-status').addEventListener('click', e => {
+    e.stopPropagation();
+    cycleStatus(sub.id, task.id);
+  });
+
   return card;
 }
 
-// ── UTILS ──
+// ── TASK ACTIONS ──
 function isOverdue(t) {
   if (!t.dueDate || t.status === 'done') return false;
   const p = t.dueDate.split('/');
   if (p.length !== 3) return false;
-  return new Date(p[2], p[1] - 1, p[0]) < new Date();
+  return new Date(p[2], p[1]-1, p[0]) < new Date();
 }
 
-function shortId(id) { return id ? '…' + id.slice(-4) : '?'; }
-function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-
-// ── TASK ACTIONS ──
 async function cycleStatus(subId, taskId) {
   const task = store.tasks[subId]?.find(t => t.id === taskId);
   if (!task) return;
-  const order = ['todo', 'inprogress', 'done'];
-  const current = order.indexOf(task.status || 'todo');
-  task.status = order[(current + 1) % order.length];
-  task.done = task.status === 'done';
+  const order = ['todo','inprogress','done'];
+  const cur   = order.indexOf(task.status || 'todo');
+  task.status = order[(cur + 1) % order.length];
+  task.done   = task.status === 'done';
   renderTabs(); renderBoard();
   try {
     await saveData();
-    const label = task.status === 'todo' ? 'To Do' : task.status === 'inprogress' ? 'In Progress' : 'Done';
+    const label = { todo:'To Do', inprogress:'In Progress', done:'Done' }[task.status];
     toast(`→ ${label}`, 'success');
   } catch { toast('Save failed', 'error'); }
 }
@@ -430,7 +507,7 @@ async function cycleStatus(subId, taskId) {
 async function deleteTask(subId, taskId) {
   if (!confirm('Delete this task?')) return;
   store.tasks[subId] = store.tasks[subId].filter(t => t.id !== taskId);
-  renderTabs(); renderBoard();
+  closeModal(); renderTabs(); renderBoard();
   try { await saveData(); toast('Task removed', 'success'); }
   catch { toast('Save failed', 'error'); }
 }
@@ -440,35 +517,51 @@ function openAddModal(subId) {
   const sub = SUBS.find(s => s.id === subId);
   showModal(`
     <div class="modal-title">➕ Add task — ${esc(sub.label)}</div>
-    <div class="mfield"><label>TASK NAME</label><input type="text" id="m-name" placeholder="e.g. Assemble wheel mounts" maxlength="100"></div>
-    <div class="mfield"><label>STATUS</label>
-      <select id="m-status">
-        <option value="todo">To Do</option>
-        <option value="inprogress">In Progress</option>
-        <option value="done">Done</option>
-      </select>
+    <div class="mfield"><label>TASK NAME</label><input type="text" id="m-name" placeholder="e.g. Assemble wheel mounts" maxlength="100" autofocus></div>
+    <div class="mrow">
+      <div class="mfield"><label>PRIORITY</label>
+        <select id="m-priority">
+          <option value="">None</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+      <div class="mfield"><label>STATUS</label>
+        <select id="m-status">
+          <option value="todo">To Do</option>
+          <option value="inprogress">In Progress</option>
+          <option value="done">Done</option>
+        </select>
+      </div>
     </div>
-    <div class="mfield"><label>DUE DATE (optional)</label><input type="text" id="m-due" placeholder="DD/MM/YYYY"></div>
+    <div class="mrow">
+      <div class="mfield"><label>START DATE</label><input type="date" id="m-start"></div>
+      <div class="mfield"><label>DUE DATE</label><input type="date" id="m-due"></div>
+    </div>
     <div class="mfield"><label>NOTES (optional)</label><textarea id="m-notes" rows="2" placeholder="Any extra context"></textarea></div>
-    <div class="mfield"><label>ASSIGN TO — Discord User IDs, comma separated</label><input type="text" id="m-assign" placeholder="Right-click user in Discord → Copy User ID"></div>
+    <div class="mfield"><label>ASSIGN TO — select members</label>
+      <select id="m-assign" multiple style="height:80px">${memberOptions()}</select>
+      <div style="font-size:.6em;color:var(--dim);margin-top:.25rem;font-family:'JetBrains Mono',monospace">Hold Ctrl/Cmd to select multiple. Add members via the 👥 Members button.</div>
+    </div>
     <div class="modal-footer">
       <button class="mbtn secondary" onclick="closeModal()">Cancel</button>
       <button class="mbtn primary" onclick="addTask('${subId}')">Add Task</button>
     </div>
   `);
-  document.getElementById('m-name').focus();
 }
 
 async function addTask(subId) {
   const name = document.getElementById('m-name').value.trim();
   if (!name) { alert('Task name is required.'); return; }
-  const status   = document.getElementById('m-status').value;
-  const dueDate  = document.getElementById('m-due').value.trim();
-  const notes    = document.getElementById('m-notes').value.trim();
-  const rawIds   = document.getElementById('m-assign').value.trim();
-  const assignees = rawIds ? rawIds.split(',').map(s => s.trim()).filter(Boolean) : [];
-  const task = { id: makeId(), name, status, done: status === 'done', assignees, dueDate: dueDate || null, notes: notes || null, addedAt: Date.now() };
-  store.tasks[subId].push(task);
+  const priority  = document.getElementById('m-priority').value;
+  const status    = document.getElementById('m-status').value;
+  const startDate = ymdToDmy(document.getElementById('m-start').value);
+  const dueDate   = ymdToDmy(document.getElementById('m-due').value);
+  const notes     = document.getElementById('m-notes').value.trim();
+  const sel       = document.getElementById('m-assign');
+  const assignees = [...sel.selectedOptions].map(o => o.value);
+  store.tasks[subId].push({ id:makeId(), name, status, done:status==='done', priority, assignees, startDate:startDate||null, dueDate:dueDate||null, notes:notes||null, addedAt:Date.now() });
   closeModal(); renderTabs(); renderBoard();
   try { await saveData(); toast('Task added', 'success'); }
   catch { toast('Save failed', 'error'); }
@@ -479,25 +572,40 @@ function openEditModal(subId, taskId) {
   if (!task) return;
   const sub = SUBS.find(s => s.id === subId);
   showModal(`
-    <div class="modal-title">✎ Edit task — ${esc(sub.label)}</div>
+    <div class="modal-title">✎ Edit — ${esc(sub.label)}</div>
     <div class="mfield"><label>TASK NAME</label><input type="text" id="m-name" value="${esc(task.name)}" maxlength="100"></div>
-    <div class="mfield"><label>STATUS</label>
-      <select id="m-status">
-        <option value="todo" ${task.status === 'todo' ? 'selected' : ''}>To Do</option>
-        <option value="inprogress" ${task.status === 'inprogress' ? 'selected' : ''}>In Progress</option>
-        <option value="done" ${task.status === 'done' ? 'selected' : ''}>Done</option>
-      </select>
+    <div class="mrow">
+      <div class="mfield"><label>PRIORITY</label>
+        <select id="m-priority">
+          <option value="" ${!task.priority?'selected':''}>None</option>
+          <option value="high" ${task.priority==='high'?'selected':''}>High</option>
+          <option value="medium" ${task.priority==='medium'?'selected':''}>Medium</option>
+          <option value="low" ${task.priority==='low'?'selected':''}>Low</option>
+        </select>
+      </div>
+      <div class="mfield"><label>STATUS</label>
+        <select id="m-status">
+          <option value="todo" ${task.status==='todo'?'selected':''}>To Do</option>
+          <option value="inprogress" ${task.status==='inprogress'?'selected':''}>In Progress</option>
+          <option value="done" ${task.status==='done'?'selected':''}>Done</option>
+        </select>
+      </div>
     </div>
-    <div class="mfield"><label>DUE DATE</label><input type="text" id="m-due" value="${esc(task.dueDate || '')}" placeholder="DD/MM/YYYY"></div>
-    <div class="mfield"><label>NOTES</label><textarea id="m-notes" rows="2">${esc(task.notes || '')}</textarea></div>
-    <div class="mfield"><label>ASSIGN TO — Discord User IDs, comma separated</label><input type="text" id="m-assign" value="${esc((task.assignees || []).join(', '))}"></div>
+    <div class="mrow">
+      <div class="mfield"><label>START DATE</label><input type="date" id="m-start" value="${esc(dmyToYmd(task.startDate||''))}"></div>
+      <div class="mfield"><label>DUE DATE</label><input type="date" id="m-due" value="${esc(dmyToYmd(task.dueDate||''))}"></div>
+    </div>
+    <div class="mfield"><label>NOTES</label><textarea id="m-notes" rows="2">${esc(task.notes||'')}</textarea></div>
+    <div class="mfield"><label>ASSIGN TO — select members</label>
+      <select id="m-assign" multiple style="height:80px">${memberOptions(task.assignees||[])}</select>
+      <div style="font-size:.6em;color:var(--dim);margin-top:.25rem;font-family:'JetBrains Mono',monospace">Hold Ctrl/Cmd to select multiple.</div>
+    </div>
     <div class="modal-footer">
       <button class="mbtn secondary" onclick="closeModal()">Cancel</button>
-      <button class="mbtn danger" onclick="deleteTask('${subId}','${taskId}');closeModal()">Delete</button>
+      <button class="mbtn danger" onclick="deleteTask('${subId}','${taskId}')">Delete</button>
       <button class="mbtn primary" onclick="saveEdit('${subId}','${taskId}')">Save</button>
     </div>
   `);
-  document.getElementById('m-name').focus();
 }
 
 async function saveEdit(subId, taskId) {
@@ -506,17 +614,74 @@ async function saveEdit(subId, taskId) {
   const name = document.getElementById('m-name').value.trim();
   if (!name) { alert('Task name is required.'); return; }
   task.name      = name;
+  task.priority  = document.getElementById('m-priority').value;
   task.status    = document.getElementById('m-status').value;
   task.done      = task.status === 'done';
-  task.dueDate   = document.getElementById('m-due').value.trim() || null;
+  task.startDate = ymdToDmy(document.getElementById('m-start').value) || null;
+  task.dueDate   = ymdToDmy(document.getElementById('m-due').value) || null;
   task.notes     = document.getElementById('m-notes').value.trim() || null;
-  const rawIds   = document.getElementById('m-assign').value.trim();
-  task.assignees = rawIds ? rawIds.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const sel      = document.getElementById('m-assign');
+  task.assignees = [...sel.selectedOptions].map(o => o.value);
   closeModal(); renderTabs(); renderBoard();
   try { await saveData(); toast('Task saved', 'success'); }
   catch { toast('Save failed', 'error'); }
 }
 
+// ── MEMBERS ──
+function memberOptions(selected = []) {
+  const members = store.members || {};
+  if (!Object.keys(members).length) return `<option disabled>No members added yet</option>`;
+  return Object.entries(members).map(([id, name]) =>
+    `<option value="${esc(id)}" ${selected.includes(id) ? 'selected' : ''}>${esc(name)}</option>`
+  ).join('');
+}
+
+function openMembersModal() {
+  renderMembersModal();
+}
+
+function renderMembersModal() {
+  const members = store.members || {};
+  const listHtml = Object.entries(members).length
+    ? Object.entries(members).map(([id, name]) => `
+        <div class="member-row">
+          <span class="member-name">${esc(name)}</span>
+          <span class="member-id">${esc(id)}</span>
+          <button class="member-del" onclick="deleteMember('${esc(id)}')" title="Remove">✕</button>
+        </div>`).join('')
+    : `<div style="color:var(--dim);font-size:.75em;font-family:'JetBrains Mono',monospace;padding:.5rem 0">No members added yet</div>`;
+
+  showModal(`
+    <div class="modal-title">👥 Team Members</div>
+    <div class="mfield"><label>DISPLAY NAME</label><input type="text" id="m-mname" placeholder="e.g. Eddywin"></div>
+    <div class="mfield"><label>DISCORD USER ID</label><input type="text" id="m-mid" placeholder="Right-click user → Copy User ID"></div>
+    <div class="modal-footer" style="margin-top:.75rem;margin-bottom:.75rem">
+      <button class="mbtn primary" onclick="addMember()">Add Member</button>
+    </div>
+    <div style="font-size:.62em;letter-spacing:.12em;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:.5rem">CURRENT MEMBERS</div>
+    <div class="member-list">${listHtml}</div>
+    <div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Close</button></div>
+  `);
+}
+
+async function addMember() {
+  const name = document.getElementById('m-mname').value.trim();
+  const id   = document.getElementById('m-mid').value.trim();
+  if (!name || !id) { alert('Both name and ID are required.'); return; }
+  if (!store.members) store.members = {};
+  store.members[id] = name;
+  try { await saveData(); toast('Member added', 'success'); renderMembersModal(); }
+  catch { toast('Save failed', 'error'); }
+}
+
+async function deleteMember(id) {
+  if (!confirm(`Remove ${store.members[id] || id}?`)) return;
+  delete store.members[id];
+  try { await saveData(); toast('Member removed', 'success'); renderMembersModal(); }
+  catch { toast('Save failed', 'error'); }
+}
+
+// ── MODAL HELPERS ──
 function showModal(html) { document.getElementById('modal-content').innerHTML = html; document.getElementById('modal').style.display = 'flex'; }
 function closeModal() { document.getElementById('modal').style.display = 'none'; }
 function closeModalOnOverlay(e) { if (e.target === document.getElementById('modal')) closeModal(); }
@@ -528,12 +693,14 @@ function toast(msg, type = 'success') {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
 }
 
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 // ── INIT ──
-loadData().then(startAutoRefresh).catch(e => {
+loadData().then(startAutoRefresh).catch(() => {
   document.getElementById('sync-info').textContent = 'CONNECTION ERROR';
-  document.getElementById('main-area').innerHTML = `<div class="loading" style="color:#e74c3c">Failed to connect — check your network</div>`;
+  document.getElementById('main-area').innerHTML = `<div class="loading" style="color:#e74c3c">Failed to connect</div>`;
 });
 </script>
 </body>
