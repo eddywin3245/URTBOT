@@ -586,7 +586,14 @@ client.once("clientReady", async () => {
         await loadData();
         if (JSON.stringify(store.tasks) !== prev) {
           console.log("🔄 External change detected — refreshing embeds");
-          await updateAll(client);
+  // Update embeds only, don't save back (would overwrite kanban changes)
+          try { const ch = await client.channels.fetch(STATUS_CHANNEL_ID); await updateOverview(ch); } catch {}
+          for (const sub of SUBSYSTEMS) {
+            const chId = store.leadChannelIds[sub.id];
+            if (!chId) continue;
+            try { const ch = await client.channels.fetch(chId); await updateLeadChannel(ch, sub); } catch {}
+  }
+}
         }
       } catch (e) { console.error("Poll error:", e.message); }
     }, 30000);
