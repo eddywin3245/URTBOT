@@ -580,20 +580,19 @@ client.once("clientReady", async () => {
     console.log("✅ All done!");
 
     // Poll JSONBin every 30s for external changes (Kanban edits)
+    // Only refresh embeds — never write back, so Kanban saves are preserved
     setInterval(async () => {
       try {
         const prev = JSON.stringify(store.tasks);
         await loadData();
         if (JSON.stringify(store.tasks) !== prev) {
           console.log("🔄 External change detected — refreshing embeds");
-  // Update embeds only, don't save back (would overwrite kanban changes)
           try { const ch = await client.channels.fetch(STATUS_CHANNEL_ID); await updateOverview(ch); } catch {}
           for (const sub of SUBSYSTEMS) {
             const chId = store.leadChannelIds[sub.id];
             if (!chId) continue;
             try { const ch = await client.channels.fetch(chId); await updateLeadChannel(ch, sub); } catch {}
-  }
-}
+          }
         }
       } catch (e) { console.error("Poll error:", e.message); }
     }, 30000);
