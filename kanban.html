@@ -1043,7 +1043,7 @@ function buildCheckInDisplay(task, subId, taskId) {
   return cis.map((ci, i) =>
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:.3rem .5rem;background:var(--surface2);border-radius:5px;margin-bottom:.25rem">' +
     '<span style="font-size:.72em;font-family:JetBrains Mono,monospace;color:var(--text)">🕐 ' + esc(ci.date) + (ci.note ? ' — ' + esc(ci.note) : '') + '</span>' +
-    '<button onclick="removeCheckIn('' + subId + '','' + taskId + '',' + i + ')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:.9em;padding:.1rem .3rem">✕</button>' +
+    '<button onclick="removeCheckIn(\''+subId+'\',\''+taskId+'\','+i+')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:.9em;padding:.1rem .3rem">✕</button>' +
     '</div>'
   ).join('');
 }
