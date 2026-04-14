@@ -177,6 +177,29 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
 .ld{animation:pulse 1.2s ease-in-out infinite}.ld:nth-child(2){animation-delay:.2s}.ld:nth-child(3){animation-delay:.4s}
 .loading{display:flex;align-items:center;justify-content:center;height:300px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.8em;letter-spacing:.1em}
+
+/* MILESTONES */
+.milestone-bar{background:var(--surface);border-top:1px solid var(--border);padding:.5rem var(--pad);display:flex;gap:.75rem;align-items:center;overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}
+.milestone-bar::-webkit-scrollbar{display:none}
+.milestone-chip{display:flex;align-items:center;gap:.5rem;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:.35rem .75rem;flex-shrink:0;cursor:pointer;transition:border-color .2s}
+.milestone-chip:hover{border-color:var(--border2)}
+.milestone-chip.urgent{border-color:rgba(231,76,60,.4);background:rgba(231,76,60,.06)}
+.milestone-chip.soon{border-color:rgba(241,196,15,.4);background:rgba(241,196,15,.06)}
+.milestone-chip.ok{border-color:rgba(46,204,113,.3);background:rgba(46,204,113,.05)}
+.milestone-chip.past{opacity:.4}
+.ms-flag{font-size:.7em}
+.ms-name{font-size:.72em;font-weight:700;color:var(--text);white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis}
+.ms-date{font-size:.6em;font-family:'JetBrains Mono',monospace;color:var(--muted);white-space:nowrap}
+.ms-countdown{font-size:.65em;font-family:'JetBrains Mono',monospace;font-weight:700;white-space:nowrap}
+.ms-countdown.urgent{color:#e74c3c}
+.ms-countdown.soon{color:#f1c40f}
+.ms-countdown.ok{color:#2ecc71}
+.ms-countdown.past{color:var(--dim)}
+.ms-add-btn{display:flex;align-items:center;gap:.4rem;background:transparent;border:1px dashed var(--border2);border-radius:8px;padding:.35rem .75rem;flex-shrink:0;cursor:pointer;color:var(--dim);font-size:.68em;font-family:'JetBrains Mono',monospace;transition:all .2s;white-space:nowrap}
+.ms-add-btn:hover{border-color:var(--border2);color:var(--muted)}
+/* Calendar milestone pills */
+.cal-milestone{display:block;font-size:.58em;padding:.15rem .4rem;border-radius:4px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;margin-bottom:.1rem;flex-shrink:0;font-family:'JetBrains Mono',monospace;background:rgba(155,89,182,0.9);border-left:2px solid #9b59b6;font-weight:700}
+.cal-milestone:hover{opacity:.85}
 </style>
 </head>
 <body>
@@ -194,12 +217,14 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
     <div class="header-right">
       <div class="sync-info" id="sync-info">Connecting...</div>
       <button class="hbtn green" onclick="openMembersModal()">👥 Members</button>
+      <button class="hbtn" style="color:#9b59b6;border-color:rgba(155,89,182,.3)" onclick="openAddMilestoneModal()">🏁 Add Milestone</button>
       <button class="hbtn blue" id="refresh-btn" onclick="refresh()">↻ REFRESH</button>
     </div>
   </div>
   <div class="tab-bar" id="tab-bar"></div>
 </div>
 
+<div class="milestone-bar" id="milestone-bar"></div>
 <div id="main-area">
   <div class="loading"><span class="ld">●</span>&nbsp;<span class="ld">●</span>&nbsp;<span class="ld">●</span></div>
 </div>
@@ -278,8 +303,9 @@ async function jbPut(data) {
 async function loadData() {
   const rec = await jbGet();
   store = rec;
-  if (!store.tasks)   store.tasks   = {};
-  if (!store.members) store.members = {};
+  if (!store.tasks)      store.tasks      = {};
+  if (!store.members)   store.members   = {};
+  if (!store.milestones) store.milestones = [];
   SUBS.forEach(s => {
     if (!store.tasks[s.id]) store.tasks[s.id] = [];
     store.tasks[s.id].forEach(t => {
@@ -288,7 +314,7 @@ async function loadData() {
       if (!t.dependsOn) t.dependsOn = [];
     });
   });
-  renderTabs(); renderBoard();
+  renderTabs(); renderBoard(); renderMilestoneBar();
   document.getElementById('sync-info').textContent = 'SYNCED ' + new Date().toLocaleTimeString();
 }
 async function saveData() {
@@ -512,14 +538,20 @@ function renderCalendarView(area) {
   const today      = new Date();
   const todayKey   = todayDmy();
 
-  // Build task map by DD/MM/YYYY key
+  // Build task map by DD/MM/YYYY key — include due dates, start dates, and check-ins
   const byDate = {};
+  const addToDate = (key, entry) => { if (!byDate[key]) byDate[key] = []; byDate[key].push(entry); };
   SUBS.forEach(sub => {
     (store.tasks[sub.id] || []).forEach(task => {
-      if (!task.dueDate) return;
-      if (!byDate[task.dueDate]) byDate[task.dueDate] = [];
-      byDate[task.dueDate].push({ task, sub });
+      if (task.dueDate) addToDate(task.dueDate, { task, sub, type: 'due' });
+      if (task.startDate && task.startDate !== task.dueDate) addToDate(task.startDate, { task, sub, type: 'start' });
+      (task.checkIns || []).forEach(ci => { if (ci.date) addToDate(ci.date, { task, sub, type: 'checkin', ci }); });
     });
+  });
+  // Add milestones as their own entries
+  (store.milestones || []).forEach(ms => {
+    if (!byDate[ms.date]) byDate[ms.date] = [];
+    byDate[ms.date].unshift({ ms, type: 'milestone' });
   });
 
   // Undated tasks
@@ -581,15 +613,44 @@ function renderCalendarView(area) {
     dateNum.textContent = d;
     cell.appendChild(dateNum);
 
-    const MAX_SHOW = 3;
-    tasks.slice(0, MAX_SHOW).forEach(({ task, sub }) => {
+    const MAX_SHOW = 4;
+    tasks.slice(0, MAX_SHOW).forEach(({ task, sub, type, ci, ms }) => {
       const pill = document.createElement('div');
-      pill.className = 'cal-pill' + (task.status === 'done' ? ' done' : '') + (isBlocked(task) ? ' blocked-pill' : '');
-      pill.style.background = sub.color;
-      pill.title = task.name + (task.status === 'done' ? ' ✓' : '') + (isBlocked(task) ? ' ⛔ Blocked' : '');
-      const icon = task.status === 'done' ? '✓ ' : task.status === 'inprogress' ? '◑ ' : '';
-      pill.textContent = icon + task.name;
-      pill.onclick = () => openEditModal(sub.id, task.id);
+      if (type === 'milestone') {
+        pill.className = 'cal-milestone';
+        const daysLeft = msDaysLeft(ms.date);
+        const suffix = daysLeft === 0 ? ' — TODAY' : daysLeft > 0 ? ` — ${daysLeft}d` : ` — ${Math.abs(daysLeft)}d ago`;
+        pill.title = ms.name + (ms.description ? ': ' + ms.description : '');
+        pill.textContent = '🏁 ' + ms.name + suffix;
+        pill.onclick = () => {
+          const idx = (store.milestones||[]).findIndex(m => m.id === ms.id);
+          if (idx >= 0) openEditMilestoneModal(idx);
+        };
+        cell.appendChild(pill);
+        return;
+      } else if (type === 'checkin') {
+        pill.className = 'cal-pill';
+        pill.style.background = 'rgba(155,89,182,0.8)';
+        pill.style.borderLeft = '2px solid #9b59b6';
+        pill.title = 'Check-in: ' + task.name + (ci.note ? ' — ' + ci.note : '');
+        pill.textContent = '🕐 ' + task.name;
+        pill.onclick = () => openEditModal(sub.id, task.id);
+      } else if (type === 'start') {
+        pill.className = 'cal-pill';
+        pill.style.background = sub.color + '55';
+        pill.style.border = '1px solid ' + sub.color;
+        pill.style.color = '#e8edf5';
+        pill.title = '▶ Start: ' + task.name;
+        pill.textContent = '▶ ' + task.name;
+        pill.onclick = () => openEditModal(sub.id, task.id);
+      } else {
+        pill.className = 'cal-pill' + (task.status === 'done' ? ' done' : '') + (isBlocked(task) ? ' blocked-pill' : '');
+        pill.style.background = sub.color;
+        pill.title = task.name + (task.status === 'done' ? ' ✓' : '') + (isBlocked(task) ? ' ⛔ Blocked' : '');
+        const icon = task.status === 'done' ? '✓ ' : task.status === 'inprogress' ? '◑ ' : '';
+        pill.textContent = icon + task.name;
+        pill.onclick = () => openEditModal(sub.id, task.id);
+      }
       cell.appendChild(pill);
     });
 
@@ -921,6 +982,14 @@ function openEditModal(subId, taskId) {
       <div id="m-assign-list" style="max-height:120px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:.25rem">${memberCheckboxList(task.assignees||[])}</div>
     </div>
 
+    <div class="modal-section">🕐 CHECK-INS</div>
+    <div id="checkin-list">${buildCheckInDisplay(task, subId, taskId)}</div>
+    <div style="display:flex;gap:.4rem;margin-top:.4rem;align-items:center">
+      <input type="date" id="ci-date" style="flex:1;padding:.35rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.78em;outline:none;color-scheme:dark">
+      <input type="text" id="ci-note" placeholder="Note (optional)" style="flex:2;padding:.35rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.78em;outline:none">
+      <button class="mbtn primary small" onclick="addCheckIn('','')">Add</button>
+    </div>
+
     <div class="modal-section">⛔ DEPENDS ON (task must complete before this one can start)</div>
     <div class="dep-display" id="dep-list">${buildDepDisplay(task.dependsOn, subId, taskId)}</div>
     <div style="display:flex;gap:.4rem;margin-top:.4rem">
@@ -964,6 +1033,174 @@ async function saveEdit(subId, taskId) {
     toast('Task saved', 'success');
     if (prevStatus !== 'done' && task.status === 'done') checkUnblocked(taskId);
   }
+  catch { toast('Save failed', 'error'); }
+}
+
+// ── CHECK-INS ──
+function buildCheckInDisplay(task, subId, taskId) {
+  const cis = task.checkIns || [];
+  if (!cis.length) return '<div style="font-size:.7em;color:var(--dim);font-family:JetBrains Mono,monospace;padding:.3rem 0">No check-ins scheduled</div>';
+  return cis.map((ci, i) =>
+    '<div style="display:flex;align-items:center;justify-content:space-between;padding:.3rem .5rem;background:var(--surface2);border-radius:5px;margin-bottom:.25rem">' +
+    '<span style="font-size:.72em;font-family:JetBrains Mono,monospace;color:var(--text)">🕐 ' + esc(ci.date) + (ci.note ? ' — ' + esc(ci.note) : '') + '</span>' +
+    '<button onclick="removeCheckIn('' + subId + '','' + taskId + '',' + i + ')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:.9em;padding:.1rem .3rem">✕</button>' +
+    '</div>'
+  ).join('');
+}
+
+async function addCheckIn(subId, taskId) {
+  const date = ymdToDmy(document.getElementById('ci-date').value);
+  if (!date) { alert('Please select a date.'); return; }
+  const note = document.getElementById('ci-note').value.trim();
+  const task = store.tasks[subId]?.find(t => t.id === taskId);
+  if (!task) return;
+  if (!task.checkIns) task.checkIns = [];
+  task.checkIns.push({ id: makeId(), date, note: note || null, sent: false });
+  task.checkIns.sort((a, b) => parseDmy(a.date) - parseDmy(b.date));
+  document.getElementById('checkin-list').innerHTML = buildCheckInDisplay(task, subId, taskId);
+  document.getElementById('ci-date').value = '';
+  document.getElementById('ci-note').value = '';
+  try { await saveData(); toast('Check-in added', 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
+async function removeCheckIn(subId, taskId, index) {
+  const task = store.tasks[subId]?.find(t => t.id === taskId);
+  if (!task || !task.checkIns) return;
+  task.checkIns.splice(index, 1);
+  document.getElementById('checkin-list').innerHTML = buildCheckInDisplay(task, subId, taskId);
+  try { await saveData(); toast('Check-in removed', 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
+// ── MILESTONES ──
+function msClass(daysLeft) {
+  if (daysLeft < 0) return 'past';
+  if (daysLeft <= 7) return 'urgent';
+  if (daysLeft <= 30) return 'soon';
+  return 'ok';
+}
+
+function msDaysLeft(dmy) {
+  if (!dmy) return Infinity;
+  const p = dmy.split('/');
+  if (p.length !== 3) return Infinity;
+  const ms = new Date(p[2], p[1]-1, p[0]);
+  const now = new Date(); now.setHours(0,0,0,0);
+  return Math.round((ms - now) / 86400000);
+}
+
+function msCountdownText(daysLeft) {
+  if (daysLeft < 0) return `${Math.abs(daysLeft)}d ago`;
+  if (daysLeft === 0) return 'TODAY';
+  if (daysLeft === 1) return '1 day';
+  return `${daysLeft}d`;
+}
+
+function renderMilestoneBar() {
+  const bar = document.getElementById('milestone-bar');
+  if (!bar) return;
+  const milestones = (store.milestones || []).slice().sort((a, b) => parseDmy(a.date) - parseDmy(b.date));
+  bar.innerHTML = '';
+
+  milestones.forEach((ms, i) => {
+    const daysLeft = msDaysLeft(ms.date);
+    const cls = msClass(daysLeft);
+    const chip = document.createElement('div');
+    chip.className = 'milestone-chip ' + cls;
+    chip.title = ms.date + (ms.description ? ' — ' + ms.description : '');
+    chip.innerHTML =
+      '<span class="ms-flag">🏁</span>' +
+      '<div>' +
+        '<div class="ms-name">' + esc(ms.name) + '</div>' +
+        '<div class="ms-date">' + esc(ms.date) + '</div>' +
+      '</div>' +
+      '<span class="ms-countdown ' + cls + '">' + msCountdownText(daysLeft) + '</span>';
+    chip.onclick = () => openEditMilestoneModal(i);
+    bar.appendChild(chip);
+  });
+
+  // Add button
+  const addBtn = document.createElement('button');
+  addBtn.className = 'ms-add-btn';
+  addBtn.textContent = '+ Add milestone';
+  addBtn.onclick = openAddMilestoneModal;
+  bar.appendChild(addBtn);
+
+  // Start live countdown ticker
+  clearInterval(window._msTicker);
+  if (milestones.length > 0) {
+    window._msTicker = setInterval(renderMilestoneBar, 60000);
+  }
+}
+
+function openAddMilestoneModal() {
+  showModal(`
+    <div class="modal-title">🏁 Add Milestone</div>
+    <div class="mfield"><label>MILESTONE NAME</label><input type="text" id="ms-name" placeholder="e.g. ARCh Competition Day" maxlength="80"></div>
+    <div class="mfield"><label>DATE</label><input type="date" id="ms-date" style="color-scheme:dark"></div>
+    <div class="mfield"><label>DESCRIPTION (optional)</label><textarea id="ms-desc" rows="2" placeholder="Any extra details"></textarea></div>
+    <div class="modal-footer">
+      <button class="mbtn secondary" onclick="closeModal()">Cancel</button>
+      <button class="mbtn primary" onclick="addMilestone()" style="background:#9b59b6">Add Milestone</button>
+    </div>
+  `);
+}
+
+async function addMilestone() {
+  const name = document.getElementById('ms-name').value.trim();
+  const dateRaw = document.getElementById('ms-date').value;
+  if (!name || !dateRaw) { alert('Name and date are required.'); return; }
+  const date = ymdToDmy(dateRaw);
+  const desc = document.getElementById('ms-desc').value.trim();
+  if (!store.milestones) store.milestones = [];
+  store.milestones.push({ id: makeId(), name, date, description: desc || null });
+  closeModal();
+  renderMilestoneBar();
+  if (activeTab === 'calendar') renderBoard();
+  try { await saveData(); toast('Milestone added', 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
+function openEditMilestoneModal(index) {
+  const ms = (store.milestones || [])[index];
+  if (!ms) return;
+  showModal(`
+    <div class="modal-title">✎ Edit Milestone</div>
+    <div class="mfield"><label>MILESTONE NAME</label><input type="text" id="ms-name" value="${esc(ms.name)}" maxlength="80"></div>
+    <div class="mfield"><label>DATE</label><input type="date" id="ms-date" value="${esc(dmyToYmd(ms.date))}" style="color-scheme:dark"></div>
+    <div class="mfield"><label>DESCRIPTION (optional)</label><textarea id="ms-desc" rows="2">${esc(ms.description || '')}</textarea></div>
+    <div class="modal-footer">
+      <button class="mbtn secondary" onclick="closeModal()">Cancel</button>
+      <button class="mbtn danger" onclick="deleteMilestone(${index})">Delete</button>
+      <button class="mbtn primary" onclick="saveMilestone(${index})" style="background:#9b59b6">Save</button>
+    </div>
+  `);
+}
+
+async function saveMilestone(index) {
+  const ms = (store.milestones || [])[index];
+  if (!ms) return;
+  const name = document.getElementById('ms-name').value.trim();
+  const dateRaw = document.getElementById('ms-date').value;
+  if (!name || !dateRaw) { alert('Name and date are required.'); return; }
+  ms.name = name;
+  ms.date = ymdToDmy(dateRaw);
+  ms.description = document.getElementById('ms-desc').value.trim() || null;
+  closeModal();
+  renderMilestoneBar();
+  if (activeTab === 'calendar') renderBoard();
+  try { await saveData(); toast('Milestone saved', 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
+async function deleteMilestone(index) {
+  if (!confirm('Delete this milestone?')) return;
+  store.milestones.splice(index, 1);
+  closeModal();
+  renderMilestoneBar();
+  if (activeTab === 'calendar') renderBoard();
+  try { await saveData(); toast('Milestone deleted', 'success'); }
   catch { toast('Save failed', 'error'); }
 }
 

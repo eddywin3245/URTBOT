@@ -61,7 +61,50 @@ function makeReceiptId() {
   return id;
 }
 function fmtAUD(n) { return `$${Number(n).toFixed(2)}`; }
-function memberName(id) { return store.members?.[id] || `<@${id}>`; }
+function memberName(id) { return store.members?.[id] ? `${store.members[id]} (<@${id}>)` : `<@${id}>`; }
+
+// ─────────────────────────────────────────
+//  DEPENDENCY HELPERS
+// ─────────────────────────────────────────
+function findTaskById(taskId) {
+  for (const sub of SUBSYSTEMS) {
+    const task = (store.tasks[sub.id] || []).find(t => t.id === taskId);
+    if (task) return { task, sub };
+  }
+  return null;
+}
+
+// When a task is marked done, DM assignees of any task that is now fully unblocked
+async function notifyUnblocked(guild, completedTaskId) {
+  for (const sub of SUBSYSTEMS) {
+    for (const task of (store.tasks[sub.id] || [])) {
+      if (task.status === 'done') continue;
+      if (!(task.dependsOn || []).includes(completedTaskId)) continue;
+      // Check if ALL deps are now done
+      const allDone = (task.dependsOn || []).every(depId => {
+        const found = findTaskById(depId);
+        return !found || found.task.status === 'done';
+      });
+      if (!allDone) continue;
+      // DM all assignees
+      if (!task.assignees?.length) continue;
+      const completedFound = findTaskById(completedTaskId);
+      const completedName  = completedFound?.task.name || 'a dependency';
+      for (const assigneeId of task.assignees) {
+        try {
+          const member = await guild.members.fetch(assigneeId);
+          await member.send(
+            `🔓 **Task unblocked — ${sub.emoji} ${sub.label}**\n\n` +
+            `Hey ${member.displayName}! All dependencies for **${task.name}** are now complete.\n\n` +
+            `"${completedName}" was just marked done, which was the last blocker.\n\n` +
+            `You can now start working on **${task.name}**! 🚀`
+          );
+          console.log(`📬 Unblock notification sent to ${member.displayName} for task "${task.name}"`);
+        } catch (e) { console.error(`Failed to DM ${assigneeId}:`, e.message); }
+      }
+    }
+  }
+}
 
 // ─────────────────────────────────────────
 //  GOOGLE SHEETS
@@ -153,6 +196,7 @@ async function loadData() {
     logChannelId:        r.logChannelId        || null,
     financeLogChannelId: r.financeLogChannelId || null,
     approvalChannelId:   r.approvalChannelId   || null,
+    adminChannelId:      r.adminChannelId      || null,
     budgetChannelId:     r.budgetChannelId     || null,
     budgetMessageId:     r.budgetMessageId     || null,
     budgets:             r.budgets             || { ...DEFAULT_BUDGETS },
@@ -160,12 +204,14 @@ async function loadData() {
     pendingRequests:     r.pendingRequests     || [],
     receiptCounter:      r.receiptCounter      || 1,
     expenses:            r.expenses            || [],
+    milestones:          r.milestones          || [],
   };
   for (const sub of SUBSYSTEMS) {
     if (!store.tasks[sub.id]) store.tasks[sub.id] = [];
     store.tasks[sub.id].forEach(t => {
-      if (!t.status) t.status = t.done ? 'done' : 'todo';
+      if (!t.status)   t.status   = t.done ? 'done' : 'todo';
       if (!t.priority) t.priority = '';
+      if (!t.dependsOn) t.dependsOn = [];
     });
   }
   for (const g of FINANCE_GROUPS) {
@@ -223,6 +269,33 @@ async function getApprovalChannel(guild, botUserId) {
   return ch;
 }
 
+async function getAdminChannel(guild, botUserId) {
+  if (store.adminChannelId) {
+    try { return await guild.channels.fetch(store.adminChannelId); } catch { store.adminChannelId = null; }
+  }
+  const existing = guild.channels.cache.find((c) => c.name === "urt-admin");
+  if (existing) { store.adminChannelId = existing.id; return existing; }
+  const ch = await guild.channels.create({
+    name: "urt-admin",
+    type: ChannelType.GuildText,
+    topic: "🛠️ URT Rover — team leads admin channel",
+    permissionOverwrites: [
+      { id: guild.roles.everyone, deny: [PermissionsBitField.Flags.ViewChannel] },
+      { id: botUserId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory, PermissionsBitField.Flags.EmbedLinks] },
+    ],
+  });
+  store.adminChannelId = ch.id;
+  await saveData();
+  return ch;
+}
+
+async function postAdmin(guild, embed, components) {
+  try {
+    const ch = await getAdminChannel(guild, client.user.id);
+    await ch.send({ embeds: [embed], ...(components ? { components } : {}) });
+  } catch (e) { console.error("Admin post failed:", e.message); }
+}
+
 async function postLog(guild, embed) {
   try { const ch = await getLogChannel(guild); await ch.send({ embeds: [embed] }); }
   catch (e) { console.error("Log post failed:", e.message); }
@@ -241,21 +314,22 @@ function logEmbed(color, title, lines) {
 }
 
 async function postSnapshot(guild) {
-  const ch    = await getLogChannel(guild);
+  const ch = await getLogChannel(guild);
   const lines = SUBSYSTEMS.map((sub) => {
     const list = store.tasks[sub.id] || [];
     if (!list.length) return `${sub.emoji} **${sub.label}** — no tasks`;
     return `${sub.emoji} **${sub.label}**\n${list.map((t) => {
-      const who = t.assignees?.length ? t.assignees.map(id => memberName(id)).join(", ") : "*unassigned*";
+      const who = t.assignees?.length ? t.assignees.map(id => `<@${id}>`).join(", ") : "*unassigned*";
       const pri = t.priority ? ` ${PRI_EMOJI[t.priority]}` : "";
       const due = t.dueDate ? `  📅 ${t.dueDate}` : "";
-      return `  ${t.status === 'done' ? "✅" : t.status === 'inprogress' ? "◑" : "⬜"} ${t.name}${pri} — ${who}${due}`;
+      const dep = (t.dependsOn||[]).length > 0 ? " ⛓" : "";
+      return `  ${t.status === 'done' ? "✅" : t.status === 'inprogress' ? "◑" : "⬜"} ${t.name}${pri}${dep} — ${who}${due}`;
     }).join("\n")}`;
   });
   const total = Object.values(store.tasks).flat().length;
   const done  = Object.values(store.tasks).flat().filter((t) => t.done).length;
   await ch.send({ embeds: [new EmbedBuilder().setColor(0x38bdf8).setTitle("📋 URT Rover — Full Task Snapshot")
-    .setDescription(lines.join("\n\n")).setFooter({ text: `${done}/${total} tasks complete — posted on bot startup` }).setTimestamp()] });
+    .setDescription(lines.join("\n\n")).setFooter({ text: `${done}/${total} tasks complete` }).setTimestamp()] });
 }
 
 // ─────────────────────────────────────────
@@ -334,7 +408,7 @@ function buildOverviewEmbed(tasks) {
   const ob = "█".repeat(Math.round(op / 10)) + "░".repeat(10 - Math.round(op / 10));
   return new EmbedBuilder().setTitle("🛸  URT ROVER — BUILD STATUS").setColor(0x38bdf8)
     .setDescription(`**Overall**\n\`${ob}\` ${op}%  (${td}/${ta} tasks)\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n` + sections.join("\n\n"))
-    .setTimestamp().setFooter({ text: `See your subsystem channel for details  |  Kanban: ${KANBAN_URL}` });
+    .setTimestamp().setFooter({ text: `Kanban: ${KANBAN_URL}` });
 }
 
 function buildLeadEmbed(sub, tasks) {
@@ -346,12 +420,15 @@ function buildLeadEmbed(sub, tasks) {
   const bar  = "█".repeat(Math.round(pct / 10)) + "░".repeat(10 - Math.round(pct / 10));
 
   const fmt = (t) => {
-    const who  = t.assignees?.length ? t.assignees.map(id => memberName(id)).join(", ") : "*Unassigned*";
+    const who  = t.assignees?.length ? t.assignees.map(id => `<@${id}>`).join(", ") : "*Unassigned*";
     const pri  = t.priority ? ` ${PRI_EMOJI[t.priority]}` : "";
     const due  = t.dueDate ? `\n> 📅 Due: ${t.dueDate}` : "";
-    const start = t.startDate ? `\n> ▶ Start: ${t.startDate}` : "";
     const note = t.notes ? `\n> 📝 ${t.notes}` : "";
-    return `> **${t.name}**${pri}\n> 👤 ${who}${start}${due}${note}`;
+    // Dependency info
+    const blockedBy = (t.dependsOn||[]).filter(id => { const f = findTaskById(id); return f && f.task.status !== 'done'; });
+    const depStr = blockedBy.length > 0 ? `\n> ⛔ Blocked by ${blockedBy.length} task(s)` :
+                   (t.dependsOn||[]).length > 0 ? `\n> ✅ All deps complete` : "";
+    return `> **${t.name}**${pri}\n> 👤 ${who}${due}${note}${depStr}`;
   };
 
   const fields = [];
@@ -384,13 +461,19 @@ function buildOverviewButtons() {
 }
 
 function buildLeadButtons(subId) {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`lead_add_${subId}`)    .setLabel("➕ Add Task")     .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`lead_done_${subId}`)   .setLabel("✅ Mark Done")    .setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`lead_assign_${subId}`) .setLabel("👤 Assign")       .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`lead_remove_${subId}`) .setLabel("🗑️ Remove")      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(`lead_remind_${subId}`) .setLabel("📣 Send Reminder").setStyle(ButtonStyle.Secondary),
-  );
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`lead_add_${subId}`)       .setLabel("➕ Add Task")      .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`lead_inprogress_${subId}`).setLabel("◑ In Progress")    .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`lead_done_${subId}`)      .setLabel("✅ Mark Done")      .setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`lead_reopen_${subId}`)    .setLabel("↩️ Reopen")        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`lead_remove_${subId}`)    .setLabel("🗑️ Remove")        .setStyle(ButtonStyle.Danger),
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`lead_assign_${subId}`)    .setLabel("👤 Assign")         .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`lead_remind_${subId}`)    .setLabel("📣 Send Reminder")  .setStyle(ButtonStyle.Secondary),
+    ),
+  ];
 }
 
 function buildSubSel(customId) {
@@ -415,9 +498,10 @@ function buildTaskSel(customId, tasks, subId, filter) {
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder().setCustomId(customId).setPlaceholder("Choose a task...")
       .addOptions(list.slice(0, 25).map((t) => {
-        const pri = t.priority ? ` ${PRI_EMOJI[t.priority]}` : "";
+        const pri  = t.priority ? ` ${PRI_EMOJI[t.priority]}` : "";
+        const dep  = (t.dependsOn||[]).length > 0 ? " ⛓" : "";
         const icon = t.status === 'done' ? "✅ " : t.status === 'inprogress' ? "◑ " : "⬜ ";
-        return new StringSelectMenuOptionBuilder().setLabel((icon + t.name + pri).slice(0, 100)).setValue(t.id);
+        return new StringSelectMenuOptionBuilder().setLabel((icon + t.name + pri + dep).slice(0, 100)).setValue(t.id);
       }))
   );
 }
@@ -437,7 +521,7 @@ function addTaskModal(subId) {
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("priority").setLabel("Priority (high / medium / low)").setStyle(TextInputStyle.Short).setPlaceholder("high / medium / low — leave blank for none").setRequired(false)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("start_date").setLabel("Start date (optional)").setStyle(TextInputStyle.Short).setPlaceholder("DD/MM/YYYY").setRequired(false)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("due_date").setLabel("Due date (optional)").setStyle(TextInputStyle.Short).setPlaceholder("DD/MM/YYYY").setRequired(false)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("notes").setLabel("Notes (optional)").setStyle(TextInputStyle.Paragraph).setPlaceholder("Any extra context for this task").setRequired(false))
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("notes").setLabel("Notes (optional)").setStyle(TextInputStyle.Paragraph).setPlaceholder("Any extra context. Add dependencies via the Kanban board.").setRequired(false))
     );
 }
 
@@ -497,7 +581,7 @@ async function updateOverview(channel) {
 }
 
 async function updateLeadChannel(channel, sub) {
-  const payload = { embeds: [buildLeadEmbed(sub, store.tasks)], components: [buildLeadButtons(sub.id)] };
+  const payload = { embeds: [buildLeadEmbed(sub, store.tasks)], components: buildLeadButtons(sub.id) };
   const msgId   = store.leadMessageIds[sub.id];
   if (msgId) {
     try { const m = await channel.messages.fetch(msgId); await m.edit(payload); return; } catch {}
@@ -563,9 +647,9 @@ client.once("clientReady", async () => {
     await getLogChannel(guild);
     await getFinanceLogChannel(guild);
     await getApprovalChannel(guild, client.user.id);
+    await getAdminChannel(guild, client.user.id);
     await saveData();
 
-    // Only wipe overview and budget message IDs
     store.messageId = null;
     store.budgetMessageId = null;
 
@@ -579,8 +663,86 @@ client.once("clientReady", async () => {
     await saveData();
     console.log("✅ All done!");
 
-    // Poll JSONBin every 30s for external changes (Kanban edits)
-    // Only refresh embeds — never write back, so Kanban saves are preserved
+    // Register slash commands
+    await client.application.commands.set([
+      {
+        name: 'task',
+        description: 'Add a task to a subsystem',
+        options: [
+          { name: 'subsystem', description: 'Which subsystem', type: 3, required: true, choices: SUBSYSTEMS.map(s => ({ name: s.label, value: s.id })) },
+          { name: 'name', description: 'Task name', type: 3, required: true },
+          { name: 'priority', description: 'Priority level', type: 3, required: false, choices: [{ name: 'High', value: 'high' }, { name: 'Medium', value: 'medium' }, { name: 'Low', value: 'low' }] },
+          { name: 'due', description: 'Due date (DD/MM/YYYY)', type: 3, required: false },
+          { name: 'start', description: 'Start date (DD/MM/YYYY)', type: 3, required: false },
+          { name: 'notes', description: 'Task notes', type: 3, required: false },
+        ],
+      },
+      {
+        name: 'milestone',
+        description: 'Add a project milestone or deadline',
+        options: [
+          { name: 'name', description: 'Milestone name', type: 3, required: true },
+          { name: 'date', description: 'Date (DD/MM/YYYY)', type: 3, required: true },
+          { name: 'description', description: 'Optional description', type: 3, required: false },
+        ],
+      },
+      {
+        name: 'milestones',
+        description: 'List all upcoming milestones',
+      },
+      {
+        name: 'checkin',
+        description: 'Schedule a check-in for a task',
+        options: [
+          { name: 'subsystem', description: 'Which subsystem', type: 3, required: true, choices: SUBSYSTEMS.map(s => ({ name: s.label, value: s.id })) },
+          { name: 'task', description: 'Task name (partial match)', type: 3, required: true },
+          { name: 'date', description: 'Check-in date (DD/MM/YYYY)', type: 3, required: true },
+          { name: 'note', description: 'Optional note for the check-in', type: 3, required: false },
+        ],
+      },
+    ]);
+    console.log("✅ Slash commands registered");
+
+    // Poll for check-ins every hour and DM assigned members
+    setInterval(async () => {
+      try {
+        await loadData();
+        const todayDmy = new Date().toLocaleDateString('en-AU').replace(/\//g, '/').split('/').map((p,i) => i<2?p.padStart(2,'0'):p).join('/');
+        let changed = false;
+        for (const sub of SUBSYSTEMS) {
+          for (const task of store.tasks[sub.id] || []) {
+            for (const ci of task.checkIns || []) {
+              if (ci.sent || ci.date !== todayDmy) continue;
+              const assignees = task.assignees || [];
+              for (const assigneeId of assignees) {
+                try {
+                  const member = await guild.members.fetch(assigneeId);
+                  await member.send(
+                    `🕐 **Check-in reminder — ${sub.emoji} ${sub.label}**
+
+` +
+                    `Hey ${member.displayName}! You have a scheduled check-in for:
+
+` +
+                    `• **${task.name}**${ci.note ? `
+📝 ${ci.note}` : ''}
+
+` +
+                    `Please update your team lead on progress. Thanks!`
+                  );
+                } catch {}
+              }
+              ci.sent = true;
+              changed = true;
+              console.log(`✅ Check-in sent for task: ${task.name}`);
+            }
+          }
+        }
+        if (changed) await saveData();
+      } catch (e) { console.error("Check-in poll error:", e.message); }
+    }, 60 * 60 * 1000);
+
+    // Poll JSONBin every 30s — refresh embeds only, never write back
     setInterval(async () => {
       try {
         const prev = JSON.stringify(store.tasks);
@@ -607,6 +769,97 @@ client.on("interactionCreate", async (interaction) => {
   try {
     const uid   = interaction.user?.id;
     const guild = interaction.guild;
+
+    // ── SLASH COMMANDS ──────────────────────────────────────────────────
+    if (interaction.isChatInputCommand()) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const cmd = interaction.commandName;
+
+      if (cmd === 'task') {
+        const subId    = interaction.options.getString('subsystem');
+        const name     = interaction.options.getString('name');
+        const priority = interaction.options.getString('priority') || '';
+        const dueDate  = interaction.options.getString('due') || null;
+        const startDate = interaction.options.getString('start') || null;
+        const notes    = interaction.options.getString('notes') || null;
+        if (!store.tasks[subId]) store.tasks[subId] = [];
+        store.tasks[subId].push({ id: makeId(), name, status: 'todo', done: false, priority, assignees: [], startDate, dueDate, notes, checkIns: [], addedAt: Date.now() });
+        await updateAll(client);
+        const sub    = SUBSYSTEMS.find(s => s.id === subId);
+        const priStr = priority ? ` ${PRI_EMOJI[priority]} ${priority}` : '';
+        await postLog(guild, logEmbed(sub.color, `➕ Task added — ${sub.emoji} ${sub.label}`, [`**${name}**${priStr}`, `By <@${uid}>`, dueDate ? `Due: ${dueDate}` : null, notes ? `Notes: ${notes}` : null].filter(Boolean)));
+        return replyAndDelete(interaction, `${sub.emoji} **${name}** added to **${sub.label}**!${priority ? ` ${PRI_EMOJI[priority]} ${priority} priority` : ''}${dueDate ? `
+📅 Due: ${dueDate}` : ''}`);
+      }
+
+      if (cmd === 'milestone') {
+        const name = interaction.options.getString('name');
+        const date = interaction.options.getString('date');
+        const desc = interaction.options.getString('description') || null;
+        // Validate date format
+        const parts = date.split('/');
+        if (parts.length !== 3) return replyAndDelete(interaction, '❌ Date must be DD/MM/YYYY');
+        if (!store.milestones) store.milestones = [];
+        const ms = { id: makeId(), name, date, description: desc };
+        store.milestones.push(ms);
+        store.milestones.sort((a, b) => {
+          const pa = a.date.split('/'), pb = b.date.split('/');
+          return new Date(pa[2],pa[1]-1,pa[0]) - new Date(pb[2],pb[1]-1,pb[0]);
+        });
+        await saveData();
+        // Post to admin channel
+        const daysLeft = Math.round((new Date(parts[2],parts[1]-1,parts[0]) - new Date().setHours(0,0,0,0)) / 86400000);
+        const urgency = daysLeft < 0 ? '🔴 PAST' : daysLeft <= 7 ? '🔴 URGENT' : daysLeft <= 30 ? '🟡 SOON' : '🟢';
+        await postAdmin(guild, new EmbedBuilder()
+          .setTitle(`🏁 New Milestone — ${name}`)
+          .setColor(0x9b59b6)
+          .setDescription(`**Date:** ${date}
+**Days away:** ${daysLeft < 0 ? `${Math.abs(daysLeft)} days ago` : `${daysLeft} days`} ${urgency}
+${desc ? `**Description:** ${desc}` : ''}`)
+          .setFooter({ text: `Added by ${(await guild.members.fetch(uid)).displayName}` })
+          .setTimestamp()
+        );
+        return replyAndDelete(interaction, `🏁 Milestone **${name}** set for **${date}**! Posted to #urt-admin.`);
+      }
+
+      if (cmd === 'milestones') {
+        if (!store.milestones?.length) return replyAndDelete(interaction, '📭 No milestones set yet. Use /milestone to add one!');
+        const now = new Date(); now.setHours(0,0,0,0);
+        const lines = store.milestones.map(ms => {
+          const p = ms.date.split('/');
+          const daysLeft = Math.round((new Date(p[2],p[1]-1,p[0]) - now) / 86400000);
+          const icon = daysLeft < 0 ? '✅' : daysLeft <= 7 ? '🔴' : daysLeft <= 30 ? '🟡' : '🟢';
+          const when = daysLeft < 0 ? `${Math.abs(daysLeft)}d ago` : daysLeft === 0 ? 'TODAY' : `in ${daysLeft}d`;
+          return `${icon} **${ms.name}** — ${ms.date} (${when})${ms.description ? `
+  *${ms.description}*` : ''}`;
+        }).join('
+
+');
+        await interaction.editReply({ content: `🏁 **Upcoming Milestones**
+
+${lines}` });
+        return;
+      }
+
+      if (cmd === 'checkin') {
+        const subId  = interaction.options.getString('subsystem');
+        const search = interaction.options.getString('task').toLowerCase();
+        const date   = interaction.options.getString('date');
+        const note   = interaction.options.getString('note') || null;
+        const task   = (store.tasks[subId] || []).find(t => t.name.toLowerCase().includes(search));
+        if (!task) return replyAndDelete(interaction, `❌ No task found matching "${search}" in ${SUBSYSTEMS.find(s=>s.id===subId)?.label}`);
+        if (!task.checkIns) task.checkIns = [];
+        task.checkIns.push({ id: makeId(), date, note, sent: false });
+        task.checkIns.sort((a, b) => {
+          const pa = a.date.split('/'), pb = b.date.split('/');
+          return new Date(pa[2],pa[1]-1,pa[0]) - new Date(pb[2],pb[1]-1,pb[0]);
+        });
+        await saveData();
+        const sub = SUBSYSTEMS.find(s => s.id === subId);
+        return replyAndDelete(interaction, `🕐 Check-in scheduled for **${task.name}** on **${date}**${note ? `
+📝 ${note}` : ''}`);
+      }
+    }
 
     if (interaction.isButton()) {
       const id = interaction.customId;
@@ -636,18 +889,18 @@ client.on("interactionCreate", async (interaction) => {
         return replyAndDelete(interaction, "🔄 Budget refreshed!");
       }
 
-      const replyWithMenu = async (content, components) => {
+      const replyMenu = async (content, components) => {
         await interaction.reply({ content, components, flags: MessageFlags.Ephemeral });
         scheduleDelete(interaction, 30000);
       };
 
-      if (id === "log_expense")      return replyWithMenu("Which budget group?", [buildFinanceGroupSel("group_for_expense")]);
-      if (id === "purchase_request") return replyWithMenu("Which budget group?", [buildFinanceGroupSel("group_for_request")]);
-      if (id === "set_budget")       return replyWithMenu("Which budget group?", [buildFinanceGroupSel("group_for_budget")]);
-      if (id === "add_task")         return replyWithMenu("Which subsystem?",    [buildSubSel("sub_for_add")]);
-      if (id === "mark_done")        return replyWithMenu("Which subsystem?",    [buildSubSel("sub_for_done")]);
-      if (id === "reopen_task")      return replyWithMenu("Which subsystem?",    [buildSubSel("sub_for_reopen")]);
-      if (id === "remove_task")      return replyWithMenu("Which subsystem?",    [buildSubSel("sub_for_remove")]);
+      if (id === "log_expense")      return replyMenu("Which budget group?", [buildFinanceGroupSel("group_for_expense")]);
+      if (id === "purchase_request") return replyMenu("Which budget group?", [buildFinanceGroupSel("group_for_request")]);
+      if (id === "set_budget")       return replyMenu("Which budget group?", [buildFinanceGroupSel("group_for_budget")]);
+      if (id === "add_task")         return replyMenu("Which subsystem?",    [buildSubSel("sub_for_add")]);
+      if (id === "mark_done")        return replyMenu("Which subsystem?",    [buildSubSel("sub_for_done")]);
+      if (id === "reopen_task")      return replyMenu("Which subsystem?",    [buildSubSel("sub_for_reopen")]);
+      if (id === "remove_task")      return replyMenu("Which subsystem?",    [buildSubSel("sub_for_remove")]);
 
       if (id === "update_payment") {
         if (!store.expenses.length) { await interaction.reply({ content: "No logged expenses to update.", flags: MessageFlags.Ephemeral }); scheduleDelete(interaction, 4000); return; }
@@ -659,6 +912,24 @@ client.on("interactionCreate", async (interaction) => {
         return;
       }
 
+      if (id.startsWith("lead_inprogress_")) {
+        const subId = id.replace("lead_inprogress_", "");
+        const sel   = buildTaskSel("task_for_inprogress", store.tasks, subId, "todo");
+        if (!sel) { await interaction.reply({ content: "No To Do tasks to move!", flags: MessageFlags.Ephemeral }); scheduleDelete(interaction, 4000); return; }
+        pending.set(`${uid}_inprogress`, subId);
+        await interaction.reply({ content: "Which task to mark In Progress?", components: [sel], flags: MessageFlags.Ephemeral });
+        scheduleDelete(interaction, 60000);
+        return;
+      }
+      if (id.startsWith("lead_reopen_")) {
+        const subId = id.replace("lead_reopen_", "");
+        const sel   = buildTaskSel("task_for_reopen_lead", store.tasks, subId, "done");
+        if (!sel) { await interaction.reply({ content: "No completed tasks to reopen!", flags: MessageFlags.Ephemeral }); scheduleDelete(interaction, 4000); return; }
+        pending.set(`${uid}_reopen`, subId);
+        await interaction.reply({ content: "Which task to reopen?", components: [sel], flags: MessageFlags.Ephemeral });
+        scheduleDelete(interaction, 60000);
+        return;
+      }
       if (id.startsWith("lead_done_")) {
         const subId = id.replace("lead_done_", "");
         const sel   = buildTaskSel("task_for_done", store.tasks, subId, "todo");
@@ -692,7 +963,8 @@ client.on("interactionCreate", async (interaction) => {
         if (!todos.length) { await interaction.reply({ content: "✅ No incomplete tasks!", flags: MessageFlags.Ephemeral }); scheduleDelete(interaction, 4000); return; }
         const options = todos.slice(0, 25).map((t) => {
           const pri   = t.priority ? ` ${PRI_EMOJI[t.priority]}` : "";
-          const label = (t.name + pri).slice(0, 80) + (t.assignees?.length ? "" : " ⚠️");
+          const dep   = (t.dependsOn||[]).length > 0 ? " ⛓" : "";
+          const label = (t.name + pri + dep).slice(0, 80) + (t.assignees?.length ? "" : " ⚠️");
           const desc  = t.assignees?.length ? `${t.assignees.length} member(s) assigned` : "No one assigned";
           return new StringSelectMenuOptionBuilder().setLabel(label).setDescription(desc).setValue(t.id);
         });
@@ -742,7 +1014,7 @@ client.on("interactionCreate", async (interaction) => {
         task.assignees = assignees;
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
-        const who = assignees.map((id) => memberName(id)).join(", ");
+        const who = assignees.map((id) => `<@${id}>`).join(", ");
         await postLog(guild, logEmbed(sub.color, `👤 Task assigned — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `Assigned to: ${who}`, `By <@${uid}>`]));
         await interaction.editReply({ content: `👤 **${task.name}** assigned to ${who}!`, components: [] });
         setTimeout(() => interaction.deleteReply().catch(() => {}), 4000);
@@ -804,6 +1076,32 @@ client.on("interactionCreate", async (interaction) => {
         return interaction.update({ content: "Which task?", components: [sel] });
       }
 
+      if (id === "task_for_inprogress") {
+        await interaction.deferUpdate();
+        const subId = pending.get(`${uid}_inprogress`);
+        const task  = store.tasks[subId]?.find((t) => t.id === value);
+        if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
+        task.done = false; task.status = 'inprogress';
+        await updateAll(client);
+        const sub = SUBSYSTEMS.find((s) => s.id === subId);
+        await postLog(guild, logEmbed(0x3498db, `◑ Task in progress — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `By <@${uid}>`]));
+        await interaction.editReply({ content: `◑ **${task.name}** marked In Progress!`, components: [] });
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 4000);
+        return;
+      }
+      if (id === "task_for_reopen_lead") {
+        await interaction.deferUpdate();
+        const subId = pending.get(`${uid}_reopen`);
+        const task  = store.tasks[subId]?.find((t) => t.id === value);
+        if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
+        task.done = false; task.status = 'todo'; delete task.doneAt;
+        await updateAll(client);
+        const sub = SUBSYSTEMS.find((s) => s.id === subId);
+        await postLog(guild, logEmbed(0xe67e22, `↩️ Task reopened — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `By <@${uid}>`]));
+        await interaction.editReply({ content: `↩️ **${task.name}** reopened.`, components: [] });
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 4000);
+        return;
+      }
       if (id === "task_for_done") {
         await interaction.deferUpdate();
         const subId = pending.get(`${uid}_done`);
@@ -813,6 +1111,7 @@ client.on("interactionCreate", async (interaction) => {
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
         await postLog(guild, logEmbed(0x2ecc71, `✅ Task done — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `By <@${uid}>`]));
+        await notifyUnblocked(guild, task.id);
         await interaction.editReply({ content: `✅ **${task.name}** marked done!`, components: [] });
         setTimeout(() => interaction.deleteReply().catch(() => {}), 4000);
         return;
@@ -835,6 +1134,8 @@ client.on("interactionCreate", async (interaction) => {
         const subId = pending.get(`${uid}_remove`);
         const task  = store.tasks[subId]?.find((t) => t.id === value);
         if (!task) { await interaction.editReply({ content: "Task not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
+        // Remove from other tasks' dependencies
+        SUBSYSTEMS.forEach(s => { (store.tasks[s.id]||[]).forEach(t => { t.dependsOn = (t.dependsOn||[]).filter(id => id !== task.id); }); });
         store.tasks[subId] = store.tasks[subId].filter((t) => t.id !== value);
         await updateAll(client);
         const sub = SUBSYSTEMS.find((s) => s.id === subId);
@@ -848,14 +1149,13 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.isModalSubmit()) {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-      // Add member name mapping
       if (interaction.customId === "modal_add_member") {
         const name = interaction.fields.getTextInputValue("member_name").trim();
         const mid  = interaction.fields.getTextInputValue("member_id").trim();
         if (!store.members) store.members = {};
         store.members[mid] = name;
         await saveData();
-        return replyAndDelete(interaction, `👥 **${name}** (${mid}) added to member list!`);
+        return replyAndDelete(interaction, `👥 **${name}** added to member list!`);
       }
 
       if (interaction.customId.startsWith("modal_add_")) {
@@ -867,12 +1167,12 @@ client.on("interactionCreate", async (interaction) => {
         const dueDate   = interaction.fields.getTextInputValue("due_date").trim();
         const notes     = interaction.fields.getTextInputValue("notes").trim();
         if (!store.tasks[subId]) store.tasks[subId] = [];
-        store.tasks[subId].push({ id: makeId(), name, status: 'todo', done: false, priority, assignees: [], startDate: startDate || null, dueDate: dueDate || null, notes: notes || null, addedAt: Date.now() });
+        store.tasks[subId].push({ id: makeId(), name, status: 'todo', done: false, priority, assignees: [], startDate: startDate||null, dueDate: dueDate||null, notes: notes||null, dependsOn: [], checkIns: [], addedAt: Date.now() });
         await updateAll(client);
         const sub    = SUBSYSTEMS.find((s) => s.id === subId);
         const priStr = priority ? ` ${PRI_EMOJI[priority]} ${priority}` : "";
-        await postLog(guild, logEmbed(sub.color, `➕ Task added — ${sub.emoji} ${sub.label}`, [`**${name}**${priStr}`, `By <@${uid}>`, dueDate ? `Due: ${dueDate}` : null, notes ? `Notes: ${notes}` : null].filter(Boolean)));
-        return replyAndDelete(interaction, `${sub.emoji} **${name}** added!${priority ? ` ${PRI_EMOJI[priority]} ${priority} priority` : ""}${dueDate ? `\n📅 Due: ${dueDate}` : ""}`);
+        await postLog(guild, logEmbed(sub.color, `➕ Task added — ${sub.emoji} ${sub.label}`, [`**${name}**${priStr}`, `By <@${uid}>`, dueDate ? `Due: ${dueDate}` : null, `Tip: Add dependencies via the Kanban board`].filter(Boolean)));
+        return replyAndDelete(interaction, `${sub.emoji} **${name}** added!${priority ? ` ${PRI_EMOJI[priority]} ${priority}` : ""}${dueDate ? `\n📅 Due: ${dueDate}` : ""}\n🔗 Add dependencies via the Kanban board.`);
       }
 
       if (interaction.customId.startsWith("modal_budget_")) {
