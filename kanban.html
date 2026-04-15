@@ -590,8 +590,13 @@ function renderCalendarView(area) {
   // Header
   const hdr = document.createElement('div');
   hdr.className = 'cal-header';
-  const filterChips = '<button class="cal-filter-chip' + (calFilter==='all'?' active" style="border-color:rgba(52,152,219,.5);color:#3498db"':'"') + ' onclick="setCalFilter('all')">All</button>' +
-    SUBS.map(s => '<button class="cal-filter-chip' + (calFilter===s.id?' active" style="border-color:'+s.color+'55;color:'+s.color+'"':'"') + ' onclick="setCalFilter(''+s.id+'')" style="'+(calFilter===s.id?'':'')+'">'+esc(s.label)+'</button>').join('');
+  const filterChips = [
+    '<button class="cal-filter-chip' + (calFilter==='all' ? ' active" style="border-color:rgba(52,152,219,.5);color:#3498db"' : '"') + ' onclick="setCalFilter(\'all\')">All</button>',
+    ...SUBS.map(s =>
+      '<button class="cal-filter-chip' + (calFilter===s.id ? ' active" style="border-color:'+s.color+'55;color:'+s.color+'"' : '"') +
+      ' onclick="setCalFilter(\''+s.id+'\')">'+esc(s.label)+'</button>'
+    )
+  ].join('');
   hdr.innerHTML = `
     <div>
       <div class="cal-month-nav">
