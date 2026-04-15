@@ -207,6 +207,11 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .past .ms-digits{color:var(--dim)}
 .ms-add-btn{display:flex;align-items:center;gap:.4rem;background:transparent;border:1px dashed var(--border2);border-radius:10px;padding:.5rem .9rem;flex-shrink:0;cursor:pointer;color:var(--dim);font-size:.68em;font-family:'JetBrains Mono',monospace;transition:all .2s;white-space:nowrap;align-self:center}
 .ms-add-btn:hover{border-color:var(--border2);color:var(--muted);background:var(--surface2)}
+/* Calendar filter chips */
+.cal-filter-bar{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-top:.6rem}
+.cal-filter-chip{padding:.2rem .6rem;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--muted);font-size:.62em;font-family:'JetBrains Mono',monospace;cursor:pointer;transition:all .2s;white-space:nowrap}
+.cal-filter-chip:hover{color:var(--text)}
+.cal-filter-chip.active{color:var(--text)}
 /* Calendar milestone pills */
 .cal-milestone{display:block;font-size:.58em;padding:.15rem .4rem;border-radius:4px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;margin-bottom:.1rem;flex-shrink:0;font-family:'JetBrains Mono',monospace;background:rgba(155,89,182,0.9);border-left:2px solid #9b59b6;font-weight:700}
 .cal-milestone:hover{opacity:.85}
@@ -255,6 +260,7 @@ const SUBS = [
   { id:'electrical',  label:'Electrical',  color:'#f1c40f' },
   { id:'science',     label:'Science',     color:'#2ecc71' },
   { id:'automation',  label:'Automation',  color:'#e91e63' },
+  { id:'admin',        label:'Admin',        color:'#8e44ad' },
 ];
 
 const STATUSES = [
@@ -270,6 +276,7 @@ let store = {}, activeTab = 'all', refreshTimer = null;
 let dragData = null;
 let calMonth = new Date().getMonth();
 let calYear  = new Date().getFullYear();
+let calFilter = 'all'; // 'all' or a sub id
 
 // ── DATE HELPERS ──
 function dmyToYmd(dmy) {
@@ -572,15 +579,28 @@ function renderCalendarView(area) {
     });
   });
 
+  // Apply subsystem filter to byDate
+  if (calFilter !== 'all') {
+    Object.keys(byDate).forEach(key => {
+      byDate[key] = byDate[key].filter(e => e.type === 'milestone' || e.sub?.id === calFilter);
+      if (!byDate[key].length) delete byDate[key];
+    });
+  }
+
   // Header
   const hdr = document.createElement('div');
   hdr.className = 'cal-header';
+  const filterChips = '<button class="cal-filter-chip' + (calFilter==='all'?' active" style="border-color:rgba(52,152,219,.5);color:#3498db"':'"') + ' onclick="setCalFilter('all')">All</button>' +
+    SUBS.map(s => '<button class="cal-filter-chip' + (calFilter===s.id?' active" style="border-color:'+s.color+'55;color:'+s.color+'"':'"') + ' onclick="setCalFilter(''+s.id+'')" style="'+(calFilter===s.id?'':'')+'">'+esc(s.label)+'</button>').join('');
   hdr.innerHTML = `
-    <div class="cal-month-nav">
-      <button class="cal-nav-btn" onclick="calPrev()">←</button>
-      <div class="cal-title">${esc(monthLabel)}</div>
-      <button class="cal-nav-btn" onclick="calNext()">→</button>
-      <button class="cal-today-btn" onclick="calToday()">Today</button>
+    <div>
+      <div class="cal-month-nav">
+        <button class="cal-nav-btn" onclick="calPrev()">←</button>
+        <div class="cal-title">${esc(monthLabel)}</div>
+        <button class="cal-nav-btn" onclick="calNext()">→</button>
+        <button class="cal-today-btn" onclick="calToday()">Today</button>
+      </div>
+      <div class="cal-filter-bar">${filterChips}</div>
     </div>
     <div class="cal-legend">
       ${SUBS.map(s => `<div class="cal-legend-item"><div class="cal-legend-dot" style="background:${s.color}"></div>${esc(s.label)}</div>`).join('')}
@@ -711,6 +731,7 @@ function renderCalendarView(area) {
 }
 
 function calPrev() { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } renderBoard(); }
+function setCalFilter(f) { calFilter = f; renderBoard(); }
 function calNext() { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } renderBoard(); }
 function calToday() { calMonth = new Date().getMonth(); calYear = new Date().getFullYear(); renderBoard(); }
 
@@ -997,7 +1018,7 @@ function openEditModal(subId, taskId) {
     <div style="display:flex;gap:.4rem;margin-top:.4rem;align-items:center">
       <input type="date" id="ci-date" style="flex:1;padding:.35rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.78em;outline:none;color-scheme:dark">
       <input type="text" id="ci-note" placeholder="Note (optional)" style="flex:2;padding:.35rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.78em;outline:none">
-      <button class="mbtn primary small" onclick="addCheckIn('','')">Add</button>
+      <button class="mbtn primary small" onclick="addCheckIn('${subId}','${taskId}')">Add</button>
     </div>
 
     <div class="modal-section">⛔ DEPENDS ON (task must complete before this one can start)</div>

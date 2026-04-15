@@ -26,6 +26,7 @@ const SUBSYSTEMS = [
   { id: "electrical",  label: "Electrical",  emoji: "⚡", color: 0xf1c40f },
   { id: "science",     label: "Science",     emoji: "🔬", color: 0x2ecc71 },
   { id: "automation",  label: "Automation",  emoji: "🤖", color: 0xe91e63 },
+  { id: "admin",        label: "Admin",        emoji: "🛠️", color: 0x8e44ad },
 ];
 
 const FINANCE_GROUPS = [
@@ -35,11 +36,12 @@ const FINANCE_GROUPS = [
   { id: "electrical",  label: "Electrical",  emoji: "⚡", color: 0xf1c40f },
   { id: "science",     label: "Science",     emoji: "🔬", color: 0x2ecc71 },
   { id: "automation",  label: "Automation",  emoji: "🤖", color: 0xe91e63 },
+  { id: "admin",        label: "Admin",        emoji: "🛠️", color: 0x8e44ad },
 ];
 
 const DEFAULT_BUDGETS = {
   manipulator: 1000, drivetrain: 1000, comms: 1000,
-  electrical: 1000, science: 1000, automation: 1000,
+  electrical: 1000, science: 1000, automation: 1000, admin: 500,
 };
 
 const PRI_EMOJI = { high: "🔴", medium: "🟡", low: "🟢" };
