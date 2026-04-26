@@ -298,7 +298,7 @@ const STATUSES = [
 const PRI_ORDER  = { high:0, medium:1, low:2, '':3 };
 const PRI_LABELS = { high:'HIGH', medium:'MED', low:'LOW' };
 
-let store = {}, activeTab = 'all', refreshTimer = null;
+let store = {}, activeTab = 'all', refreshTimer = null, financeUnlocked = false;
 let dragData = null;
 let calMonth = new Date().getMonth();
 let calYear  = new Date().getFullYear();
@@ -428,7 +428,7 @@ function renderTabs() {
   const allTot = Object.values(store.tasks).flat().length;
   bar.appendChild(makeTab('all',      'All',      '#3498db', allRem, allTot));
   bar.appendChild(makeTab('calendar', '📅 Calendar', '#9b59b6', null, null));
-  bar.appendChild(makeTab('finance',  '💰 Finance',  '#2ecc71', null, null));
+  bar.appendChild(makeTab('finance', '💰 Finance' + (financeUnlocked ? ' 🔓' : ' 🔒'), '#2ecc71', null, null));
   SUBS.forEach(sub => {
     const list = store.tasks[sub.id] || [];
     const rem  = list.filter(t => t.status !== 'done').length;
@@ -1138,6 +1138,47 @@ async function removeCheckIn(subId, taskId, index) {
 }
 
 // ── FINANCE VIEW ──
+function checkFinancePin() {
+  const pin = prompt('Enter finance PIN:');
+  if (pin === '1234') {
+    financeUnlocked = true;
+    renderTabs();
+    renderBoard();
+    toast('Finance editing unlocked 🔓', 'success');
+  } else if (pin !== null) {
+    toast('Incorrect PIN', 'error');
+  }
+}
+
+function lockFinance() {
+  financeUnlocked = false;
+  renderTabs();
+  renderBoard();
+  toast('Finance editing locked 🔒', 'success');
+}
+
+async function removeExpenseKanban(receiptId) {
+  if (!confirm('Remove expense ' + receiptId + '?')) return;
+  const expense = store.expenses.find(e => e.receiptId === receiptId);
+  if (!expense) return;
+  store.spent[expense.groupId] = Math.max(0, (store.spent[expense.groupId] || 0) - (expense.amount || 0));
+  store.expenses = store.expenses.filter(e => e.receiptId !== receiptId);
+  renderBoard();
+  try { await saveData(); toast(receiptId + ' removed', 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
+async function setBudgetKanban(subId, currentBudget) {
+  const val = prompt('New budget for ' + (SUBS.find(s=>s.id===subId)?.label || subId) + ' (AUD):', currentBudget);
+  if (val === null) return;
+  const amount = parseFloat(val);
+  if (isNaN(amount) || amount < 0) { toast('Invalid amount', 'error'); return; }
+  store.budgets[subId] = amount;
+  renderBoard();
+  try { await saveData(); toast('Budget updated', 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
 function renderFinanceView(area) {
   area.className = 'finance-area';
   area.innerHTML = '';
@@ -1145,6 +1186,14 @@ function renderFinanceView(area) {
   const budgets  = store.budgets  || {};
   const spent    = store.spent    || {};
   const expenses = store.expenses || [];
+
+  // PIN bar
+  const pinBar = document.createElement('div');
+  pinBar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem';
+  pinBar.innerHTML = financeUnlocked
+    ? '<span style="font-size:.65em;font-family:JetBrains Mono,monospace;color:#2ecc71">🔓 Editing enabled</span><button onclick="lockFinance()" style="padding:.3rem .7rem;background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">🔒 Lock</button>'
+    : '<span style="font-size:.65em;font-family:JetBrains Mono,monospace;color:var(--dim)">🔒 Read-only mode</span><button onclick="checkFinancePin()" style="padding:.3rem .7rem;background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">🔓 Unlock</button>';
+  area.appendChild(pinBar);
 
   // Budget overview
   const budgetTitle = document.createElement('div');
@@ -1154,8 +1203,6 @@ function renderFinanceView(area) {
   const grid = document.createElement('div');
   grid.className = 'budget-grid';
 
-  const allSubs = [...SUBS, ...([{ id:'manipulator',color:'#e74c3c' },{ id:'drivetrain',color:'#e67e22' },{ id:'comms',color:'#3498db' },{ id:'electrical',color:'#f1c40f' },{ id:'science',color:'#2ecc71' },{ id:'automation',color:'#e91e63' },{ id:'admin',color:'#8e44ad' },{ id:'marketing',color:'#16a085' }].filter(s => !SUBS.find(sub => sub.id === s.id)))];
-  
   SUBS.forEach(sub => {
     const budget = budgets[sub.id] || 0;
     const sp     = spent[sub.id]   || 0;
@@ -1166,10 +1213,16 @@ function renderFinanceView(area) {
     const card = document.createElement('div');
     card.className = 'budget-card';
     card.style.borderLeftColor = sub.color;
+    const editBtn = financeUnlocked
+      ? '<button onclick="setBudgetKanban('' + sub.id + '',' + budget + ')" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.6em;font-family:JetBrains Mono,monospace;cursor:pointer">✎ Edit</button>'
+      : '';
     card.innerHTML =
       '<div class="budget-card-header">' +
         '<div class="budget-card-name">' + esc(sub.label) + '</div>' +
-        '<span class="budget-card-status">' + dot + ' $' + sp.toFixed(2) + ' / $' + budget.toFixed(2) + '</span>' +
+        '<div style="display:flex;align-items:center;gap:.5rem">' +
+          '<span class="budget-card-status">' + dot + ' $' + sp.toFixed(2) + ' / $' + budget.toFixed(2) + '</span>' +
+          editBtn +
+        '</div>' +
       '</div>' +
       '<div class="budget-track"><div class="budget-track-fill" style="width:' + pct + '%;background:' + sub.color + '"></div></div>' +
       '<div class="budget-nums"><span>$' + Math.max(0,left).toFixed(2) + ' remaining</span><span>' + pct + '% used</span></div>';
@@ -1192,22 +1245,26 @@ function renderFinanceView(area) {
 
   const table = document.createElement('div');
   table.className = 'expense-table';
-  table.innerHTML =
-    '<div class="expense-row header">' +
-      '<div>RECEIPT</div><div>ITEM</div><div>GROUP</div><div>STATUS</div><div>DATE</div>' +
-    '</div>';
+  const headerCols = financeUnlocked ? '<div>RECEIPT</div><div>ITEM</div><div>GROUP</div><div>STATUS</div><div>DATE</div><div></div>' : '<div>RECEIPT</div><div>ITEM</div><div>GROUP</div><div>STATUS</div><div>DATE</div>';
+  const headerGrid = financeUnlocked ? 'grid-template-columns:100px 1fr 120px 110px 90px 50px' : 'grid-template-columns:100px 1fr 120px 110px 90px';
+  table.innerHTML = '<div class="expense-row header" style="' + headerGrid + '">' + headerCols + '</div>';
 
   [...expenses].reverse().forEach(e => {
     const statusCls = e.status === 'Paid' ? 'status-paid' : e.status === 'Pending' ? 'status-pending' : 'status-other';
     const sub = SUBS.find(s => s.id === e.groupId);
     const row = document.createElement('div');
     row.className = 'expense-row';
+    if (financeUnlocked) row.style.gridTemplateColumns = '100px 1fr 120px 110px 90px 50px';
+    const delBtn = financeUnlocked
+      ? '<button onclick="removeExpenseKanban('' + e.receiptId + '')" style="background:transparent;border:none;color:#e74c3c;cursor:pointer;font-size:.9em" title="Remove">🗑️</button>'
+      : '';
     row.innerHTML =
       '<div class="expense-receipt">' + esc(e.receiptId) + '</div>' +
       '<div class="expense-item">' + esc(e.item) + '</div>' +
       '<div class="expense-group">' + esc(sub ? sub.label : e.groupId) + '</div>' +
       '<div><span class="expense-status ' + statusCls + '">' + esc(e.status) + '</span></div>' +
-      '<div class="expense-date">' + esc(e.date) + '</div>';
+      '<div class="expense-date">' + esc(e.date) + '</div>' +
+      (financeUnlocked ? '<div>' + delBtn + '</div>' : '');
     table.appendChild(row);
   });
   area.appendChild(table);

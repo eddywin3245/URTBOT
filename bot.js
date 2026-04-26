@@ -157,6 +157,61 @@ async function appendExpenseRow(row) {
   });
 }
 
+async function deleteSheetRow(receiptId) {
+  try {
+    const sheets = getSheets();
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A:A" });
+    const rows = res.data.values || [];
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0] === receiptId) {
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: GOOGLE_SHEET_ID,
+          requestBody: { requests: [{ deleteDimension: { range: { sheetId: 0, dimension: "ROWS", startIndex: i, endIndex: i + 1 } } }] }
+        });
+        return true;
+      }
+    }
+  } catch (e) { console.error("Delete sheet row error:", e.message); }
+  return false;
+}
+
+async function syncBudgetSheet() {
+  try {
+    const sheets = getSheets();
+    // Get or create Budget Summary sheet
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: GOOGLE_SHEET_ID });
+    let budgetSheet = meta.data.sheets.find(s => s.properties.title === "Budget Summary");
+    if (!budgetSheet) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: GOOGLE_SHEET_ID,
+        requestBody: { requests: [{ addSheet: { properties: { title: "Budget Summary" } } }] }
+      });
+    }
+    const rows = [
+      ["Subsystem", "Budget (AUD)", "Spent (AUD)", "Remaining (AUD)", "Last Updated"],
+      ...FINANCE_GROUPS.map(g => [
+        g.label,
+        store.budgets[g.id] || 0,
+        store.spent[g.id] || 0,
+        (store.budgets[g.id] || 0) - (store.spent[g.id] || 0),
+        new Date().toLocaleDateString("en-AU")
+      ]),
+      [],
+      ["TOTAL",
+        Object.values(store.budgets).reduce((a,b) => a+b, 0),
+        Object.values(store.spent).reduce((a,b) => a+b, 0),
+        Object.values(store.budgets).reduce((a,b) => a+b, 0) - Object.values(store.spent).reduce((a,b) => a+b, 0),
+        ""
+      ]
+    ];
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: GOOGLE_SHEET_ID, range: "Budget Summary!A1",
+      valueInputOption: "RAW", requestBody: { values: rows }
+    });
+    console.log("✅ Budget summary sheet updated");
+  } catch (e) { console.error("Budget sheet sync error:", e.message); }
+}
+
 async function updateSheetRow(receiptId, colLetter, value) {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A:A" });
@@ -640,11 +695,24 @@ async function setupLeadChannels(guild, botUserId) {
   for (const sub of SUBSYSTEMS) {
     const channelName = sub.id.replace(/_/g, "-") + "-lead";
     if (store.leadChannelIds[sub.id]) {
-      try { const ch = await guild.channels.fetch(store.leadChannelIds[sub.id]); await ch.permissionOverwrites.edit(botUserId, BOT_PERMS); console.log(`✅ Fixed: #${ch.name}`); continue; }
-      catch { delete store.leadChannelIds[sub.id]; }
+      try {
+        const ch = await guild.channels.fetch(store.leadChannelIds[sub.id]);
+        await ch.permissionOverwrites.edit(botUserId, BOT_PERMS);
+        // Move to correct category if not already there
+        if (ch.parentId !== category.id) { try { await ch.setParent(category.id, { lockPermissions: false }); } catch {} }
+        console.log(`✅ Fixed: #${ch.name}`);
+        continue;
+      } catch { delete store.leadChannelIds[sub.id]; }
     }
-    const existing = guild.channels.cache.find((c) => c.name === channelName && c.parentId === category.id);
-    if (existing) { await existing.permissionOverwrites.edit(botUserId, BOT_PERMS); store.leadChannelIds[sub.id] = existing.id; console.log(`✅ Found: #${channelName}`); continue; }
+    // Search anywhere in the guild (not just the category) so we pick up orphaned channels
+    const existing = guild.channels.cache.find((c) => c.name === channelName && c.type === ChannelType.GuildText);
+    if (existing) {
+      await existing.permissionOverwrites.edit(botUserId, BOT_PERMS);
+      if (existing.parentId !== category.id) { try { await existing.setParent(category.id, { lockPermissions: false }); } catch {} }
+      store.leadChannelIds[sub.id] = existing.id;
+      console.log(`✅ Found & moved: #${channelName}`);
+      continue;
+    }
     const ch = await guild.channels.create({
       name: channelName, type: ChannelType.GuildText, parent: category.id,
       topic: `${sub.emoji} ${sub.label} team lead channel`,
@@ -1086,6 +1154,8 @@ ${desc ? `**Description:** ${desc}` : ''}`)
         store.spent[expense.groupId] = Math.max(0, (store.spent[expense.groupId] || 0) - (expense.amount || 0));
         store.expenses = store.expenses.filter(e => e.receiptId !== receiptId);
         await updateBudgetDashboard(guild);
+        await deleteSheetRow(receiptId);
+        await syncBudgetSheet();
         await saveData();
         await postFinanceLog(guild, logEmbed(0xe74c3c, `🗑️ Expense removed — ${group ? group.emoji + ' ' + group.label : receiptId}`, [`Receipt: **${receiptId}**`, `Item: ${expense.item}`, `Removed by <@${uid}>`]));
         await interaction.editReply({ content: `🗑️ **${receiptId}** removed!`, components: [] });
@@ -1246,6 +1316,7 @@ ${desc ? `**Description:** ${desc}` : ''}`)
         const group = FINANCE_GROUPS.find((g) => g.id === groupId);
         store.budgets[groupId] = amount;
         await updateBudgetDashboard(guild);
+        await syncBudgetSheet();
         await saveData();
         await postFinanceLog(guild, logEmbed(group.color, `⚙️ Budget updated — ${group.emoji} ${group.label}`, [`New budget: ${fmtAUD(amount)}`, `Set by <@${uid}>`]));
         return replyAndDelete(interaction, `⚙️ **${group.label}** budget set to **${fmtAUD(amount)}**!`);
@@ -1320,6 +1391,7 @@ ${desc ? `**Description:** ${desc}` : ''}`)
           store.expenses.push({ receiptId, item, groupId, status: reimbursement, date: new Date().toLocaleDateString("en-AU") });
           await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), userName, group.label, item, qty, fmtAUD(estCost), fmtAUD(estTotal), finalCost !== null ? fmtAUD(finalCost) : "", finalTotal !== null ? fmtAUD(finalTotal) : "", "No", reimbursement, receipt, justification, ""]);
           await updateBudgetDashboard(guild);
+          await syncBudgetSheet();
           await postFinanceLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
             [`**${item}** x${qty}`, `Est: ${fmtAUD(estTotal)}${finalTotal !== null ? `  |  Final: ${fmtAUD(finalTotal)}` : ""}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `Reimbursement: ${reimbursement}`, justification ? `Justification: ${justification}` : null].filter(Boolean)));
           await saveData();
