@@ -1214,7 +1214,7 @@ function renderFinanceView(area) {
     card.className = 'budget-card';
     card.style.borderLeftColor = sub.color;
     const editBtn = financeUnlocked
-      ? '<button onclick="setBudgetKanban('' + sub.id + '',' + budget + ')" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.6em;font-family:JetBrains Mono,monospace;cursor:pointer">✎ Edit</button>'
+      ? '<button onclick="setBudgetKanban(\'' + sub.id + '\',' + budget + ')" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.6em;font-family:JetBrains Mono,monospace;cursor:pointer">&#x270E; Edit</button>'
       : '';
     card.innerHTML =
       '<div class="budget-card-header">' +
@@ -1256,7 +1256,7 @@ function renderFinanceView(area) {
     row.className = 'expense-row';
     if (financeUnlocked) row.style.gridTemplateColumns = '100px 1fr 120px 110px 90px 50px';
     const delBtn = financeUnlocked
-      ? '<button onclick="removeExpenseKanban('' + e.receiptId + '')" style="background:transparent;border:none;color:#e74c3c;cursor:pointer;font-size:.9em" title="Remove">🗑️</button>'
+      ? '<button onclick="removeExpenseKanban(\'' + e.receiptId + '\')" style="background:transparent;border:none;color:#e74c3c;cursor:pointer;font-size:.9em" title="Remove">&#x1F5D1;</button>'
       : '';
     row.innerHTML =
       '<div class="expense-receipt">' + esc(e.receiptId) + '</div>' +
