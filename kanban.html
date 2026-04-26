@@ -1215,6 +1215,15 @@ async function setBudgetKanban(subId, currentBudget) {
   catch { toast('Save failed', 'error'); }
 }
 
+async function resetSpentKanban(subId) {
+  const sub = SUBS.find(s => s.id === subId);
+  if (!confirm('Reset spent for ' + sub.label + ' to $0?')) return;
+  store.spent[subId] = 0;
+  renderBoard();
+  try { await saveData(); toast(sub.label + ' spent reset to $0', 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
 function renderFinanceView(area) {
   area.className = 'finance-area';
   area.innerHTML = '';
@@ -1254,7 +1263,7 @@ function renderFinanceView(area) {
     card.onclick = () => openSubsystemExpenses(sub.id);
     const subExpCount = (store.expenses || []).filter(e => e.groupId === sub.id).length;
     const editBtn = financeUnlocked
-      ? '<button onclick="event.stopPropagation();setBudgetKanban(\'' + sub.id + '\',' + budget + ')" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.6em;font-family:JetBrains Mono,monospace;cursor:pointer">&#x270E; Budget</button>'
+      ? '<button onclick="event.stopPropagation();resetSpentKanban(\'' + sub.id + '\')" style="padding:.2rem .5rem;background:rgba(231,76,60,.12);border:1px solid rgba(231,76,60,.3);border-radius:5px;color:#e74c3c;font-size:.6em;font-family:JetBrains Mono,monospace;cursor:pointer">↺ Reset Spent</button>'
       : '';
     card.innerHTML =
       '<div class="budget-card-header">' +

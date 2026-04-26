@@ -432,9 +432,7 @@ function buildBudgetButtons() {
       new ButtonBuilder().setCustomId("refresh_budget")   .setLabel("🔄 Refresh")          .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("remove_expense")   .setLabel("🗑️ Remove Expense")    .setStyle(ButtonStyle.Danger),
     ),
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("reset_spent")      .setLabel("↺ Reset Spent")       .setStyle(ButtonStyle.Danger),
-    ),
+
   ];
 }
 
@@ -984,13 +982,6 @@ ${desc ? `**Description:** ${desc}` : ''}`)
         await updateBudgetDashboard(guild);
         await saveData();
         return replyAndDelete(interaction, "🔄 Budget refreshed!");
-      }
-
-      if (id === "reset_spent") {
-        if (!isProjectLead(member)) return replyDenied("Only project leads can reset spent amounts.");
-        await interaction.reply({ content: "Which group to reset spent to $0?", components: [buildFinanceGroupSel("group_for_reset")], flags: MessageFlags.Ephemeral });
-        scheduleDelete(interaction, 30000);
-        return;
       }
 
       const replyMenu = async (content, components) => {
