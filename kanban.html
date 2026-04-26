@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title> WARP — Kanban</title>
+<title>Warp — Kanban</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -215,6 +215,31 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 /* Calendar milestone pills */
 .cal-milestone{display:block;font-size:.58em;padding:.15rem .4rem;border-radius:4px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;margin-bottom:.1rem;flex-shrink:0;font-family:'JetBrains Mono',monospace;background:rgba(155,89,182,0.9);border-left:2px solid #9b59b6;font-weight:700}
 .cal-milestone:hover{opacity:.85}
+
+/* FINANCE VIEW */
+.finance-area{padding:var(--pad);display:flex;flex-direction:column;gap:1.25rem;max-width:1100px;margin:0 auto}
+.finance-section-title{font-size:.65em;letter-spacing:.15em;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:.5rem}
+.budget-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.85rem}
+.budget-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem;border-left:4px solid}
+.budget-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.65rem}
+.budget-card-name{font-size:.8em;font-weight:700;display:flex;align-items:center;gap:.4rem}
+.budget-card-status{font-size:.65em;font-family:'JetBrains Mono',monospace}
+.budget-track{height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-bottom:.5rem}
+.budget-track-fill{height:100%;border-radius:3px;transition:width .6s ease}
+.budget-nums{display:flex;justify-content:space-between;font-size:.65em;font-family:'JetBrains Mono',monospace;color:var(--muted)}
+.expense-table{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.expense-row{display:grid;grid-template-columns:100px 1fr 120px 110px 90px;gap:.5rem;padding:.55rem .9rem;border-bottom:1px solid var(--border);align-items:center;font-size:.72em}
+.expense-row:last-child{border-bottom:none}
+.expense-row.header{background:var(--surface2);font-size:.6em;letter-spacing:.1em;color:var(--muted);font-family:'JetBrains Mono',monospace;font-weight:600}
+.expense-receipt{font-family:'JetBrains Mono',monospace;color:var(--muted);font-size:.9em}
+.expense-item{color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.expense-group{color:var(--muted)}
+.expense-status{padding:.15rem .45rem;border-radius:4px;font-size:.85em;font-family:'JetBrains Mono',monospace;text-align:center}
+.status-paid{background:rgba(46,204,113,.15);color:#2ecc71}
+.status-pending{background:rgba(241,196,15,.12);color:#f1c40f}
+.status-other{background:var(--surface2);color:var(--muted)}
+.expense-date{color:var(--dim);font-family:'JetBrains Mono',monospace;font-size:.85em}
+@media(max-width:700px){.expense-row{grid-template-columns:80px 1fr 90px}.expense-date,.expense-group{display:none}}
 </style>
 </head>
 <body>
@@ -255,12 +280,13 @@ const API_KEY = '$2a$10$DbpaQeAX21FZZuIOP3ZUmOdE0RC.hGmsLq.dYzkx/WOHVaS0RtoYG';
 
 const SUBS = [
   { id:'manipulator', label:'Manipulator', color:'#e74c3c' },
-  { id:'drivetrain',  label:'Drivetrain',  color:'#e67e22' },
-  { id:'comms',       label:'Comms',       color:'#3498db' },
-  { id:'electrical',  label:'Electrical',  color:'#f1c40f' },
+  { id:'drivetrain',  label:'Drivetrain Chassis',            color:'#e67e22' },
+  { id:'comms',       label:'Teleoperations',                 color:'#3498db' },
+  { id:'electrical',  label:'Power Systems & Electronics',    color:'#f1c40f' },
   { id:'science',     label:'Science',     color:'#2ecc71' },
   { id:'automation',  label:'Automation',  color:'#e91e63' },
   { id:'admin',        label:'Admin',        color:'#8e44ad' },
+  { id:'marketing',    label:'Marketing',    color:'#16a085' },
 ];
 
 const STATUSES = [
@@ -402,6 +428,7 @@ function renderTabs() {
   const allTot = Object.values(store.tasks).flat().length;
   bar.appendChild(makeTab('all',      'All',      '#3498db', allRem, allTot));
   bar.appendChild(makeTab('calendar', '📅 Calendar', '#9b59b6', null, null));
+  bar.appendChild(makeTab('finance',  '💰 Finance',  '#2ecc71', null, null));
   SUBS.forEach(sub => {
     const list = store.tasks[sub.id] || [];
     const rem  = list.filter(t => t.status !== 'done').length;
@@ -414,7 +441,7 @@ function makeTab(id, label, color, remaining, total) {
   tab.className = 'tab' + (activeTab === id ? ' active' : '');
   tab.style.setProperty('--tab-color', color);
   const badge = remaining > 0 ? `<span class="tab-badge">${remaining}</span>` : '';
-  const dot   = id !== 'calendar' ? `<span class="tab-dot" style="background:${color}"></span>` : '';
+  const dot   = (id !== 'calendar' && id !== 'finance') ? `<span class="tab-dot" style="background:${color}"></span>` : '';
   tab.innerHTML = `${dot}${esc(label)}${badge}`;
   tab.onclick = () => { activeTab = id; renderTabs(); renderBoard(); };
   return tab;
@@ -432,6 +459,7 @@ function renderBoard() {
   const area = document.getElementById('main-area');
   if      (activeTab === 'all')      renderAllView(area);
   else if (activeTab === 'calendar') renderCalendarView(area);
+  else if (activeTab === 'finance')  renderFinanceView(area);
   else                               renderSubView(area, activeTab);
 }
 
@@ -1107,6 +1135,82 @@ async function removeCheckIn(subId, taskId, index) {
   document.getElementById('checkin-list').innerHTML = buildCheckInDisplay(task, subId, taskId);
   try { await saveData(); toast('Check-in removed', 'success'); }
   catch { toast('Save failed', 'error'); }
+}
+
+// ── FINANCE VIEW ──
+function renderFinanceView(area) {
+  area.className = 'finance-area';
+  area.innerHTML = '';
+
+  const budgets  = store.budgets  || {};
+  const spent    = store.spent    || {};
+  const expenses = store.expenses || [];
+
+  // Budget overview
+  const budgetTitle = document.createElement('div');
+  budgetTitle.innerHTML = '<div class="finance-section-title">BUDGET OVERVIEW</div>';
+  area.appendChild(budgetTitle);
+
+  const grid = document.createElement('div');
+  grid.className = 'budget-grid';
+
+  const allSubs = [...SUBS, ...([{ id:'manipulator',color:'#e74c3c' },{ id:'drivetrain',color:'#e67e22' },{ id:'comms',color:'#3498db' },{ id:'electrical',color:'#f1c40f' },{ id:'science',color:'#2ecc71' },{ id:'automation',color:'#e91e63' },{ id:'admin',color:'#8e44ad' },{ id:'marketing',color:'#16a085' }].filter(s => !SUBS.find(sub => sub.id === s.id)))];
+  
+  SUBS.forEach(sub => {
+    const budget = budgets[sub.id] || 0;
+    const sp     = spent[sub.id]   || 0;
+    const left   = budget - sp;
+    const pct    = budget === 0 ? 0 : Math.min(100, Math.round(sp / budget * 100));
+    const dot    = left < 0 ? '🔴' : left < budget * 0.2 ? '🟡' : '🟢';
+
+    const card = document.createElement('div');
+    card.className = 'budget-card';
+    card.style.borderLeftColor = sub.color;
+    card.innerHTML =
+      '<div class="budget-card-header">' +
+        '<div class="budget-card-name">' + esc(sub.label) + '</div>' +
+        '<span class="budget-card-status">' + dot + ' $' + sp.toFixed(2) + ' / $' + budget.toFixed(2) + '</span>' +
+      '</div>' +
+      '<div class="budget-track"><div class="budget-track-fill" style="width:' + pct + '%;background:' + sub.color + '"></div></div>' +
+      '<div class="budget-nums"><span>$' + Math.max(0,left).toFixed(2) + ' remaining</span><span>' + pct + '% used</span></div>';
+    grid.appendChild(card);
+  });
+  area.appendChild(grid);
+
+  // Expenses list
+  const expTitle = document.createElement('div');
+  expTitle.innerHTML = '<div class="finance-section-title" style="margin-top:.5rem">EXPENSE HISTORY (' + expenses.length + ')</div>';
+  area.appendChild(expTitle);
+
+  if (!expenses.length) {
+    const empty = document.createElement('div');
+    empty.className = 'col-empty';
+    empty.textContent = 'No expenses logged yet';
+    area.appendChild(empty);
+    return;
+  }
+
+  const table = document.createElement('div');
+  table.className = 'expense-table';
+  table.innerHTML =
+    '<div class="expense-row header">' +
+      '<div>RECEIPT</div><div>ITEM</div><div>GROUP</div><div>STATUS</div><div>DATE</div>' +
+    '</div>';
+
+  [...expenses].reverse().forEach(e => {
+    const statusCls = e.status === 'Paid' ? 'status-paid' : e.status === 'Pending' ? 'status-pending' : 'status-other';
+    const sub = SUBS.find(s => s.id === e.groupId);
+    const row = document.createElement('div');
+    row.className = 'expense-row';
+    row.innerHTML =
+      '<div class="expense-receipt">' + esc(e.receiptId) + '</div>' +
+      '<div class="expense-item">' + esc(e.item) + '</div>' +
+      '<div class="expense-group">' + esc(sub ? sub.label : e.groupId) + '</div>' +
+      '<div><span class="expense-status ' + statusCls + '">' + esc(e.status) + '</span></div>' +
+      '<div class="expense-date">' + esc(e.date) + '</div>';
+    table.appendChild(row);
+  });
+  area.appendChild(table);
 }
 
 // ── MILESTONES ──
