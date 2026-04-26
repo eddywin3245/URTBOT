@@ -21,27 +21,29 @@ const KANBAN_URL = 'https://eddywin3245.github.io/URTBOT/kanban.html';
 
 const SUBSYSTEMS = [
   { id: "manipulator", label: "Manipulator", emoji: "🦾", color: 0xe74c3c },
-  { id: "drivetrain",  label: "Drivetrain",  emoji: "🚗", color: 0xe67e22 },
-  { id: "comms",       label: "Comms",       emoji: "📡", color: 0x3498db },
-  { id: "electrical",  label: "Electrical",  emoji: "⚡", color: 0xf1c40f },
+  { id: "drivetrain",  label: "Drivetrain Chassis",             emoji: "🚗", color: 0xe67e22 },
+  { id: "comms",       label: "Teleoperations",                  emoji: "📡", color: 0x3498db },
+  { id: "electrical",  label: "Power Systems & Electronics",     emoji: "⚡", color: 0xf1c40f },
   { id: "science",     label: "Science",     emoji: "🔬", color: 0x2ecc71 },
   { id: "automation",  label: "Automation",  emoji: "🤖", color: 0xe91e63 },
   { id: "admin",        label: "Admin",        emoji: "🛠️", color: 0x8e44ad },
+  { id: "marketing",    label: "Marketing",    emoji: "📣", color: 0x16a085 },
 ];
 
 const FINANCE_GROUPS = [
   { id: "manipulator", label: "Manipulator", emoji: "🦾", color: 0xe74c3c },
-  { id: "drivetrain",  label: "Drivetrain",  emoji: "🚗", color: 0xe67e22 },
-  { id: "comms",       label: "Comms",       emoji: "📡", color: 0x3498db },
-  { id: "electrical",  label: "Electrical",  emoji: "⚡", color: 0xf1c40f },
+  { id: "drivetrain",  label: "Drivetrain Chassis",             emoji: "🚗", color: 0xe67e22 },
+  { id: "comms",       label: "Teleoperations",                  emoji: "📡", color: 0x3498db },
+  { id: "electrical",  label: "Power Systems & Electronics",     emoji: "⚡", color: 0xf1c40f },
   { id: "science",     label: "Science",     emoji: "🔬", color: 0x2ecc71 },
   { id: "automation",  label: "Automation",  emoji: "🤖", color: 0xe91e63 },
   { id: "admin",        label: "Admin",        emoji: "🛠️", color: 0x8e44ad },
+  { id: "marketing",    label: "Marketing",    emoji: "📣", color: 0x16a085 },
 ];
 
 const DEFAULT_BUDGETS = {
   manipulator: 1000, drivetrain: 1000, comms: 1000,
-  electrical: 1000, science: 1000, automation: 1000, admin: 500,
+  electrical: 1000, science: 1000, automation: 1000, admin: 500, marketing: 1000,
 };
 
 const PRI_EMOJI = { high: "🔴", medium: "🟡", low: "🟢" };
@@ -362,6 +364,7 @@ function buildBudgetButtons() {
     new ButtonBuilder().setCustomId("update_payment")   .setLabel("💳 Update Payment")   .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("set_budget")       .setLabel("⚙️ Set Budget")       .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("refresh_budget")   .setLabel("🔄 Refresh")          .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("remove_expense")   .setLabel("🗑️ Remove Expense")    .setStyle(ButtonStyle.Danger),
   )];
 }
 
@@ -609,8 +612,20 @@ async function updateAll(client) {
 // ─────────────────────────────────────────
 async function setupLeadChannels(guild, botUserId) {
   const BOT_PERMS = { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, EmbedLinks: true };
-  let category = guild.channels.cache.find((c) => c.type === ChannelType.GuildCategory && c.name.toUpperCase() === "SUBSYSTEM LEADS");
-  if (!category) category = await guild.channels.create({ name: "SUBSYSTEM LEADS", type: ChannelType.GuildCategory });
+
+  // Ensure Bot-channels category exists
+  let botCat = guild.channels.cache.find((c) => c.type === ChannelType.GuildCategory && c.name.toUpperCase() === "BOT-CHANNELS");
+  if (!botCat) botCat = await guild.channels.create({ name: "Bot-channels", type: ChannelType.GuildCategory });
+
+  // Move bot utility channels into Bot-channels category
+  const botChannelNames = ["rover-status","budget-status","purchase-approvals","urt-admin","task-logs","finance-logs","rover-logs"];
+  for (const name of botChannelNames) {
+    const ch = guild.channels.cache.find(c => c.name === name && c.type === ChannelType.GuildText);
+    if (ch && ch.parentId !== botCat.id) { try { await ch.setParent(botCat.id, { lockPermissions: false }); } catch {} }
+  }
+
+  let category = guild.channels.cache.find((c) => c.type === ChannelType.GuildCategory && c.name.toUpperCase() === "TASK SELECTOR");
+  if (!category) category = await guild.channels.create({ name: "TASK SELECTOR", type: ChannelType.GuildCategory });
   for (const sub of SUBSYSTEMS) {
     const channelName = sub.id.replace(/_/g, "-") + "-lead";
     if (store.leadChannelIds[sub.id]) {
@@ -910,6 +925,16 @@ ${desc ? `**Description:** ${desc}` : ''}`)
         return;
       }
 
+      if (id === "remove_expense") {
+        if (!store.expenses.length) { await interaction.reply({ content: "No logged expenses to remove.", flags: MessageFlags.Ephemeral }); scheduleDelete(interaction, 4000); return; }
+        const options = store.expenses.slice(-25).reverse().map((e) =>
+          new StringSelectMenuOptionBuilder().setLabel(`${e.receiptId} — ${e.item} (${e.status})`).setValue(e.receiptId)
+        );
+        await interaction.reply({ content: "Which expense to remove?", components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("expense_for_remove").setPlaceholder("Choose an expense...").addOptions(options))], flags: MessageFlags.Ephemeral });
+        scheduleDelete(interaction, 30000);
+        return;
+      }
+
       if (id.startsWith("lead_inprogress_")) {
         const subId = id.replace("lead_inprogress_", "");
         const sel   = buildTaskSel("task_for_inprogress", store.tasks, subId, "todo");
@@ -1027,6 +1052,23 @@ ${desc ? `**Description:** ${desc}` : ''}`)
       if (id === "group_for_expense") { await interaction.showModal(expenseModalBasic(value, false)); setTimeout(() => interaction.deleteReply().catch(() => {}), 500); return; }
       if (id === "group_for_request") { await interaction.showModal(expenseModalBasic(value, true));  setTimeout(() => interaction.deleteReply().catch(() => {}), 500); return; }
       if (id === "group_for_budget")  { await interaction.showModal(setBudgetModal(value));            setTimeout(() => interaction.deleteReply().catch(() => {}), 500); return; }
+      if (id === "expense_for_remove") {
+        await interaction.deferUpdate();
+        const receiptId = value;
+        const expense = store.expenses.find(e => e.receiptId === receiptId);
+        if (!expense) { await interaction.editReply({ content: "Expense not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
+        // Subtract from spent
+        const group = FINANCE_GROUPS.find(g => g.id === expense.groupId);
+        store.spent[expense.groupId] = Math.max(0, (store.spent[expense.groupId] || 0) - (expense.amount || 0));
+        store.expenses = store.expenses.filter(e => e.receiptId !== receiptId);
+        await updateBudgetDashboard(guild);
+        await saveData();
+        await postFinanceLog(guild, logEmbed(0xe74c3c, `🗑️ Expense removed — ${group ? group.emoji + ' ' + group.label : receiptId}`, [`Receipt: **${receiptId}**`, `Item: ${expense.item}`, `Removed by <@${uid}>`]));
+        await interaction.editReply({ content: `🗑️ **${receiptId}** removed!`, components: [] });
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 4000);
+        return;
+      }
+
       if (id === "expense_for_payment") { pending.set(`${uid}_payment_receipt`, value); await interaction.showModal(updatePaymentModal(value)); setTimeout(() => interaction.deleteReply().catch(() => {}), 500); return; }
 
       if (id === "sub_for_add") {
