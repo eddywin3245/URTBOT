@@ -1,0 +1,24 @@
+name: Backup JSONBin
+on:
+  schedule:
+    - cron: '0 0 * * *'  # runs daily at midnight UTC
+  workflow_dispatch:       # lets you run it manually too
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Fetch and save JSONBin
+        run: |
+          mkdir -p backups
+          curl -H "X-Master-Key: ${{ secrets.JSONBIN_API_KEY }}" \
+            https://api.jsonbin.io/v3/b/${{ secrets.JSONBIN_BIN_ID }} \
+            -o backups/backup-$(date +%Y-%m-%d).json
+      - name: Commit backup
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add backups/
+          git diff --staged --quiet || git commit -m "Daily JSONBin backup $(date +%Y-%m-%d)"
+          git push
