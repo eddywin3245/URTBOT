@@ -424,14 +424,18 @@ function buildBudgetEmbed() {
 }
 
 function buildBudgetButtons() {
-  return [new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("log_expense")      .setLabel("💸 Log Expense")      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("purchase_request") .setLabel("📝 Purchase Request") .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("update_payment")   .setLabel("💳 Update Payment")   .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("set_budget")       .setLabel("⚙️ Set Budget")       .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("refresh_budget")   .setLabel("🔄 Refresh")          .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("remove_expense")   .setLabel("🗑️ Remove Expense")    .setStyle(ButtonStyle.Danger),
-  )];
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("log_expense")      .setLabel("💸 Log Expense")      .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("purchase_request") .setLabel("📝 Purchase Request") .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("update_payment")   .setLabel("💳 Update Payment")   .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("refresh_budget")   .setLabel("🔄 Refresh")          .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("remove_expense")   .setLabel("🗑️ Remove Expense")    .setStyle(ButtonStyle.Danger),
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("reset_spent")      .setLabel("↺ Reset Spent")       .setStyle(ButtonStyle.Danger),
+    ),
+  ];
 }
 
 async function updateBudgetDashboard(guild) {
@@ -982,6 +986,13 @@ ${desc ? `**Description:** ${desc}` : ''}`)
         return replyAndDelete(interaction, "🔄 Budget refreshed!");
       }
 
+      if (id === "reset_spent") {
+        if (!isProjectLead(member)) return replyDenied("Only project leads can reset spent amounts.");
+        await interaction.reply({ content: "Which group to reset spent to $0?", components: [buildFinanceGroupSel("group_for_reset")], flags: MessageFlags.Ephemeral });
+        scheduleDelete(interaction, 30000);
+        return;
+      }
+
       const replyMenu = async (content, components) => {
         await interaction.reply({ content, components, flags: MessageFlags.Ephemeral });
         scheduleDelete(interaction, 30000);
@@ -999,10 +1010,7 @@ ${desc ? `**Description:** ${desc}` : ''}`)
         return replyMenu("Which budget group?", [buildFinanceGroupSel("group_for_expense")]);
       }
       if (id === "purchase_request") return replyMenu("Which budget group?", [buildFinanceGroupSel("group_for_request")]);
-      if (id === "set_budget") {
-        if (!isProjectLead(member)) return replyDenied("Only project leads can change budgets.");
-        return replyMenu("Which budget group?", [buildFinanceGroupSel("group_for_budget")]);
-      }
+
       if (id === "add_task")         return replyMenu("Which subsystem?",    [buildSubSel("sub_for_add")]);
       if (id === "mark_done")        return replyMenu("Which subsystem?",    [buildSubSel("sub_for_done")]);
       if (id === "reopen_task")      return replyMenu("Which subsystem?",    [buildSubSel("sub_for_reopen")]);
@@ -1142,9 +1150,22 @@ ${desc ? `**Description:** ${desc}` : ''}`)
       const id    = interaction.customId;
       const value = interaction.values[0];
 
+      if (id === "group_for_reset") {
+        await interaction.deferUpdate();
+        const group = FINANCE_GROUPS.find(g => g.id === value);
+        store.spent[value] = 0;
+        await updateBudgetDashboard(guild);
+        await syncBudgetSheet();
+        await saveData();
+        await postFinanceLog(guild, logEmbed(0xe74c3c, `↺ Spent reset — ${group.emoji} ${group.label}`, [`Reset to $0.00`, `By <@${uid}>`]));
+        await interaction.editReply({ content: `↺ **${group.label}** spent reset to $0!`, components: [] });
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 4000);
+        return;
+      }
+
       if (id === "group_for_expense") { await interaction.showModal(expenseModalBasic(value, false)); setTimeout(() => interaction.deleteReply().catch(() => {}), 500); return; }
       if (id === "group_for_request") { await interaction.showModal(expenseModalBasic(value, true));  setTimeout(() => interaction.deleteReply().catch(() => {}), 500); return; }
-      if (id === "group_for_budget")  { await interaction.showModal(setBudgetModal(value));            setTimeout(() => interaction.deleteReply().catch(() => {}), 500); return; }
+
       if (id === "expense_for_remove") {
         await interaction.deferUpdate();
         const receiptId = value;
