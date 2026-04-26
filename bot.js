@@ -48,6 +48,17 @@ const DEFAULT_BUDGETS = {
 
 const PRI_EMOJI = { high: "🔴", medium: "🟡", low: "🟢" };
 
+// Role names for permission checks — update these to match your Discord server
+// Role names matching your Discord server
+const FINANCE_ROLES  = ["Project Lead", "Team Leads", "Treasurer"];  // Can log expenses directly
+const BUDGET_ROLES   = ["Project Lead", "Treasurer"];                  // Can change budgets
+
+function hasAnyRole(member, roleNames) {
+  return member.roles.cache.some(r => roleNames.includes(r.name));
+}
+function isLead(member)        { return hasAnyRole(member, FINANCE_ROLES); }
+function isProjectLead(member) { return hasAnyRole(member, BUDGET_ROLES); }
+
 // ─────────────────────────────────────────
 //  HELPERS
 // ─────────────────────────────────────────
@@ -236,7 +247,7 @@ async function getLogChannel(guild) {
   }
   const existing = guild.channels.cache.find((c) => c.name === "rover-logs");
   if (existing) { store.logChannelId = existing.id; return existing; }
-  const ch = await guild.channels.create({ name: "rover-logs", type: ChannelType.GuildText, topic: "📋 URT Rover — task activity log" });
+  const ch = await guild.channels.create({ name: "rover-logs", type: ChannelType.GuildText, topic: "📋 Warp — task activity log" });
   store.logChannelId = ch.id;
   await saveData();
   return ch;
@@ -248,7 +259,7 @@ async function getFinanceLogChannel(guild) {
   }
   const existing = guild.channels.cache.find((c) => c.name === "finance-logs");
   if (existing) { store.financeLogChannelId = existing.id; return existing; }
-  const ch = await guild.channels.create({ name: "finance-logs", type: ChannelType.GuildText, topic: "💰 URT Rover — finance activity log" });
+  const ch = await guild.channels.create({ name: "finance-logs", type: ChannelType.GuildText, topic: "💰 Warp — finance activity log" });
   store.financeLogChannelId = ch.id;
   await saveData();
   return ch;
@@ -262,7 +273,7 @@ async function getApprovalChannel(guild, botUserId) {
   if (existing) { store.approvalChannelId = existing.id; return existing; }
   const ch = await guild.channels.create({
     name: "purchase-approvals", type: ChannelType.GuildText,
-    topic: "📝 URT Rover — purchase request approvals",
+    topic: "📝 Warp — purchase request approvals",
     permissionOverwrites: [
       { id: guild.roles.everyone, deny: [PermissionsBitField.Flags.ViewChannel] },
       { id: botUserId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory, PermissionsBitField.Flags.EmbedLinks] },
@@ -282,7 +293,7 @@ async function getAdminChannel(guild, botUserId) {
   const ch = await guild.channels.create({
     name: "urt-admin",
     type: ChannelType.GuildText,
-    topic: "🛠️ URT Rover — team leads admin channel",
+    topic: "🛠️ Warp — admin channel",
     permissionOverwrites: [
       { id: guild.roles.everyone, deny: [PermissionsBitField.Flags.ViewChannel] },
       { id: botUserId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory, PermissionsBitField.Flags.EmbedLinks] },
@@ -332,7 +343,7 @@ async function postSnapshot(guild) {
   });
   const total = Object.values(store.tasks).flat().length;
   const done  = Object.values(store.tasks).flat().filter((t) => t.done).length;
-  await ch.send({ embeds: [new EmbedBuilder().setColor(0x38bdf8).setTitle("📋 URT Rover — Full Task Snapshot")
+  await ch.send({ embeds: [new EmbedBuilder().setColor(0x38bdf8).setTitle("📋 Warp — Full Task Snapshot")
     .setDescription(lines.join("\n\n")).setFooter({ text: `${done}/${total} tasks complete` }).setTimestamp()] });
 }
 
@@ -352,7 +363,7 @@ function buildBudgetEmbed() {
   const tb = Object.values(store.budgets).reduce((a, b) => a + b, 0);
   const ts = Object.values(store.spent).reduce((a, b) => a + b, 0);
   return new EmbedBuilder()
-    .setTitle("💰  URT ROVER — BUDGET STATUS").setColor(0x2ecc71)
+    .setTitle("💰  WARP — BUDGET STATUS").setColor(0x2ecc71)
     .setDescription(`**Total: ${fmtAUD(tb)}  |  Spent: ${fmtAUD(ts)}  |  Remaining: ${fmtAUD(tb - ts)}**\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n` + lines.join("\n\n"))
     .setTimestamp().setFooter({ text: "🟢 Healthy  🟡 Under 20%  🔴 Over budget" });
 }
@@ -377,7 +388,7 @@ async function updateBudgetDashboard(guild) {
     const existing = guild.channels.cache.find((c) => c.name === "budget-status");
     if (existing) { store.budgetChannelId = existing.id; store.budgetMessageId = null; }
     else {
-      const ch = await guild.channels.create({ name: "budget-status", type: ChannelType.GuildText, topic: "💰 URT Rover budget tracker" });
+      const ch = await guild.channels.create({ name: "budget-status", type: ChannelType.GuildText, topic: "💰 Warp budget tracker" });
       store.budgetChannelId = ch.id;
     }
   }
@@ -411,7 +422,7 @@ function buildOverviewEmbed(tasks) {
   });
   const op = ta === 0 ? 0 : Math.round((td / ta) * 100);
   const ob = "█".repeat(Math.round(op / 10)) + "░".repeat(10 - Math.round(op / 10));
-  return new EmbedBuilder().setTitle("🛸  URT ROVER — BUILD STATUS").setColor(0x38bdf8)
+  return new EmbedBuilder().setTitle("🛸  WARP — BUILD STATUS").setColor(0x38bdf8)
     .setDescription(`**Overall**\n\`${ob}\` ${op}%  (${td}/${ta} tasks)\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n` + sections.join("\n\n"))
     .setTimestamp().setFooter({ text: `Kanban: ${KANBAN_URL}` });
 }
@@ -906,10 +917,23 @@ ${desc ? `**Description:** ${desc}` : ''}`)
         await interaction.reply({ content, components, flags: MessageFlags.Ephemeral });
         scheduleDelete(interaction, 30000);
       };
+      const replyDenied = async (msg) => {
+        await interaction.reply({ content: `🚫 ${msg}`, flags: MessageFlags.Ephemeral });
+        scheduleDelete(interaction, 5000);
+      };
 
-      if (id === "log_expense")      return replyMenu("Which budget group?", [buildFinanceGroupSel("group_for_expense")]);
+      // Fetch member for role checks
+      const member = await guild.members.fetch(uid);
+
+      if (id === "log_expense") {
+        if (!isLead(member)) return replyDenied("Only team leads can log expenses directly. Use 📝 Purchase Request instead!");
+        return replyMenu("Which budget group?", [buildFinanceGroupSel("group_for_expense")]);
+      }
       if (id === "purchase_request") return replyMenu("Which budget group?", [buildFinanceGroupSel("group_for_request")]);
-      if (id === "set_budget")       return replyMenu("Which budget group?", [buildFinanceGroupSel("group_for_budget")]);
+      if (id === "set_budget") {
+        if (!isProjectLead(member)) return replyDenied("Only project leads can change budgets.");
+        return replyMenu("Which budget group?", [buildFinanceGroupSel("group_for_budget")]);
+      }
       if (id === "add_task")         return replyMenu("Which subsystem?",    [buildSubSel("sub_for_add")]);
       if (id === "mark_done")        return replyMenu("Which subsystem?",    [buildSubSel("sub_for_done")]);
       if (id === "reopen_task")      return replyMenu("Which subsystem?",    [buildSubSel("sub_for_reopen")]);
