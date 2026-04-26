@@ -1158,13 +1158,49 @@ function lockFinance() {
 }
 
 async function removeExpenseKanban(receiptId) {
-  if (!confirm('Remove expense ' + receiptId + '?')) return;
   const expense = store.expenses.find(e => e.receiptId === receiptId);
   if (!expense) return;
+  if (!confirm('Remove ' + receiptId + ' — ' + expense.item + '?' + (expense.amount ? ' ($' + expense.amount.toFixed(2) + ' will be subtracted from spent)' : ''))) return;
   store.spent[expense.groupId] = Math.max(0, (store.spent[expense.groupId] || 0) - (expense.amount || 0));
   store.expenses = store.expenses.filter(e => e.receiptId !== receiptId);
   renderBoard();
   try { await saveData(); toast(receiptId + ' removed', 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
+function openSubsystemExpenses(subId) {
+  if (!financeUnlocked) { toast('Unlock finance editing first', 'error'); return; }
+  const sub = SUBS.find(s => s.id === subId);
+  const expenses = (store.expenses || []).filter(e => e.groupId === subId);
+  const rows = expenses.length ? expenses.map((e, i) => {
+    const statusCls = e.status === 'Paid' ? 'status-paid' : e.status === 'Pending' ? 'status-pending' : 'status-other';
+    return '<div style="display:grid;grid-template-columns:90px 1fr 90px 80px;gap:.5rem;padding:.45rem .5rem;border-bottom:1px solid var(--border);align-items:center;font-size:.75em">' +
+      '<div style="font-family:JetBrains Mono,monospace;color:var(--muted);font-size:.85em">' + esc(e.receiptId) + '</div>' +
+      '<div style="color:var(--text)">' + esc(e.item) + '</div>' +
+      '<div><select data-id="' + e.receiptId + '" onchange="updateExpenseStatus(this.dataset.id,this.value)" style="width:100%;padding:.2rem .3rem;background:var(--bg);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:.8em;font-family:JetBrains Mono,monospace">' +
+        '<option value="Pending"' + (e.status==='Pending'?' selected':'') + '>Pending</option>' +
+        '<option value="Paid"' + (e.status==='Paid'?' selected':'') + '>Paid</option>' +
+        '<option value="N/A"' + (e.status==='N/A'?' selected':'') + '>N/A</option>' +
+      '</select></div>' +
+      '<div style="text-align:right"><button data-rid="' + e.receiptId + '" onclick="removeExpenseKanban(this.dataset.rid);closeModal()" style="background:rgba(231,76,60,.15);border:1px solid rgba(231,76,60,.3);color:#e74c3c;border-radius:4px;padding:.2rem .5rem;cursor:pointer;font-size:.8em">&#x1F5D1;</button></div>' +
+    '</div>';
+  }).join('') : '<div style="padding:1rem;text-align:center;color:var(--dim);font-size:.75em;font-family:JetBrains Mono,monospace">No expenses for this subsystem</div>';
+
+  showModal(
+    '<div class="modal-title">' + esc(sub.label) + ' — Expenses</div>' +
+    '<div style="display:grid;grid-template-columns:90px 1fr 90px 80px;gap:.5rem;padding:.35rem .5rem;background:var(--surface2);border-radius:6px;font-size:.6em;letter-spacing:.1em;color:var(--muted);font-family:JetBrains Mono,monospace;margin-bottom:.25rem">' +
+      '<div>RECEIPT</div><div>ITEM</div><div>STATUS</div><div></div>' +
+    '</div>' +
+    rows +
+    '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Close</button></div>'
+  );
+}
+
+async function updateExpenseStatus(receiptId, newStatus) {
+  const expense = store.expenses.find(e => e.receiptId === receiptId);
+  if (!expense) return;
+  expense.status = newStatus;
+  try { await saveData(); toast(receiptId + ' → ' + newStatus, 'success'); }
   catch { toast('Save failed', 'error'); }
 }
 
@@ -1213,12 +1249,16 @@ function renderFinanceView(area) {
     const card = document.createElement('div');
     card.className = 'budget-card';
     card.style.borderLeftColor = sub.color;
+    card.style.cursor = 'pointer';
+    card.title = 'Click to view ' + sub.label + ' expenses';
+    card.onclick = () => openSubsystemExpenses(sub.id);
+    const subExpCount = (store.expenses || []).filter(e => e.groupId === sub.id).length;
     const editBtn = financeUnlocked
-      ? '<button onclick="setBudgetKanban(\'' + sub.id + '\',' + budget + ')" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.6em;font-family:JetBrains Mono,monospace;cursor:pointer">&#x270E; Edit</button>'
+      ? '<button onclick="event.stopPropagation();setBudgetKanban(\'' + sub.id + '\',' + budget + ')" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.6em;font-family:JetBrains Mono,monospace;cursor:pointer">&#x270E; Budget</button>'
       : '';
     card.innerHTML =
       '<div class="budget-card-header">' +
-        '<div class="budget-card-name">' + esc(sub.label) + '</div>' +
+        '<div class="budget-card-name">' + esc(sub.label) + '<span style="font-size:.65em;color:var(--dim);font-weight:400">' + (subExpCount > 0 ? ' · ' + subExpCount + ' expense' + (subExpCount>1?'s':'') : '') + '</span></div>' +
         '<div style="display:flex;align-items:center;gap:.5rem">' +
           '<span class="budget-card-status">' + dot + ' $' + sp.toFixed(2) + ' / $' + budget.toFixed(2) + '</span>' +
           editBtn +

@@ -458,7 +458,7 @@ async function updateBudgetDashboard(guild) {
     for (const msg of fetched.filter((m) => m.author.id === client.user.id).values()) { try { await msg.delete(); } catch {} }
     const m = await ch.send(payload);
     store.budgetMessageId = m.id;
-  } catch (e) { console.error("Budget dashboard update failed:", e.message); }
+  } catch (e) { console.error("Budget dashboard update failed:", e.message, e.stack); }
 }
 
 // ─────────────────────────────────────────
@@ -748,6 +748,7 @@ client.once("clientReady", async () => {
 
     store.messageId = null;
     store.budgetMessageId = null;
+    store.budgetChannelId = null;
 
     const overviewCh = await client.channels.fetch(STATUS_CHANNEL_ID);
     const fetched    = await overviewCh.messages.fetch({ limit: 20 });
@@ -1102,7 +1103,7 @@ ${desc ? `**Description:** ${desc}` : ''}`)
           const estTotal  = req.qty * req.estCost;
           store.spent[req.groupId] = (store.spent[req.groupId] || 0) + estTotal;
           const receiptId = makeReceiptId();
-          store.expenses.push({ receiptId, item: req.item, groupId: req.groupId, status: req.reimbursement || "Pending", date: new Date().toLocaleDateString("en-AU") });
+          store.expenses.push({ receiptId, item: req.item, groupId: req.groupId, status: req.reimbursement || "Pending", amount: estTotal, date: new Date().toLocaleDateString("en-AU") });
           await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), req.userName, group.label, req.item, req.qty, fmtAUD(req.estCost), fmtAUD(estTotal), "", "", "Yes", req.reimbursement || "Pending", req.receipt || "", req.justification || "", ""]);
           await updateBudgetDashboard(guild);
           await postFinanceLog(guild, logEmbed(0x2ecc71, `✅ Request Approved — ${group.emoji} ${group.label}`,
@@ -1388,7 +1389,8 @@ ${desc ? `**Description:** ${desc}` : ''}`)
           const receiptId  = makeReceiptId();
           const costToLog  = finalTotal !== null ? finalTotal : estTotal;
           store.spent[groupId] = (store.spent[groupId] || 0) + costToLog;
-          store.expenses.push({ receiptId, item, groupId, status: reimbursement, date: new Date().toLocaleDateString("en-AU") });
+          const expAmount = finalTotal !== null ? finalTotal : estTotal;
+          store.expenses.push({ receiptId, item, groupId, status: reimbursement, amount: expAmount, date: new Date().toLocaleDateString("en-AU") });
           await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), userName, group.label, item, qty, fmtAUD(estCost), fmtAUD(estTotal), finalCost !== null ? fmtAUD(finalCost) : "", finalTotal !== null ? fmtAUD(finalTotal) : "", "No", reimbursement, receipt, justification, ""]);
           await updateBudgetDashboard(guild);
           await syncBudgetSheet();
