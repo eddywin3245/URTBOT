@@ -753,6 +753,21 @@ client.once("clientReady", async () => {
     store.budgetChannelId = null;
 
     const overviewCh = await client.channels.fetch(STATUS_CHANNEL_ID);
+    // Make rover-status read-only — everyone can view but only bot can send
+    try {
+      await overviewCh.permissionOverwrites.edit(guild.roles.everyone, {
+        SendMessages: false,
+        AddReactions: false,
+        CreatePublicThreads: false,
+        CreatePrivateThreads: false,
+      });
+      await overviewCh.permissionOverwrites.edit(client.user.id, {
+        SendMessages: true,
+        EmbedLinks: true,
+        ReadMessageHistory: true,
+        ViewChannel: true,
+      });
+    } catch (e) { console.error("Could not set overview channel permissions:", e.message); }
     const fetched    = await overviewCh.messages.fetch({ limit: 20 });
     for (const msg of fetched.filter((m) => m.author.id === client.user.id).values()) { try { await msg.delete(); } catch {} }
 
@@ -844,16 +859,36 @@ client.once("clientReady", async () => {
     // Poll JSONBin every 30s — refresh embeds only, never write back
     setInterval(async () => {
       try {
-        const prev = JSON.stringify(store.tasks);
+        const prevTasks    = JSON.stringify(store.tasks);
+        const prevExpenses = JSON.stringify(store.expenses);
+        const prevSpent    = JSON.stringify(store.spent);
         await loadData();
-        if (JSON.stringify(store.tasks) !== prev) {
-          console.log("🔄 External change detected — refreshing embeds");
+
+        // Tasks changed — refresh embeds
+        if (JSON.stringify(store.tasks) !== prevTasks) {
+          console.log("🔄 Task change detected — refreshing embeds");
           try { const ch = await client.channels.fetch(STATUS_CHANNEL_ID); await updateOverview(ch); } catch {}
           for (const sub of SUBSYSTEMS) {
             const chId = store.leadChannelIds[sub.id];
             if (!chId) continue;
             try { const ch = await client.channels.fetch(chId); await updateLeadChannel(ch, sub); } catch {}
           }
+        }
+
+        // Expenses or spent changed — sync sheets and update budget dashboard
+        if (JSON.stringify(store.expenses) !== prevExpenses || JSON.stringify(store.spent) !== prevSpent) {
+          console.log("🔄 Finance change detected — syncing sheets and budget dashboard");
+          // Find removed expenses and delete their sheet rows
+          const prevExp = JSON.parse(prevExpenses);
+          const currIds = new Set(store.expenses.map(e => e.receiptId));
+          for (const old of prevExp) {
+            if (!currIds.has(old.receiptId)) {
+              console.log("Deleting sheet row for", old.receiptId);
+              await deleteSheetRow(old.receiptId);
+            }
+          }
+          await syncBudgetSheet();
+          await updateBudgetDashboard(guild);
         }
       } catch (e) { console.error("Poll error:", e.message); }
     }, 30000);

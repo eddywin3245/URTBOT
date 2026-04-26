@@ -1182,7 +1182,7 @@ function openSubsystemExpenses(subId) {
         '<option value="Paid"' + (e.status==='Paid'?' selected':'') + '>Paid</option>' +
         '<option value="N/A"' + (e.status==='N/A'?' selected':'') + '>N/A</option>' +
       '</select></div>' +
-      '<div style="text-align:right"><button data-rid="' + e.receiptId + '" onclick="removeExpenseKanban(this.dataset.rid);closeModal()" style="background:rgba(231,76,60,.15);border:1px solid rgba(231,76,60,.3);color:#e74c3c;border-radius:4px;padding:.2rem .5rem;cursor:pointer;font-size:.8em">&#x1F5D1;</button></div>' +
+      '<div style="text-align:right"><button data-rid="' + e.receiptId + '" onclick="removeExpenseKanban(this.dataset.rid).then(()=>closeModal())" style="background:rgba(231,76,60,.15);border:1px solid rgba(231,76,60,.3);color:#e74c3c;border-radius:4px;padding:.2rem .5rem;cursor:pointer;font-size:.8em">&#x1F5D1;</button></div>' +
     '</div>';
   }).join('') : '<div style="padding:1rem;text-align:center;color:var(--dim);font-size:.75em;font-family:JetBrains Mono,monospace">No expenses for this subsystem</div>';
 
