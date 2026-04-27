@@ -13,10 +13,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Fetch and save JSONBin
+        env:
+          API_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          BIN_ID: ${{ secrets.JSONBIN_BIN_ID }}
         run: |
           mkdir -p backups
-          curl -H 'X-Master-Key: ${{ secrets.JSONBIN_API_KEY }}' \
-            https://api.jsonbin.io/v3/b/${{ secrets.JSONBIN_BIN_ID }} \
+          curl -H "X-Master-Key: ${API_KEY}" \
+            "https://api.jsonbin.io/v3/b/${BIN_ID}" \
             -o backups/backup-$(date +%Y-%m-%d).json
       - name: Commit backup
         run: |
