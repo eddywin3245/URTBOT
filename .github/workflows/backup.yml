@@ -15,7 +15,7 @@ jobs:
       - name: Fetch and save JSONBin
         run: |
           mkdir -p backups
-          curl -H "X-Master-Key: ${{ secrets.JSONBIN_API_KEY }}" \
+          curl -H 'X-Master-Key: ${{ secrets.JSONBIN_API_KEY }}' \
             https://api.jsonbin.io/v3/b/${{ secrets.JSONBIN_BIN_ID }} \
             -o backups/backup-$(date +%Y-%m-%d).json
       - name: Commit backup
