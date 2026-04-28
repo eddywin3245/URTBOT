@@ -483,25 +483,25 @@ function buildOverviewEmbed(tasks) {
       const due = t.dueDate ? ` 📅 ${t.dueDate}` : "";
       const statusIcon = t.status === 'inprogress' ? '◑' : '⬜';
       return `> ${statusIcon} ${t.name}${pri}${who}${due}`;
-    }).join("
-");
-    const more = remaining.length > 5 ? `
-> *...and ${remaining.length - 5} more*` : "";
-    return `${sub.emoji} **${sub.label}**
-\`${bar}\` ${String(pct).padStart(3)}%  (${done}/${total})${pct === 100 && total > 0 ? "  ✅" : ""}
-${taskLines || "> *No pending tasks*"}${more}`;
+    }).join("\n");
+    const more = remaining.length > 5 ? "\n> *...and " + (remaining.length - 5) + " more*" : "";
+    return sub.emoji + " **" + sub.label + "**\n`" + bar + "` " + String(pct).padStart(3) + "%  (" + done + "/" + total + ")" + (pct === 100 && total > 0 ? "  ✅" : "") + "\n" + (taskLines || "> *No pending tasks*") + more;
+
+
+
+
   });
   const op = ta === 0 ? 0 : Math.round((td / ta) * 100);
   const ob = "█".repeat(Math.round(op / 10)) + "░".repeat(10 - Math.round(op / 10));
   return new EmbedBuilder().setTitle("🛸  WARP — BUILD STATUS").setColor(0x38bdf8)
-    .setDescription(`**Overall**
-\`${ob}\` ${op}%  (${td}/${ta} tasks)
+    .setDescription("**Overall**\n`" + ob + "` " + op + "%  (" + td + "/" + ta + " tasks)\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n" + sections.join("\n\n"))
 
-━━━━━━━━━━━━━━━━━━━━━━
 
-` + sections.join("
 
-"))
+
+
+
+
     .setTimestamp().setFooter({ text: `Kanban: ${KANBAN_URL}  |  Click 🙋 I want to help to volunteer for a task` });
 }
 
@@ -994,11 +994,11 @@ Set by <@${uid}>`)
         const lines = SUBSYSTEMS.map(sub => {
           const leadId = leads[sub.id];
           return `${sub.emoji} **${sub.label}**: ${leadId ? `<@${leadId}>` : "*Not set*"}`;
-        }).join("
-");
-        await interaction.editReply({ content: `👑 **Team Leads**
+        }).join("\n");
+        await interaction.editReply({ content: "👑 **Team Leads**\n\n" + lines });
 
-${lines}` });
+
+
         return;
       }
 
