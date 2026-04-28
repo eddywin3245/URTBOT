@@ -260,6 +260,7 @@ async function loadData() {
   store = {
     tasks:               r.tasks               || Object.fromEntries(SUBSYSTEMS.map((s) => [s.id, []])),
     members:             r.members             || {},
+    leads:               r.leads               || {},
     messageId:           r.messageId           || null,
     leadMessageIds:      r.leadMessageIds      || {},
     leadChannelIds:      r.leadChannelIds      || {},
@@ -475,13 +476,33 @@ function buildOverviewEmbed(tasks) {
     td += done; ta += total;
     const pct = total === 0 ? 0 : Math.round((done / total) * 100);
     const bar = "█".repeat(Math.round(pct / 10)) + "░".repeat(10 - Math.round(pct / 10));
-    return `${sub.emoji} **${sub.label}**\n\`${bar}\` ${String(pct).padStart(3)}%  (${done}/${total})${pct === 100 && total > 0 ? "  ✅" : ""}`;
+    const remaining = list.filter(t => t.status !== 'done');
+    const taskLines = remaining.slice(0, 5).map(t => {
+      const pri = t.priority ? ` ${PRI_EMOJI[t.priority]}` : "";
+      const who = t.assignees?.length ? ` — 👤 ${t.assignees.map(id => memberName(id)).join(", ")}` : " — *unassigned*";
+      const due = t.dueDate ? ` 📅 ${t.dueDate}` : "";
+      const statusIcon = t.status === 'inprogress' ? '◑' : '⬜';
+      return `> ${statusIcon} ${t.name}${pri}${who}${due}`;
+    }).join("
+");
+    const more = remaining.length > 5 ? `
+> *...and ${remaining.length - 5} more*` : "";
+    return `${sub.emoji} **${sub.label}**
+\`${bar}\` ${String(pct).padStart(3)}%  (${done}/${total})${pct === 100 && total > 0 ? "  ✅" : ""}
+${taskLines || "> *No pending tasks*"}${more}`;
   });
   const op = ta === 0 ? 0 : Math.round((td / ta) * 100);
   const ob = "█".repeat(Math.round(op / 10)) + "░".repeat(10 - Math.round(op / 10));
   return new EmbedBuilder().setTitle("🛸  WARP — BUILD STATUS").setColor(0x38bdf8)
-    .setDescription(`**Overall**\n\`${ob}\` ${op}%  (${td}/${ta} tasks)\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n` + sections.join("\n\n"))
-    .setTimestamp().setFooter({ text: `Kanban: ${KANBAN_URL}` });
+    .setDescription(`**Overall**
+\`${ob}\` ${op}%  (${td}/${ta} tasks)
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+` + sections.join("
+
+"))
+    .setTimestamp().setFooter({ text: `Kanban: ${KANBAN_URL}  |  Click 🙋 I want to help to volunteer for a task` });
 }
 
 function buildLeadEmbed(sub, tasks) {
@@ -521,13 +542,7 @@ function buildLeadEmbed(sub, tasks) {
 function buildOverviewButtons() {
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("add_task")   .setLabel("➕ Add Task") .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("mark_done")  .setLabel("✅ Mark Done").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId("reopen_task").setLabel("↩️ Reopen")  .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("remove_task").setLabel("🗑️ Remove")  .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId("refresh")    .setLabel("🔄 Refresh") .setStyle(ButtonStyle.Secondary),
-    ),
-    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("volunteer")  .setLabel("🙋 I want to help").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setURL(KANBAN_URL).setLabel("🗺️ Open Kanban Board").setStyle(ButtonStyle.Link),
     ),
   ];
@@ -805,6 +820,22 @@ client.once("clientReady", async () => {
         description: 'List all upcoming milestones',
       },
       {
+        name: 'syncmembers',
+        description: 'Sync all Discord server members to the Kanban member list',
+      },
+      {
+        name: 'setlead',
+        description: 'Set the team lead for a subsystem',
+        options: [
+          { name: 'subsystem', description: 'Which subsystem', type: 3, required: true, choices: SUBSYSTEMS.map(s => ({ name: s.label, value: s.id })) },
+          { name: 'user', description: 'The team lead', type: 6, required: true },
+        ],
+      },
+      {
+        name: 'leads',
+        description: 'List all current team leads',
+      },
+      {
         name: 'checkin',
         description: 'Schedule a check-in for a task',
         options: [
@@ -924,6 +955,51 @@ client.on("interactionCreate", async (interaction) => {
         await postLog(guild, logEmbed(sub.color, `➕ Task added — ${sub.emoji} ${sub.label}`, [`**${name}**${priStr}`, `By <@${uid}>`, dueDate ? `Due: ${dueDate}` : null, notes ? `Notes: ${notes}` : null].filter(Boolean)));
         return replyAndDelete(interaction, `${sub.emoji} **${name}** added to **${sub.label}**!${priority ? ` ${PRI_EMOJI[priority]} ${priority} priority` : ''}${dueDate ? `
 📅 Due: ${dueDate}` : ''}`);
+      }
+
+      if (cmd === 'syncmembers') {
+        await guild.members.fetch();
+        let added = 0, skipped = 0;
+        if (!store.members) store.members = {};
+        for (const [id, member] of guild.members.cache) {
+          if (member.user.bot) continue;
+          if (store.members[id]) { skipped++; continue; }
+          store.members[id] = member.displayName;
+          added++;
+        }
+        await saveData();
+        return replyAndDelete(interaction, `👥 Synced! Added **${added}** new members, skipped **${skipped}** already in list. Total: **${Object.keys(store.members).length}**`);
+      }
+
+      if (cmd === 'setlead') {
+        const subId  = interaction.options.getString('subsystem');
+        const user   = interaction.options.getUser('user');
+        const sub    = SUBSYSTEMS.find(s => s.id === subId);
+        if (!store.leads) store.leads = {};
+        store.leads[subId] = user.id;
+        await saveData();
+        await postAdmin(guild, new EmbedBuilder()
+          .setTitle(`👑 Team Lead Set — ${sub.emoji} ${sub.label}`)
+          .setColor(sub.color)
+          .setDescription(`<@${user.id}> has been set as the **${sub.label}** team lead.
+Set by <@${uid}>`)
+          .setTimestamp()
+        );
+        return replyAndDelete(interaction, `👑 **${user.displayName}** set as ${sub.emoji} **${sub.label}** team lead!`);
+      }
+
+      if (cmd === 'leads') {
+        const leads = store.leads || {};
+        if (!Object.keys(leads).length) return replyAndDelete(interaction, "No team leads set yet. Use /setlead to assign them.");
+        const lines = SUBSYSTEMS.map(sub => {
+          const leadId = leads[sub.id];
+          return `${sub.emoji} **${sub.label}**: ${leadId ? `<@${leadId}>` : "*Not set*"}`;
+        }).join("
+");
+        await interaction.editReply({ content: `👑 **Team Leads**
+
+${lines}` });
+        return;
       }
 
       if (cmd === 'milestone') {
@@ -1052,6 +1128,74 @@ ${desc ? `**Description:** ${desc}` : ''}`)
         return;
       }
 
+      if (id === "volunteer") {
+        const options = [];
+        for (const sub of SUBSYSTEMS) {
+          const unassigned = (store.tasks[sub.id] || []).filter(t => t.status !== 'done' && (!t.assignees || !t.assignees.length));
+          for (const t of unassigned.slice(0, 4)) {
+            const pri = t.priority ? ` ${PRI_EMOJI[t.priority]}` : "";
+            const due = t.dueDate ? ` | Due: ${t.dueDate}` : "";
+            options.push(new StringSelectMenuOptionBuilder()
+              .setLabel(`${sub.emoji} ${t.name.slice(0, 60)}${pri}`)
+              .setDescription(`${sub.label}${due}`)
+              .setValue(`${sub.id}::${t.id}`)
+            );
+          }
+        }
+        if (!options.length) {
+          await interaction.reply({ content: "✅ All tasks are currently assigned! Check the Kanban for details.", flags: MessageFlags.Ephemeral });
+          scheduleDelete(interaction, 5000);
+          return;
+        }
+        await interaction.reply({
+          content: "👇 Pick a task you'd like to help with — the team lead will be notified for approval:",
+          components: [new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder().setCustomId("volunteer_task").setPlaceholder("Choose a task...").addOptions(options.slice(0, 25))
+          )],
+          flags: MessageFlags.Ephemeral
+        });
+        scheduleDelete(interaction, 60000);
+        return;
+      }
+
+      if (id.startsWith("approve_vol_") || id.startsWith("decline_vol_")) {
+        await interaction.deferUpdate();
+        const approved = id.startsWith("approve_vol_");
+        const rest     = id.replace(approved ? "approve_vol_" : "decline_vol_", "");
+        const lastSep  = rest.lastIndexOf("::");
+        const taskPart = rest.slice(0, lastSep);
+        const userId   = rest.slice(lastSep + 2);
+        const sepIdx   = taskPart.indexOf("::");
+        const subId    = taskPart.slice(0, sepIdx);
+        const taskId   = taskPart.slice(sepIdx + 2);
+        const task     = store.tasks[subId]?.find(t => t.id === taskId);
+        const sub      = SUBSYSTEMS.find(s => s.id === subId);
+        try { await interaction.message.delete(); } catch {}
+        try {
+          const volunteer = await guild.members.fetch(userId);
+          if (!task) { await volunteer.send("❌ That task no longer exists."); return; }
+          if (approved) {
+            if (!task.assignees) task.assignees = [];
+            if (!task.assignees.includes(userId)) task.assignees.push(userId);
+            await updateAll(client);
+            await saveData();
+            await volunteer.send(`✅ **Your volunteer request was approved!**
+
+You've been assigned to:
+**${task.name}** — ${sub.emoji} ${sub.label}${task.dueDate ? `
+📅 Due: ${task.dueDate}` : ""}`);
+            await postLog(guild, logEmbed(0x2ecc71, `🙋 Volunteer approved — ${sub.emoji} ${sub.label}`, [`**${task.name}**`, `Assigned to: <@${userId}>`, `Approved by <@${uid}>`]));
+          } else {
+            await volunteer.send(`❌ **Your volunteer request was declined.**
+
+Task: **${task.name}** — ${sub.emoji} ${sub.label}
+
+Feel free to pick a different task!`);
+          }
+        } catch (e) { console.error("Volunteer flow error:", e.message); }
+        return;
+      }
+
       if (id === "remove_expense") {
         if (!store.expenses.length) { await interaction.reply({ content: "No logged expenses to remove.", flags: MessageFlags.Ephemeral }); scheduleDelete(interaction, 4000); return; }
         const options = store.expenses.slice(-25).reverse().map((e) =>
@@ -1175,6 +1319,40 @@ ${desc ? `**Description:** ${desc}` : ''}`)
     if (interaction.isStringSelectMenu()) {
       const id    = interaction.customId;
       const value = interaction.values[0];
+
+      if (id === "volunteer_task") {
+        const [subId, taskId] = value.split("::");
+        const task = store.tasks[subId]?.find(t => t.id === taskId);
+        const sub  = SUBSYSTEMS.find(s => s.id === subId);
+        if (!task) { await interaction.update({ content: "Task not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
+        // Post approval request to subsystem lead channel
+        const chId = store.leadChannelIds[subId];
+        if (chId) {
+          try {
+            const leadCh = await guild.channels.fetch(chId);
+            const member = await guild.members.fetch(uid);
+            await leadCh.send({
+              embeds: [new EmbedBuilder()
+                .setTitle(`🙋 Volunteer Request — ${sub.emoji} ${sub.label}`)
+                .setColor(sub.color)
+                .setDescription(`**${member.displayName}** wants to help with:
+
+**${task.name}**${task.priority ? ` ${PRI_EMOJI[task.priority]}` : ""}${task.dueDate ? `
+📅 Due: ${task.dueDate}` : ""}${task.notes ? `
+📝 ${task.notes}` : ""}`)
+                .setTimestamp()
+              ],
+              components: [new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId(`approve_vol_${subId}::${taskId}::${uid}`).setLabel("✅ Approve").setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId(`decline_vol_${subId}::${taskId}::${uid}`).setLabel("❌ Decline").setStyle(ButtonStyle.Danger),
+              )]
+            });
+          } catch (e) { console.error("Lead channel post error:", e.message); }
+        }
+        await interaction.update({ content: `✅ Your request has been sent to the **${sub.label}** lead for approval! You'll get a DM once they respond.`, components: [] });
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 8000);
+        return;
+      }
 
       if (id === "group_for_reset") {
         await interaction.deferUpdate();
