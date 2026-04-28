@@ -1336,14 +1336,19 @@ function msDaysLeft(dmy) {
   return Math.round((ms - now) / 86400000);
 }
 
-function msTimeLeft(dmy) {
+function msTimeLeft(dmy, time) {
   if (!dmy) return null;
   const p = dmy.split('/');
   if (p.length !== 3) return null;
-  // Target = midnight at end of the deadline day
-  const target = new Date(p[2], p[1]-1, p[0], 23, 59, 59, 999);
+  let target;
+  if (time) {
+    const [h, m] = time.split(':').map(Number);
+    target = new Date(p[2], p[1]-1, p[0], h, m, 0, 0);
+  } else {
+    target = new Date(p[2], p[1]-1, p[0], 23, 59, 59, 999);
+  }
   const diff = target - new Date();
-  if (diff < -86400000) return { past: true, days: Math.ceil(Math.abs(diff)/86400000) };
+  if (diff < -3600000) return { past: true, days: Math.ceil(Math.abs(diff)/86400000) };
   const totalSec = Math.max(0, Math.floor(diff / 1000));
   const days  = Math.floor(totalSec / 86400);
   const hours = Math.floor((totalSec % 86400) / 3600);
@@ -1357,21 +1362,24 @@ function pad(n) { return String(n).padStart(2, '0'); }
 function buildClockHtml(t, cls) {
   if (!t) return '';
   if (t.past) return '<div class="ms-clock"><div class="ms-unit"><span class="ms-digits">' + t.days + '</span><span class="ms-unit-label">DAYS AGO</span></div></div>';
+  const secEl = '<div class="ms-unit"><span class="ms-digits" id="ms-sec-' + cls + '">' + pad(t.secs) + '</span><span class="ms-unit-label">SEC</span></div>';
   if (t.days > 0) {
     return '<div class="ms-clock">' +
-      '<div class="ms-unit"><span class="ms-digits">' + t.days + '</span><span class="ms-unit-label">DAYS</span></div>' +
+      '<div class="ms-unit"><span class="ms-digits" id="ms-day-' + cls + '">' + t.days + '</span><span class="ms-unit-label">DAYS</span></div>' +
       '<span class="ms-sep">:</span>' +
-      '<div class="ms-unit"><span class="ms-digits">' + pad(t.hours) + '</span><span class="ms-unit-label">HRS</span></div>' +
+      '<div class="ms-unit"><span class="ms-digits" id="ms-hr-' + cls + '">' + pad(t.hours) + '</span><span class="ms-unit-label">HRS</span></div>' +
       '<span class="ms-sep">:</span>' +
-      '<div class="ms-unit"><span class="ms-digits">' + pad(t.mins) + '</span><span class="ms-unit-label">MIN</span></div>' +
+      '<div class="ms-unit"><span class="ms-digits" id="ms-min-' + cls + '">' + pad(t.mins) + '</span><span class="ms-unit-label">MIN</span></div>' +
+      '<span class="ms-sep">:</span>' +
+      secEl +
       '</div>';
   }
   return '<div class="ms-clock">' +
-    '<div class="ms-unit"><span class="ms-digits">' + pad(t.hours) + '</span><span class="ms-unit-label">HRS</span></div>' +
+    '<div class="ms-unit"><span class="ms-digits" id="ms-hr-' + cls + '">' + pad(t.hours) + '</span><span class="ms-unit-label">HRS</span></div>' +
     '<span class="ms-sep">:</span>' +
-    '<div class="ms-unit"><span class="ms-digits">' + pad(t.mins) + '</span><span class="ms-unit-label">MIN</span></div>' +
+    '<div class="ms-unit"><span class="ms-digits" id="ms-min-' + cls + '">' + pad(t.mins) + '</span><span class="ms-unit-label">MIN</span></div>' +
     '<span class="ms-sep">:</span>' +
-    '<div class="ms-unit"><span class="ms-digits" id="ms-sec-' + cls + '">' + pad(t.secs) + '</span><span class="ms-unit-label">SEC</span></div>' +
+    secEl +
     '</div>';
 }
 
@@ -1384,15 +1392,15 @@ function renderMilestoneBar() {
   milestones.forEach((ms, i) => {
     const daysLeft = msDaysLeft(ms.date);
     const cls = msClass(daysLeft);
-    const t = msTimeLeft(ms.date);
+    const t = msTimeLeft(ms.date, ms.time);
     const chip = document.createElement('div');
     chip.className = 'milestone-chip ' + cls;
-    chip.title = ms.date + (ms.description ? ' — ' + ms.description : '');
+    chip.title = ms.date + (ms.time ? ' ' + ms.time : '') + (ms.description ? ' — ' + ms.description : '');
     chip.innerHTML =
       '<span class="ms-flag">🏁</span>' +
       '<div class="ms-info">' +
         '<div class="ms-name">' + esc(ms.name) + '</div>' +
-        '<div class="ms-date">' + esc(ms.date) + (ms.description ? ' · ' + esc(ms.description) : '') + '</div>' +
+        '<div class="ms-date">' + esc(ms.date) + (ms.time ? ' ' + esc(ms.time) : '') + (ms.description ? ' · ' + esc(ms.description) : '') + '</div>' +
       '</div>' +
       buildClockHtml(t, 'ms'+i);
     chip.onclick = () => openEditMilestoneModal(i);
@@ -1409,12 +1417,19 @@ function renderMilestoneBar() {
   clearInterval(window._msTicker);
   window._msTicker = setInterval(() => {
     milestones.forEach((ms, i) => {
-      const t = msTimeLeft(ms.date);
-      if (!t || t.past || t.days > 0) return;
-      const el = document.getElementById('ms-sec-ms' + i);
-      if (el) el.textContent = pad(t.secs);
-      // Re-render minutes every minute
-      if (t.secs === 0) renderMilestoneBar();
+      const t = msTimeLeft(ms.date, ms.time);
+      if (!t || t.past) return;
+      const cls = 'ms' + i;
+      const secEl = document.getElementById('ms-sec-' + cls);
+      const minEl = document.getElementById('ms-min-' + cls);
+      const hrEl  = document.getElementById('ms-hr-'  + cls);
+      const dayEl = document.getElementById('ms-day-' + cls);
+      if (secEl) secEl.textContent = pad(t.secs);
+      if (minEl) minEl.textContent = pad(t.mins);
+      if (hrEl)  hrEl.textContent  = pad(t.hours);
+      if (dayEl) dayEl.textContent = t.days;
+      // Full re-render when crossing a day boundary
+      if (t.totalSec % 86400 === 0) renderMilestoneBar();
     });
   }, 1000);
 }
@@ -1423,7 +1438,7 @@ function openAddMilestoneModal() {
   showModal(`
     <div class="modal-title">🏁 Add Milestone</div>
     <div class="mfield"><label>MILESTONE NAME</label><input type="text" id="ms-name" placeholder="e.g. ARCh Competition Day" maxlength="80"></div>
-    <div class="mfield"><label>DATE</label><input type="date" id="ms-date" style="color-scheme:dark"></div>
+    <div class="mrow"><div class="mfield"><label>DATE</label><input type="date" id="ms-date" style="color-scheme:dark"></div><div class="mfield"><label>TIME (optional)</label><input type="time" id="ms-time" style="color-scheme:dark" placeholder="e.g. 09:00"></div></div>
     <div class="mfield"><label>DESCRIPTION (optional)</label><textarea id="ms-desc" rows="2" placeholder="Any extra details"></textarea></div>
     <div class="modal-footer">
       <button class="mbtn secondary" onclick="closeModal()">Cancel</button>
@@ -1437,9 +1452,10 @@ async function addMilestone() {
   const dateRaw = document.getElementById('ms-date').value;
   if (!name || !dateRaw) { alert('Name and date are required.'); return; }
   const date = ymdToDmy(dateRaw);
+  const time = document.getElementById('ms-time').value || null;
   const desc = document.getElementById('ms-desc').value.trim();
   if (!store.milestones) store.milestones = [];
-  store.milestones.push({ id: makeId(), name, date, description: desc || null });
+  store.milestones.push({ id: makeId(), name, date, time, description: desc || null });
   closeModal();
   renderMilestoneBar();
   if (activeTab === 'calendar') renderBoard();
@@ -1453,7 +1469,7 @@ function openEditMilestoneModal(index) {
   showModal(`
     <div class="modal-title">✎ Edit Milestone</div>
     <div class="mfield"><label>MILESTONE NAME</label><input type="text" id="ms-name" value="${esc(ms.name)}" maxlength="80"></div>
-    <div class="mfield"><label>DATE</label><input type="date" id="ms-date" value="${esc(dmyToYmd(ms.date))}" style="color-scheme:dark"></div>
+    <div class="mrow"><div class="mfield"><label>DATE</label><input type="date" id="ms-date" value="${esc(dmyToYmd(ms.date))}" style="color-scheme:dark"></div><div class="mfield"><label>TIME (optional)</label><input type="time" id="ms-time" value="${esc(ms.time||"")}" style="color-scheme:dark"></div></div>
     <div class="mfield"><label>DESCRIPTION (optional)</label><textarea id="ms-desc" rows="2">${esc(ms.description || '')}</textarea></div>
     <div class="modal-footer">
       <button class="mbtn secondary" onclick="closeModal()">Cancel</button>
@@ -1471,6 +1487,7 @@ async function saveMilestone(index) {
   if (!name || !dateRaw) { alert('Name and date are required.'); return; }
   ms.name = name;
   ms.date = ymdToDmy(dateRaw);
+  ms.time = document.getElementById('ms-time').value || null;
   ms.description = document.getElementById('ms-desc').value.trim() || null;
   closeModal();
   renderMilestoneBar();
