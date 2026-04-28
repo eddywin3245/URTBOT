@@ -433,7 +433,9 @@ function buildBudgetButtons() {
       new ButtonBuilder().setCustomId("refresh_budget")   .setLabel("🔄 Refresh")          .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("remove_expense")   .setLabel("🗑️ Remove Expense")    .setStyle(ButtonStyle.Danger),
     ),
-
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setURL(KANBAN_URL).setLabel("🗺️ Open Kanban Board").setStyle(ButtonStyle.Link),
+    ),
   ];
 }
 
@@ -481,7 +483,7 @@ function buildOverviewEmbed(tasks) {
       const pri = t.priority ? ` ${PRI_EMOJI[t.priority]}` : "";
       const who = t.assignees?.length ? ` — 👤 ${t.assignees.map(id => memberName(id)).join(", ")}` : " — *unassigned*";
       const due = t.dueDate ? ` 📅 ${t.dueDate}` : "";
-      const statusIcon = t.status === 'inprogress' ? '◑' : '⬜';
+      const statusIcon = t.status === 'inprogress' ? '◑' : '–';
       return `> ${statusIcon} ${t.name}${pri}${who}${due}`;
     }).join("\n");
     const more = remaining.length > 5 ? "\n> *...and " + (remaining.length - 5) + " more*" : "";
@@ -542,8 +544,7 @@ function buildLeadEmbed(sub, tasks) {
 function buildOverviewButtons() {
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("volunteer")  .setLabel("🙋 I want to help").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setURL(KANBAN_URL).setLabel("🗺️ Open Kanban Board").setStyle(ButtonStyle.Link),
+      new ButtonBuilder().setCustomId("volunteer").setLabel("🙋 I want to help").setStyle(ButtonStyle.Primary),
     ),
   ];
 }
@@ -560,6 +561,7 @@ function buildLeadButtons(subId) {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId(`lead_assign_${subId}`)    .setLabel("👤 Assign")         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(`lead_remind_${subId}`)    .setLabel("📣 Send Reminder")  .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setURL(KANBAN_URL)                     .setLabel("🗺️ Kanban")         .setStyle(ButtonStyle.Link),
     ),
   ];
 }
