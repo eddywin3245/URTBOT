@@ -368,6 +368,31 @@ async function postAdmin(guild, embed, components) {
   } catch (e) { console.error("Admin post failed:", e.message); }
 }
 
+async function dmAssigned(guild, userId, task, sub) {
+  try {
+    const member = await guild.members.fetch(userId);
+    await member.send(
+      `👤 **You've been assigned a task!**
+
+` +
+      `${sub.emoji} **${sub.label}**
+` +
+      `📋 **${task.name}**` +
+      `${task.priority ? ` ${PRI_EMOJI[task.priority]}` : ''}` +
+      (task.status === 'inprogress' ? '\n◑ Status: In Progress' : '') +
+      `${task.startDate ? `
+▶ Start: ${task.startDate}` : ''}` +
+      `${task.dueDate ? `
+📅 Due: ${task.dueDate}` : ''}` +
+      `${task.notes ? `
+📝 ${task.notes}` : ''}
+
+` +
+      `Check the Kanban for more details: ${KANBAN_URL}`
+    );
+  } catch {}
+}
+
 async function postLog(guild, embed) {
   try { const ch = await getLogChannel(guild); await ch.send({ embeds: [embed] }); }
   catch (e) { console.error("Log post failed:", e.message); }
@@ -972,9 +997,20 @@ client.once("clientReady", async () => {
           }
         }
 
-        // Tasks changed — refresh embeds
+        // Tasks changed — refresh embeds and DM newly assigned members
         if (JSON.stringify(store.tasks) !== prevTasks) {
           console.log("🔄 Task change detected — refreshing embeds");
+          const prevTasksObj = JSON.parse(prevTasks);
+          for (const sub of SUBSYSTEMS) {
+            for (const task of store.tasks[sub.id] || []) {
+              const prevTask = (prevTasksObj[sub.id] || []).find(t => t.id === task.id);
+              const prevAssignees = prevTask?.assignees || [];
+              const newAssignees = (task.assignees || []).filter(id => !prevAssignees.includes(id));
+              for (const aid of newAssignees) {
+                await dmAssigned(guild, aid, task, sub);
+              }
+            }
+          }
           try { const ch = await client.channels.fetch(STATUS_CHANNEL_ID); await updateOverview(ch); } catch {}
           for (const sub of SUBSYSTEMS) {
             const chId = store.leadChannelIds[sub.id];
