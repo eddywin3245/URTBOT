@@ -689,7 +689,7 @@ function renderCalendarView(area) {
     cell.appendChild(dateNum);
 
     const MAX_SHOW = 4;
-    tasks.slice(0, MAX_SHOW).forEach(({ task, sub, type, ci, ms }) => {
+    tasks.slice(0, MAX_SHOW).forEach(({ task, sub, type, ci, ms, mt }) => {
       const pill = document.createElement('div');
       if (type === 'milestone') {
         pill.className = 'cal-milestone';
