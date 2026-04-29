@@ -276,6 +276,7 @@ async function loadData() {
     receiptCounter:      r.receiptCounter      || 1,
     expenses:            r.expenses            || [],
     milestones:          r.milestones          || [],
+    meetings:            r.meetings            || [],
   };
   for (const sub of SUBSYSTEMS) {
     if (!store.tasks[sub.id]) store.tasks[sub.id] = [];
@@ -854,14 +855,16 @@ client.once("clientReady", async () => {
     setInterval(async () => {
       try {
         await loadData();
-        const todayDmy = new Date().toLocaleDateString('en-AU').replace(/\//g, '/').split('/').map((p,i) => i<2?p.padStart(2,'0'):p).join('/');
+        const now = new Date();
+        const todayDmy = now.toLocaleDateString('en-AU').split('/').map((p,i) => i<2?p.padStart(2,'0'):p).join('/');
         let changed = false;
+
+        // Check-in reminders
         for (const sub of SUBSYSTEMS) {
           for (const task of store.tasks[sub.id] || []) {
             for (const ci of task.checkIns || []) {
               if (ci.sent || ci.date !== todayDmy) continue;
-              const assignees = task.assignees || [];
-              for (const assigneeId of assignees) {
+              for (const assigneeId of task.assignees || []) {
                 try {
                   const member = await guild.members.fetch(assigneeId);
                   await member.send(
@@ -881,12 +884,51 @@ client.once("clientReady", async () => {
               }
               ci.sent = true;
               changed = true;
-              console.log(`✅ Check-in sent for task: ${task.name}`);
             }
           }
         }
+
+        // Meeting reminders
+        for (const meeting of store.meetings || []) {
+          const p = meeting.date.split('/');
+          const [h, m] = (meeting.time || '00:00').split(':').map(Number);
+          const meetingTime = new Date(p[2], p[1]-1, p[0], h, m, 0);
+          const diffMs = meetingTime - now;
+          const diffMins = diffMs / 60000;
+
+          // 1 hour before reminder
+          if (!meeting.reminderSent && diffMins > 0 && diffMins <= 60) {
+            meeting.reminderSent = true;
+            changed = true;
+            for (const uid of meeting.attendees || []) {
+              try {
+                const member = await guild.members.fetch(uid);
+                await member.send(
+                  `⏰ **Meeting in 1 hour!**
+
+` +
+                  `📅 **${meeting.title}**
+` +
+                  `🕐 ${meeting.time} on ${meeting.date}` +
+                  `${meeting.location ? `
+📍 ${meeting.location}` : ''}` +
+                  `${meeting.notes ? `
+📝 ${meeting.notes}` : ''}`
+                );
+              } catch {}
+            }
+            console.log(`⏰ 1hr reminder sent for meeting: ${meeting.title}`);
+          }
+
+          // Meeting passed — mark as done
+          if (!meeting.pastSent && diffMs < 0) {
+            meeting.pastSent = true;
+            changed = true;
+          }
+        }
+
         if (changed) await saveData();
-      } catch (e) { console.error("Check-in poll error:", e.message); }
+      } catch (e) { console.error("Hourly poll error:", e.message); }
     }, 60 * 60 * 1000);
 
     // Poll JSONBin every 30s — refresh embeds only, never write back
@@ -895,7 +937,40 @@ client.once("clientReady", async () => {
         const prevTasks    = JSON.stringify(store.tasks);
         const prevExpenses = JSON.stringify(store.expenses);
         const prevSpent    = JSON.stringify(store.spent);
+        const prevMeetIds  = new Set((store.meetings || []).map(m => m.id));
         await loadData();
+
+        // New meetings added from Kanban — DM all attendees immediately
+        for (const mt of store.meetings || []) {
+          if (!prevMeetIds.has(mt.id) && !mt.scheduledDmSent) {
+            mt.scheduledDmSent = true;
+            const p = mt.date.split('/');
+            const [h, m] = (mt.time || '00:00').split(':').map(Number);
+            const meetingTime = new Date(p[2], p[1]-1, p[0], h, m, 0);
+            for (const uid of mt.attendees || []) {
+              try {
+                const member = await guild.members.fetch(uid);
+                await member.send(
+                  `📅 **Meeting Scheduled!**
+
+` +
+                  `**${mt.title}**
+` +
+                  `🗓️ ${mt.date} at ${mt.time}` +
+                  `${mt.location ? `
+📍 ${mt.location}` : ''}` +
+                  `${mt.notes ? `
+📝 ${mt.notes}` : ''}
+
+` +
+                  `You'll get another reminder 1 hour before!`
+                );
+              } catch {}
+            }
+            await saveData();
+            console.log(`📅 Meeting DMs sent for: ${mt.title}`);
+          }
+        }
 
         // Tasks changed — refresh embeds
         if (JSON.stringify(store.tasks) !== prevTasks) {

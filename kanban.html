@@ -216,6 +216,10 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .cal-milestone{display:block;font-size:.58em;padding:.15rem .4rem;border-radius:4px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;margin-bottom:.1rem;flex-shrink:0;font-family:'JetBrains Mono',monospace;background:rgba(155,89,182,0.9);border-left:2px solid #9b59b6;font-weight:700}
 .cal-milestone:hover{opacity:.85}
 
+/* MEETINGS */
+.meeting-attendees{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.5rem}
+.meeting-chip{font-size:.65em;padding:.15rem .5rem;border-radius:6px;background:rgba(52,152,219,.15);color:#3498db;font-family:'JetBrains Mono',monospace}
+
 /* FINANCE VIEW */
 .finance-area{padding:var(--pad);display:flex;flex-direction:column;gap:1.25rem;max-width:1100px;margin:0 auto}
 .finance-section-title{font-size:.65em;letter-spacing:.15em;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:.5rem}
@@ -258,6 +262,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
       <div class="sync-info" id="sync-info">Connecting...</div>
       <button class="hbtn green" onclick="openMembersModal()">👥 Members</button>
       <button class="hbtn" style="color:#9b59b6;border-color:rgba(155,89,182,.3)" onclick="openAddMilestoneModal()">🏁 Add Milestone</button>
+      <button class="hbtn" style="color:#3498db;border-color:rgba(52,152,219,.3)" onclick="openAddMeetingModal()">📅 Schedule Meeting</button>
       <button class="hbtn blue" id="refresh-btn" onclick="refresh()">↻ REFRESH</button>
     </div>
   </div>
@@ -349,6 +354,7 @@ async function loadData() {
   if (!store.tasks)      store.tasks      = {};
   if (!store.members)   store.members   = {};
   if (!store.milestones) store.milestones = [];
+  if (!store.meetings)   store.meetings   = [];
   SUBS.forEach(s => {
     if (!store.tasks[s.id]) store.tasks[s.id] = [];
     store.tasks[s.id].forEach(t => {
@@ -593,6 +599,12 @@ function renderCalendarView(area) {
       (task.checkIns || []).forEach(ci => { if (ci.date) addToDate(ci.date, { task, sub, type: 'checkin', ci }); });
     });
   });
+  // Add meetings to calendar
+  (store.meetings || []).forEach(mt => {
+    if (!mt.date) return;
+    if (!byDate[mt.date]) byDate[mt.date] = [];
+    byDate[mt.date].push({ mt, type: 'meeting' });
+  });
   // Add milestones as their own entries
   (store.milestones || []).forEach(ms => {
     if (!byDate[ms.date]) byDate[ms.date] = [];
@@ -689,6 +701,16 @@ function renderCalendarView(area) {
           const idx = (store.milestones||[]).findIndex(m => m.id === ms.id);
           if (idx >= 0) openEditMilestoneModal(idx);
         };
+        cell.appendChild(pill);
+        return;
+      } else if (type === 'meeting') {
+        pill.className = 'cal-pill';
+        pill.style.background = 'rgba(52,152,219,0.85)';
+        pill.style.borderLeft = '2px solid #3498db';
+        const attendeeCount = mt.attendees?.length || 0;
+        pill.title = mt.title + (mt.time ? ' at ' + mt.time : '') + (attendeeCount ? ' (' + attendeeCount + ' invited)' : '');
+        pill.textContent = '📅 ' + mt.title + (mt.time ? ' ' + mt.time : '');
+        pill.onclick = () => openEditMeetingModal(mt.id);
         cell.appendChild(pill);
         return;
       } else if (type === 'checkin') {
@@ -964,6 +986,14 @@ function memberCheckboxList(selected = []) {
     '<span style="font-size:.78em;font-family:JetBrains Mono,monospace;color:var(--text)">' + esc(name) + '</span></label>'
   ).join('');
 }
+function filterMembers() {
+  const q = (document.getElementById('m-assign-search')?.value || '').toLowerCase();
+  document.querySelectorAll('#m-assign-list label').forEach(label => {
+    const name = label.querySelector('span')?.textContent.toLowerCase() || '';
+    label.style.display = name.includes(q) ? '' : 'none';
+  });
+}
+
 function getCheckedMembers() {
   return [...document.querySelectorAll('.m-assign-cb:checked')].map(cb => cb.value);
 }
@@ -987,7 +1017,8 @@ function openAddModal(subId) {
     </div>
     <div class="mfield"><label>NOTES (optional)</label><textarea id="m-notes" rows="2" placeholder="Any extra context"></textarea></div>
     <div class="mfield"><label>ASSIGN TO</label>
-      <div id="m-assign-list" style="max-height:120px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:.25rem">${memberCheckboxList()}</div>
+      <input type="text" id="m-assign-search" placeholder="Search members..." oninput="filterMembers()" style="width:100%;padding:.45rem .7rem;background:var(--bg);border:1px solid var(--border2);border-bottom:none;border-radius:7px 7px 0 0;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.78em;outline:none;margin-bottom:0">
+      <div id="m-assign-list" style="max-height:120px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 7px 7px;padding:.25rem">${memberCheckboxList()}</div>
     </div>
     <div class="modal-footer">
       <button class="mbtn secondary" onclick="closeModal()">Cancel</button>
@@ -1043,7 +1074,8 @@ function openEditModal(subId, taskId) {
     </div>
     <div class="mfield"><label>NOTES</label><textarea id="m-notes" rows="2">${esc(task.notes||'')}</textarea></div>
     <div class="mfield"><label>ASSIGN TO</label>
-      <div id="m-assign-list" style="max-height:120px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:.25rem">${memberCheckboxList(task.assignees||[])}</div>
+      <input type="text" id="m-assign-search" placeholder="Search members..." oninput="filterMembers()" style="width:100%;padding:.45rem .7rem;background:var(--bg);border:1px solid var(--border2);border-bottom:none;border-radius:7px 7px 0 0;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.78em;outline:none;margin-bottom:0">
+      <div id="m-assign-list" style="max-height:120px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 7px 7px;padding:.25rem">${memberCheckboxList(task.assignees||[])}</div>
     </div>
 
     <div class="modal-section">🕐 CHECK-INS</div>
@@ -1134,6 +1166,130 @@ async function removeCheckIn(subId, taskId, index) {
   task.checkIns.splice(index, 1);
   document.getElementById('checkin-list').innerHTML = buildCheckInDisplay(task, subId, taskId);
   try { await saveData(); toast('Check-in removed', 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
+// ── MEETINGS ──
+function openAddMeetingModal() {
+  showModal(
+    '<div class="modal-title">📅 Schedule Meeting</div>' +
+    '<div class="mfield"><label>TITLE</label><input type="text" id="mt-title" placeholder="e.g. Weekly Team Standup" maxlength="80"></div>' +
+    '<div class="mrow">' +
+      '<div class="mfield"><label>DATE</label><input type="date" id="mt-date" style="color-scheme:dark"></div>' +
+      '<div class="mfield"><label>TIME</label><input type="time" id="mt-time" style="color-scheme:dark"></div>' +
+    '</div>' +
+    '<div class="mfield"><label>LOCATION (optional)</label><input type="text" id="mt-location" placeholder="e.g. Engineering Lab 2.14 / Zoom"></div>' +
+    '<div class="mfield"><label>NOTES (optional)</label><textarea id="mt-notes" rows="2" placeholder="Agenda or extra details"></textarea></div>' +
+    '<div class="mfield"><label>INVITE MEMBERS</label>' +
+      '<input type="text" id="mt-search" placeholder="Search members..." oninput="filterMeetingMembers()" style="width:100%;padding:.45rem .7rem;background:var(--bg);border:1px solid var(--border2);border-bottom:none;border-radius:7px 7px 0 0;color:var(--text);font-size:.78em;outline:none">' +
+      '<div id="mt-member-list" style="max-height:130px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 7px 7px;padding:.25rem">' +
+        buildMeetingMemberList([]) +
+      '</div>' +
+    '</div>' +
+    '<div class="modal-footer">' +
+      '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>' +
+      '<button class="mbtn primary" onclick="addMeeting()">Schedule</button>' +
+    '</div>'
+  );
+  setTimeout(() => document.getElementById('mt-title')?.focus(), 50);
+}
+
+function buildMeetingMemberList(selected) {
+  const members = store.members || {};
+  if (!Object.keys(members).length) return '<div style="font-size:.72em;color:var(--dim);font-family:JetBrains Mono,monospace;padding:.5rem 0">No members added yet — use 👥 Members button</div>';
+  return Object.entries(members).map(([id, name]) =>
+    '<label style="display:flex;align-items:center;gap:.6rem;padding:.35rem .5rem;border-radius:6px;cursor:pointer" class="mt-member-label">' +
+    '<input type="checkbox" class="mt-member-cb" value="' + esc(id) + '" ' + (selected.includes(id) ? 'checked' : '') + ' style="width:14px;height:14px;accent-color:#3498db;flex-shrink:0;cursor:pointer">' +
+    '<span style="font-size:.78em;font-family:JetBrains Mono,monospace;color:var(--text)">' + esc(name) + '</span>' +
+    '</label>'
+  ).join('');
+}
+
+function filterMeetingMembers() {
+  const q = (document.getElementById('mt-search')?.value || '').toLowerCase();
+  document.querySelectorAll('.mt-member-label').forEach(label => {
+    const name = label.querySelector('span')?.textContent.toLowerCase() || '';
+    label.style.display = name.includes(q) ? '' : 'none';
+  });
+}
+
+function getMeetingChecked() {
+  return [...document.querySelectorAll('.mt-member-cb:checked')].map(cb => cb.value);
+}
+
+async function addMeeting() {
+  const title    = document.getElementById('mt-title').value.trim();
+  const dateRaw  = document.getElementById('mt-date').value;
+  const time     = document.getElementById('mt-time').value;
+  const location = document.getElementById('mt-location').value.trim();
+  const notes    = document.getElementById('mt-notes').value.trim();
+  const attendees = getMeetingChecked();
+  if (!title || !dateRaw || !time) { alert('Title, date and time are required.'); return; }
+  const date = ymdToDmy(dateRaw);
+  const meeting = { id: makeId(), title, date, time, location: location || null, notes: notes || null, attendees, reminderSent: false, pastSent: false, addedAt: Date.now() };
+  if (!store.meetings) store.meetings = [];
+  store.meetings.push(meeting);
+  closeModal();
+  if (activeTab === 'calendar') renderBoard();
+  renderMilestoneBar();
+  try {
+    await saveData();
+    toast('Meeting scheduled! Members will be notified via Discord DM.', 'success');
+  } catch { toast('Save failed', 'error'); }
+}
+
+function openEditMeetingModal(meetingId) {
+  const mt = (store.meetings || []).find(m => m.id === meetingId);
+  if (!mt) return;
+  showModal(
+    '<div class="modal-title">✎ Edit Meeting</div>' +
+    '<div class="mfield"><label>TITLE</label><input type="text" id="mt-title" value="' + esc(mt.title) + '" maxlength="80"></div>' +
+    '<div class="mrow">' +
+      '<div class="mfield"><label>DATE</label><input type="date" id="mt-date" value="' + esc(dmyToYmd(mt.date)) + '" style="color-scheme:dark"></div>' +
+      '<div class="mfield"><label>TIME</label><input type="time" id="mt-time" value="' + esc(mt.time || '') + '" style="color-scheme:dark"></div>' +
+    '</div>' +
+    '<div class="mfield"><label>LOCATION (optional)</label><input type="text" id="mt-location" value="' + esc(mt.location || '') + '" placeholder="e.g. Engineering Lab 2.14 / Zoom"></div>' +
+    '<div class="mfield"><label>NOTES (optional)</label><textarea id="mt-notes" rows="2">' + esc(mt.notes || '') + '</textarea></div>' +
+    '<div class="mfield"><label>INVITE MEMBERS</label>' +
+      '<input type="text" id="mt-search" placeholder="Search members..." oninput="filterMeetingMembers()" style="width:100%;padding:.45rem .7rem;background:var(--bg);border:1px solid var(--border2);border-bottom:none;border-radius:7px 7px 0 0;color:var(--text);font-size:.78em;outline:none">' +
+      '<div id="mt-member-list" style="max-height:130px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 7px 7px;padding:.25rem">' +
+        buildMeetingMemberList(mt.attendees || []) +
+      '</div>' +
+    '</div>' +
+    '<div class="modal-footer">' +
+      '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>' +
+      '<button class="mbtn danger" data-mid="' + mt.id + '" onclick="deleteMeeting(this.dataset.mid)">Delete</button>' +
+      '<button class="mbtn primary" data-mid="' + mt.id + '" onclick="saveMeeting(this.dataset.mid)">Save</button>' +
+    '</div>'
+  );
+}
+
+async function saveMeeting(meetingId) {
+  const mt = (store.meetings || []).find(m => m.id === meetingId);
+  if (!mt) return;
+  const title   = document.getElementById('mt-title').value.trim();
+  const dateRaw = document.getElementById('mt-date').value;
+  const time    = document.getElementById('mt-time').value;
+  if (!title || !dateRaw || !time) { alert('Title, date and time are required.'); return; }
+  mt.title    = title;
+  mt.date     = ymdToDmy(dateRaw);
+  mt.time     = time;
+  mt.location = document.getElementById('mt-location').value.trim() || null;
+  mt.notes    = document.getElementById('mt-notes').value.trim() || null;
+  mt.attendees = getMeetingChecked();
+  mt.reminderSent = false; // reset so reminder fires again if rescheduled
+  closeModal();
+  if (activeTab === 'calendar') renderBoard();
+  try { await saveData(); toast('Meeting updated', 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
+async function deleteMeeting(meetingId) {
+  if (!confirm('Delete this meeting?')) return;
+  store.meetings = (store.meetings || []).filter(m => m.id !== meetingId);
+  closeModal();
+  if (activeTab === 'calendar') renderBoard();
+  try { await saveData(); toast('Meeting deleted', 'success'); }
   catch { toast('Save failed', 'error'); }
 }
 
@@ -1263,7 +1419,8 @@ function renderFinanceView(area) {
     card.onclick = () => openSubsystemExpenses(sub.id);
     const subExpCount = (store.expenses || []).filter(e => e.groupId === sub.id).length;
     const editBtn = financeUnlocked
-      ? '<button onclick="event.stopPropagation();resetSpentKanban(\'' + sub.id + '\')" style="padding:.2rem .5rem;background:rgba(231,76,60,.12);border:1px solid rgba(231,76,60,.3);border-radius:5px;color:#e74c3c;font-size:.6em;font-family:JetBrains Mono,monospace;cursor:pointer">↺ Reset Spent</button>'
+      ? '<button onclick="event.stopPropagation();setBudgetKanban(\'' + sub.id + '\',' + budget + ')" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.6em;font-family:JetBrains Mono,monospace;cursor:pointer">✎ Budget</button>' +
+      '<button onclick="event.stopPropagation();resetSpentKanban(\'' + sub.id + '\')" style="padding:.2rem .5rem;margin-left:.25rem;background:rgba(231,76,60,.12);border:1px solid rgba(231,76,60,.3);border-radius:5px;color:#e74c3c;font-size:.6em;font-family:JetBrains Mono,monospace;cursor:pointer">↺ Reset</button>'
       : '';
     card.innerHTML =
       '<div class="budget-card-header">' +
@@ -1455,6 +1612,7 @@ async function addMilestone() {
   const time = document.getElementById('ms-time').value || null;
   const desc = document.getElementById('ms-desc').value.trim();
   if (!store.milestones) store.milestones = [];
+  if (!store.meetings)   store.meetings   = [];
   store.milestones.push({ id: makeId(), name, date, time, description: desc || null });
   closeModal();
   renderMilestoneBar();
