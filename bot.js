@@ -276,6 +276,9 @@ async function loadData() {
     receiptCounter:      r.receiptCounter      || 1,
     expenses:            r.expenses            || [],
     milestones:          r.milestones          || [],
+    adminNotes:          r.adminNotes          || {},
+    adminReminders:      r.adminReminders      || [],
+    pendingNudges:       r.pendingNudges       || [],
     meetings:            r.meetings            || [],
   };
   for (const sub of SUBSYSTEMS) {
@@ -913,6 +916,46 @@ client.once("clientReady", async () => {
           }
         }
 
+        // Admin personal reminders
+        const adminLeadId = store.leads?.admin;
+        if (adminLeadId) {
+          const reminders = store.adminReminders || [];
+          let remChanged = false;
+          for (const rem of reminders) {
+            if (rem.sent) continue;
+            const p = rem.date.split('/');
+            const [rh, rm2] = (rem.time || '09:00').split(':').map(Number);
+            const remTime = new Date(p[2], p[1]-1, p[0], rh, rm2, 0);
+            if (remTime <= now) {
+              try {
+                const member = await guild.members.fetch(adminLeadId);
+                await member.send(
+                  `🔔 **Reminder**
+
+**${rem.title}**` +
+                  `${rem.notes ? `
+📝 ${rem.notes}` : ''}` +
+                  `${rem.repeat ? `
+↺ Repeats: ${rem.repeat}` : ''}`
+                );
+              } catch {}
+              rem.sent = true;
+              remChanged = true;
+              // Schedule next occurrence for repeating reminders
+              if (rem.repeat) {
+                const next = new Date(remTime);
+                if (rem.repeat === 'daily')        next.setDate(next.getDate() + 1);
+                else if (rem.repeat === 'weekly')  next.setDate(next.getDate() + 7);
+                else if (rem.repeat === 'fortnightly') next.setDate(next.getDate() + 14);
+                else if (rem.repeat === 'monthly') next.setMonth(next.getMonth() + 1);
+                rem.date = next.toLocaleDateString('en-AU').split('/').map((p,i)=>i<2?p.padStart(2,'0'):p).join('/');
+                rem.sent = false;
+              }
+            }
+          }
+          if (remChanged) await saveData();
+        }
+
         // Meeting reminders
         for (const meeting of store.meetings || []) {
           const p = meeting.date.split('/');
@@ -964,6 +1007,34 @@ client.once("clientReady", async () => {
         const prevSpent    = JSON.stringify(store.spent);
         const prevMeetIds  = new Set((store.meetings || []).map(m => m.id));
         await loadData();
+
+        // Process pending nudges from admin panel
+        if (store.pendingNudges?.length) {
+          for (const nudge of store.pendingNudges) {
+            const sub  = SUBSYSTEMS.find(s => s.id === nudge.subId);
+            const task = store.tasks[nudge.subId]?.find(t => t.id === nudge.taskId);
+            const chId = store.leadChannelIds[nudge.subId];
+            if (chId && sub) {
+              try {
+                const ch = await client.channels.fetch(chId);
+                const defaultMsg = `👀 **Progress update requested**
+
+The project lead is asking for an update on:
+
+**${nudge.taskName}**${task?.dueDate ? `
+📅 Due: ${task.dueDate}` : ''}`;
+                const fullMsg = nudge.message ? `👀 **Message from Project Lead**
+
+${nudge.message}
+
+> Re: **${nudge.taskName}**` : defaultMsg;
+                await ch.send(fullMsg);
+              } catch (e) { console.error('Nudge error:', e.message); }
+            }
+          }
+          store.pendingNudges = [];
+          await saveData();
+        }
 
         // New meetings added from Kanban — DM all attendees immediately
         for (const mt of store.meetings || []) {
