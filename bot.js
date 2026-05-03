@@ -17,6 +17,16 @@ const STATUS_CHANNEL_ID      = process.env.STATUS_CHANNEL_ID;
 const GOOGLE_SHEET_ID        = process.env.GOOGLE_SHEET_ID;
 const GOOGLE_SERVICE_ACCOUNT = process.env.GOOGLE_SERVICE_ACCOUNT;
 
+// Timezone offset for Perth (AWST = UTC+8)
+const TZ_OFFSET_MS = 8 * 60 * 60 * 1000;
+function nowLocal() { return new Date(Date.now() + TZ_OFFSET_MS); }
+function todayDmyLocal() {
+  const d = nowLocal();
+  return String(d.getUTCDate()).padStart(2,'0') + '/' +
+         String(d.getUTCMonth()+1).padStart(2,'0') + '/' +
+         d.getUTCFullYear();
+}
+
 const KANBAN_URL = 'https://eddywin3245.github.io/URTBOT/kanban.html';
 
 const SUBSYSTEMS = [
@@ -883,8 +893,8 @@ client.once("clientReady", async () => {
     setInterval(async () => {
       try {
         await loadData();
-        const now = new Date();
-        const todayDmy = now.toLocaleDateString('en-AU').split('/').map((p,i) => i<2?p.padStart(2,'0'):p).join('/');
+        const now = nowLocal();
+        const todayDmy = todayDmyLocal();
         let changed = false;
 
         // Check-in reminders
@@ -925,8 +935,8 @@ client.once("clientReady", async () => {
             if (rem.sent) continue;
             const p = rem.date.split('/');
             const [rh, rm2] = (rem.time || '09:00').split(':').map(Number);
-            const remTime = new Date(p[2], p[1]-1, p[0], rh, rm2, 0);
-            if (remTime <= now) {
+            const remTime = new Date(Date.UTC(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]), rh-8, rm2, 0));
+            if (remTime <= Date.now()) {
               try {
                 const member = await guild.members.fetch(adminLeadId);
                 await member.send(
@@ -960,8 +970,8 @@ client.once("clientReady", async () => {
         for (const meeting of store.meetings || []) {
           const p = meeting.date.split('/');
           const [h, m] = (meeting.time || '00:00').split(':').map(Number);
-          const meetingTime = new Date(p[2], p[1]-1, p[0], h, m, 0);
-          const diffMs = meetingTime - now;
+          const meetingTime = new Date(Date.UTC(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]), h-8, m, 0));
+          const diffMs = meetingTime - Date.now();
           const diffMins = diffMs / 60000;
 
           // 1 hour before reminder
@@ -1042,7 +1052,7 @@ ${nudge.message}
             mt.scheduledDmSent = true;
             const p = mt.date.split('/');
             const [h, m] = (mt.time || '00:00').split(':').map(Number);
-            const meetingTime = new Date(p[2], p[1]-1, p[0], h, m, 0);
+            const meetingTime = new Date(Date.UTC(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]), h-8, m, 0));
             for (const uid of mt.attendees || []) {
               try {
                 const member = await guild.members.fetch(uid);
@@ -1218,7 +1228,7 @@ ${desc ? `**Description:** ${desc}` : ''}`)
 
       if (cmd === 'milestones') {
         if (!store.milestones?.length) return replyAndDelete(interaction, '📭 No milestones set yet. Use /milestone to add one!');
-        const now = new Date(); now.setHours(0,0,0,0);
+        const now = nowLocal(); now.setHours(0,0,0,0);
         const lines = store.milestones.map(ms => {
           const p = ms.date.split('/');
           const daysLeft = Math.round((new Date(p[2],p[1]-1,p[0]) - now) / 86400000);

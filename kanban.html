@@ -463,7 +463,7 @@ function renderTabs() {
   bar.appendChild(makeTab('all',      'All',      '#3498db', allRem, allTot));
   bar.appendChild(makeTab('calendar', '📅 Calendar', '#9b59b6', null, null));
   bar.appendChild(makeTab('finance', '💰 Finance' + (financeUnlocked ? ' 🔓' : ' 🔒'), '#2ecc71', null, null));
-  bar.appendChild(makeTab('admin', '🔐 Admin' + (adminUnlocked ? ' 🔓' : ' 🔒'), '#e74c3c', null, null));
+  bar.appendChild(makeTab('lead-panel', '🔐 Lead Panel' + (adminUnlocked ? ' 🔓' : ' 🔒'), '#e74c3c', null, null));
   SUBS.forEach(sub => {
     const list = store.tasks[sub.id] || [];
     const rem  = list.filter(t => t.status !== 'done').length;
@@ -476,7 +476,7 @@ function makeTab(id, label, color, remaining, total) {
   tab.className = 'tab' + (activeTab === id ? ' active' : '');
   tab.style.setProperty('--tab-color', color);
   const badge = remaining > 0 ? `<span class="tab-badge">${remaining}</span>` : '';
-  const dot   = (id !== 'calendar' && id !== 'finance' && id !== 'admin') ? `<span class="tab-dot" style="background:${color}"></span>` : '';
+  const dot   = (id !== 'calendar' && id !== 'finance' && id !== 'lead-panel') ? `<span class="tab-dot" style="background:${color}"></span>` : '';
   tab.innerHTML = `${dot}${esc(label)}${badge}`;
   tab.onclick = () => { activeTab = id; renderTabs(); renderBoard(); };
   return tab;
@@ -495,7 +495,7 @@ function renderBoard() {
   if      (activeTab === 'all')      renderAllView(area);
   else if (activeTab === 'calendar') renderCalendarView(area);
   else if (activeTab === 'finance')  renderFinanceView(area);
-  else if (activeTab === 'admin')    renderAdminView(area);
+  else if (activeTab === 'lead-panel')    renderAdminView(area);
   else                               renderSubView(area, activeTab);
 }
 
