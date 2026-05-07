@@ -518,15 +518,15 @@ function buildOverviewEmbed(tasks) {
     const pct = total === 0 ? 0 : Math.round((done / total) * 100);
     const bar = "█".repeat(Math.round(pct / 10)) + "░".repeat(10 - Math.round(pct / 10));
     const remaining = list.filter(t => t.status !== 'done');
-    const taskLines = remaining.slice(0, 5).map(t => {
+    const taskLines = remaining.map(t => {
       const pri = t.priority ? ` ${PRI_EMOJI[t.priority]}` : "";
       const who = t.assignees?.length ? ` — 👤 ${t.assignees.map(id => memberName(id)).join(", ")}` : " — *unassigned*";
       const due = t.dueDate ? ` 📅 ${t.dueDate}` : "";
       const statusIcon = t.status === 'inprogress' ? '◑' : '–';
       return `> ${statusIcon} ${t.name}${pri}${who}${due}`;
     }).join("\n");
-    const more = remaining.length > 5 ? "\n> *...and " + (remaining.length - 5) + " more*" : "";
-    return sub.emoji + " **" + sub.label + "**\n`" + bar + "` " + String(pct).padStart(3) + "%  (" + done + "/" + total + ")" + (pct === 100 && total > 0 ? "  ✅" : "") + "\n" + (taskLines || "> *No pending tasks*") + more;
+
+    return sub.emoji + " **" + sub.label + "**\n`" + bar + "` " + String(pct).padStart(3) + "%  (" + done + "/" + total + ")" + (pct === 100 && total > 0 ? "  ✅" : "") + "\n" + (taskLines || "> *No pending tasks*");
 
 
 
@@ -703,8 +703,14 @@ function addMemberModal() {
 async function updateOverview(channel) {
   const payload = { embeds: [buildOverviewEmbed(store.tasks)], components: buildOverviewButtons() };
   if (store.messageId) {
-    try { const m = await channel.messages.fetch(store.messageId); await m.edit(payload); return; } catch {}
+    try { const m = await channel.messages.fetch(store.messageId); await m.edit(payload); return; }
+    catch { store.messageId = null; }
   }
+  // Clean up any stale bot messages before posting fresh
+  try {
+    const old = await channel.messages.fetch({ limit: 20 });
+    for (const msg of old.filter(m => m.author.id === client.user.id).values()) { try { await msg.delete(); } catch {} }
+  } catch {}
   const m = await channel.send(payload);
   store.messageId = m.id;
 }
@@ -713,8 +719,14 @@ async function updateLeadChannel(channel, sub) {
   const payload = { embeds: [buildLeadEmbed(sub, store.tasks)], components: buildLeadButtons(sub.id) };
   const msgId   = store.leadMessageIds[sub.id];
   if (msgId) {
-    try { const m = await channel.messages.fetch(msgId); await m.edit(payload); return; } catch {}
+    try { const m = await channel.messages.fetch(msgId); await m.edit(payload); return; }
+    catch { store.leadMessageIds[sub.id] = null; }
   }
+  // Clean up stale bot messages
+  try {
+    const old = await channel.messages.fetch({ limit: 10 });
+    for (const msg of old.filter(m => m.author.id === client.user.id).values()) { try { await msg.delete(); } catch {} }
+  } catch {}
   const m = await channel.send(payload);
   store.leadMessageIds[sub.id] = m.id;
 }
