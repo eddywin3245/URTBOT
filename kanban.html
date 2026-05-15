@@ -274,37 +274,54 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .admin-cal-chip{background:rgba(241,196,15,.2);color:#f1c40f;border-radius:3px;padding:.1rem .3rem;margin-bottom:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 
 /* GOALS */
-.goals-area{padding:var(--pad);display:flex;flex-direction:column;gap:1.25rem;max-width:1100px;margin:0 auto}
-.goal-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:box-shadow .2s}
-.goal-card:hover{box-shadow:0 4px 20px rgba(0,0,0,.25)}
-.goal-card-hdr{padding:.85rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem;cursor:pointer}
+.goals-area{padding:var(--pad);display:flex;flex-direction:column;gap:1.5rem;max-width:1400px;margin:0 auto}
+.goal-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.goal-card-hdr{padding:.85rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem}
 .goal-card-hdr-left{flex:1;min-width:0}
-.goal-title{font-size:.88em;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.goal-meta{font-size:.62em;font-family:'JetBrains Mono',monospace;color:var(--muted);margin-top:.15rem}
-.goal-progress-wrap{padding:.6rem 1rem;border-bottom:1px solid var(--border);background:var(--surface2)}
-.goal-progress-bar{height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin:.3rem 0}
+.goal-title{font-size:.88em;font-weight:700;color:var(--text)}
+.goal-meta{font-size:.62em;font-family:'JetBrains Mono',monospace;color:var(--muted);margin-top:.25rem;display:flex;align-items:center;gap:.75rem}
+.goal-progress-wrap{padding:.5rem 1rem;border-bottom:1px solid var(--border);background:var(--surface2)}
+.goal-progress-bar{height:5px;background:var(--bg);border-radius:3px;overflow:hidden;margin:.25rem 0}
 .goal-progress-fill{height:100%;border-radius:3px;transition:width .6s ease}
 .goal-progress-nums{display:flex;justify-content:space-between;font-size:.6em;font-family:'JetBrains Mono',monospace;color:var(--muted)}
-.goal-tree{padding:.75rem 1rem;overflow-x:auto}
-.tree-node{display:flex;flex-direction:column;gap:.3rem}
-.tree-row{display:flex;align-items:flex-start;gap:0}
-.tree-connector{display:flex;flex-direction:column;align-items:center;width:24px;flex-shrink:0}
-.tree-vert{width:1px;background:var(--border2);flex:1;min-height:8px}
-.tree-horiz{display:flex;align-items:center;gap:0;padding-top:14px}
-.tree-h-line{width:16px;height:1px;background:var(--border2);flex-shrink:0}
-.tree-task-chip{display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .65rem;border-radius:7px;font-size:.72em;border:1px solid var(--border2);background:var(--surface2);cursor:grab;transition:all .15s;max-width:300px}
-.tree-task-chip.dragging{opacity:.4;cursor:grabbing}
-.tree-task-chip.drag-over{border-color:#3498db;background:rgba(52,152,219,.12);box-shadow:0 0 0 2px rgba(52,152,219,.3)}
-.tree-drop-root{min-height:32px;border:1px dashed var(--border2);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.65em;color:var(--dim);font-family:JetBrains Mono,monospace;margin-bottom:.5rem;transition:all .2s;padding:.4rem}
+.goal-body{display:grid;grid-template-columns:1fr 210px;min-height:250px}
+.flowchart-wrap{overflow:auto;padding:1.5rem 1.5rem 2rem;border-right:1px solid var(--border)}
+.fc-col{display:flex;flex-direction:column;align-items:center}
+.fc-children-row{display:flex;justify-content:center;gap:2.5rem;position:relative;padding-top:30px;margin-top:0}
+.fc-children-row::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:1px;height:30px;background:var(--border2)}
+.fc-branch{display:flex;flex-direction:column;align-items:center;position:relative}
+.fc-branch::before{content:'';position:absolute;top:0;right:50%;border-top:1px solid var(--border2);width:calc(50% + 1.25rem);height:0}
+.fc-branch::after{content:'';position:absolute;top:0;left:50%;border-top:1px solid var(--border2);width:calc(50% + 1.25rem);height:0}
+.fc-branch:only-child::before,.fc-branch:only-child::after{display:none}
+.fc-branch:only-child{padding-top:0}
+.fc-node-wrap{display:flex;flex-direction:column;align-items:center}
+.fc-box{display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .75rem;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);font-size:.72em;cursor:pointer;transition:all .2s;white-space:nowrap;max-width:220px;position:relative;user-select:none}
+.fc-box:hover{border-color:rgba(255,255,255,.2);transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.2)}
+.fc-box.done{opacity:.45;text-decoration:line-through}
+.fc-box.inprogress{border-color:rgba(52,152,219,.4);background:rgba(52,152,219,.07)}
+.fc-box.fc-drag-over{border-color:#f1c40f!important;box-shadow:0 0 0 2px rgba(241,196,15,.3)!important;transform:scale(1.03)}
+.fc-box.dragging{opacity:.25}
+.fc-box.sb-selected-drag{border-color:#f1c40f;box-shadow:0 0 0 2px rgba(241,196,15,.25)}
+.fc-subgoal{padding:.5rem 1rem;border-radius:10px;border:2px solid rgba(230,126,34,.5);background:rgba(230,126,34,.09);font-size:.75em;font-weight:700;color:#e67e22;cursor:pointer;transition:all .2s;white-space:nowrap;max-width:240px;position:relative;user-select:none}
+.fc-subgoal:hover{transform:translateY(-1px);box-shadow:0 3px 12px rgba(230,126,34,.2)}
+.fc-subgoal.fc-drag-over{border-color:#f1c40f!important;box-shadow:0 0 0 2px rgba(241,196,15,.3)!important}
+.fc-root{padding:.65rem 1.5rem;border-radius:12px;border:2px solid rgba(231,76,60,.5);background:rgba(231,76,60,.08);font-size:.82em;font-weight:800;color:#e74c3c;white-space:nowrap;position:relative;cursor:default}
+.fc-root.fc-drag-over{border-color:#f1c40f!important;box-shadow:0 0 0 2px rgba(241,196,15,.3)!important}
+.fc-remove{position:absolute;top:-8px;right:-8px;width:16px;height:16px;border-radius:50%;background:var(--surface3);border:1px solid var(--border2);color:var(--muted);font-size:.55em;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .15s;z-index:1}
+.fc-box:hover .fc-remove,.fc-subgoal:hover .fc-remove,.fc-root:hover .fc-remove{opacity:1}
+.fc-drop-hint{margin-top:.5rem;min-height:26px;padding:.2rem .6rem;border:1px dashed rgba(230,126,34,.3);border-radius:6px;font-size:.58em;color:var(--dim);font-family:'JetBrains Mono',monospace;transition:all .2s;cursor:default;display:flex;align-items:center;justify-content:center}
+.fc-drop-hint.fc-drag-over{border-color:#e67e22;color:#e67e22;background:rgba(230,126,34,.06)}
+.fc-root-drop{min-height:28px;padding:.2rem .75rem;border:1px dashed var(--border2);border-radius:7px;font-size:.6em;color:var(--dim);font-family:'JetBrains Mono',monospace;margin-bottom:.85rem;transition:all .2s;cursor:default;display:flex;align-items:center;justify-content:center}
+.fc-root-drop.fc-drag-over{border-color:#2ecc71;color:#2ecc71;background:rgba(46,204,113,.05)}
+.goal-sidebar{padding:.65rem;overflow-y:auto;background:var(--surface2);display:flex;flex-direction:column;gap:.25rem}
+.sb-hdr{font-size:.58em;letter-spacing:.12em;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:.35rem;flex-shrink:0;display:flex;justify-content:space-between;align-items:center}
+.sb-task{display:flex;align-items:center;gap:.4rem;padding:.3rem .5rem;border-radius:6px;border:1px solid var(--border);border-left-width:3px;background:var(--surface);font-size:.68em;cursor:grab;user-select:none;transition:all .15s}
+.sb-task:hover{border-color:rgba(255,255,255,.15)}
+.sb-task.sb-selected{background:rgba(241,196,15,.06);border-right-color:#f1c40f;border-top-color:#f1c40f;border-bottom-color:#f1c40f}
+.sb-task.dragging{opacity:.3}
+.sb-check{width:13px;height:13px;accent-color:#f1c40f;cursor:pointer;flex-shrink:0}
+.tree-drop-root{min-height:30px;border:1px dashed var(--border2);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.62em;color:var(--dim);font-family:JetBrains Mono,monospace;transition:all .2s;padding:.35rem}
 .tree-drop-root.drag-over{border-color:#2ecc71;color:#2ecc71;background:rgba(46,204,113,.05)}
-.tree-task-chip:hover{border-color:var(--border2);background:var(--surface3)}
-.tree-task-chip.done{opacity:.5;text-decoration:line-through}
-.tree-task-chip.inprogress{border-color:rgba(52,152,219,.4);background:rgba(52,152,219,.06)}
-.tree-task-chip.blocked{border-color:rgba(231,76,60,.3);background:rgba(231,76,60,.05)}
-.tree-children{margin-left:24px;border-left:1px solid var(--border2);padding-left:8px;display:flex;flex-direction:column;gap:.4rem;margin-top:.4rem}
-.goal-add-task-btn{margin:.5rem 1rem 1rem;display:inline-flex;align-items:center;gap:.4rem;padding:.35rem .75rem;background:transparent;border:1px dashed var(--border2);border-radius:7px;color:var(--dim);font-size:.68em;font-family:'JetBrains Mono',monospace;cursor:pointer;transition:all .2s}
-.goal-add-task-btn:hover{border-color:var(--border2);color:var(--muted)}
-.goal-empty{font-size:.72em;color:var(--dim);font-family:'JetBrains Mono',monospace;padding:1rem;text-align:center}
 </style>
 </head>
 <body>
@@ -1239,505 +1256,389 @@ async function removeCheckIn(subId, taskId, index) {
 
 function getAllTasks() {
   const all = [];
-  for (const sub of SUBS) {
-    for (const task of store.tasks[sub.id] || []) {
-      all.push({ ...task, subId: sub.id, subLabel: sub.label, subColor: sub.color });
-    }
-  }
+  for (const sub of SUBS) for (const t of store.tasks[sub.id]||[]) all.push({...t,subId:sub.id,subLabel:sub.label,subColor:sub.color});
   return all;
 }
-
-function makeNodeId() { return 'n' + Math.random().toString(36).slice(2,8); }
-
-// Get all taskIds referenced in a tree
-function treeTaskIds(nodes) {
-  const ids = [];
-  for (const node of nodes || []) {
-    if (node.type === 'task') ids.push(node.taskId);
-    ids.push(...treeTaskIds(node.children));
-  }
+function makeNodeId() { return 'n'+Math.random().toString(36).slice(2,8); }
+function treeTaskIds(nodes=[]) {
+  const ids=[];
+  for(const n of nodes){ if(n.type==='task')ids.push(n.taskId); ids.push(...treeTaskIds(n.children)); }
   return ids;
 }
-
-// Get all nodeIds in a tree
-function allNodeIds(nodes) {
-  const ids = [];
-  for (const node of nodes || []) {
-    ids.push(node.nodeId);
-    ids.push(...allNodeIds(node.children));
-  }
-  return ids;
+function removeNodeFromTree(nodes,nodeId) {
+  for(let i=nodes.length-1;i>=0;i--){
+    if(nodes[i].nodeId===nodeId){nodes.splice(i,1);return true;}
+    if(removeNodeFromTree(nodes[i].children||[],nodeId))return true;
+  } return false;
 }
-
-// Calculate progress for a goal
+function insertNodeInTree(nodes,parentId,node) {
+  if(!parentId){nodes.push(node);return true;}
+  for(const n of nodes){
+    if(n.nodeId===parentId){if(!n.children)n.children=[];n.children.push(node);return true;}
+    if(insertNodeInTree(n.children||[],parentId,node))return true;
+  } return false;
+}
+function findNode(nodes,nodeId) {
+  for(const n of nodes){if(n.nodeId===nodeId)return n;const f=findNode(n.children||[],nodeId);if(f)return f;} return null;
+}
 function goalProgress(goal) {
-  const allTasks = getAllTasks();
-  const ids = treeTaskIds(goal.tree || []);
-  const linked = ids.map(id => allTasks.find(t => t.id === id)).filter(Boolean);
-  const done = linked.filter(t => t.status === 'done').length;
-  return { done, total: linked.length, pct: linked.length ? Math.round(done/linked.length*100) : 0 };
+  const at=getAllTasks(),ids=treeTaskIds(goal.tree||[]);
+  const linked=ids.map(id=>at.find(t=>t.id===id)).filter(Boolean);
+  const done=linked.filter(t=>t.status==='done').length;
+  return{done,total:linked.length,pct:linked.length?Math.round(done/linked.length*100):0};
+}
+function subProgress(node,allTasks) {
+  const ids=treeTaskIds(node.children||[]);
+  const linked=ids.map(id=>allTasks.find(t=>t.id===id)).filter(Boolean);
+  const done=linked.filter(t=>t.status==='done').length;
+  return{done,total:linked.length,pct:linked.length?Math.round(done/linked.length*100):0};
 }
 
-// Calculate progress for a subgoal node
-function subgoalProgress(node, allTasks) {
-  const ids = treeTaskIds(node.children || []);
-  const linked = ids.map(id => allTasks.find(t => t.id === id)).filter(Boolean);
-  const done = linked.filter(t => t.status === 'done').length;
-  return { done, total: linked.length, pct: linked.length ? Math.round(done/linked.length*100) : 0 };
-}
-
-// Find and remove a node from a tree by nodeId
-function removeNodeFromTree(nodes, nodeId) {
-  for (let i = nodes.length - 1; i >= 0; i--) {
-    if (nodes[i].nodeId === nodeId) { nodes.splice(i, 1); return true; }
-    if (removeNodeFromTree(nodes[i].children || [], nodeId)) return true;
-  }
-  return false;
-}
-
-// Insert a node under a parent nodeId, or at root if parentId is null
-function insertNodeInTree(nodes, parentId, node) {
-  if (!parentId) { nodes.push(node); return true; }
-  for (const n of nodes) {
-    if (n.nodeId === parentId) { if (!n.children) n.children = []; n.children.push(node); return true; }
-    if (insertNodeInTree(n.children || [], parentId, node)) return true;
-  }
-  return false;
-}
-
-// Find a node by nodeId
-function findNode(nodes, nodeId) {
-  for (const n of nodes) {
-    if (n.nodeId === nodeId) return n;
-    const found = findNode(n.children || [], nodeId);
-    if (found) return found;
-  }
-  return null;
-}
-
-let goalDragNodeId = null, goalDragGoalId = null;
+let fcDragNodeId=null,fcDragGoalId=null,fcDragTaskIds=[],sbSelected=new Set();
 
 function renderGoalsView(area) {
-  area.className = 'goals-area';
-  area.innerHTML = '';
-  if (!store.goals) store.goals = [];
-
-  const hdr = document.createElement('div');
-  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem';
-  hdr.innerHTML = '<div style="font-size:.85em;font-weight:700;color:var(--text)">🎯 Goals</div>' +
-    '<button onclick="openAddGoalModal()" class="mbtn primary" style="font-size:.72em">+ New Goal</button>';
+  area.className='goals-area';
+  area.innerHTML='';
+  if(!store.goals)store.goals=[];
+  const hdr=document.createElement('div');
+  hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem';
+  hdr.innerHTML='<div style="font-size:.85em;font-weight:700;color:var(--text)">🎯 Goals</div><button onclick="openAddGoalModal()" class="mbtn primary" style="font-size:.72em">+ New Goal</button>';
   area.appendChild(hdr);
-
-  if (!store.goals.length) {
-    const empty = document.createElement('div');
-    empty.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:.75rem;color:var(--dim);font-size:.78em;font-family:JetBrains Mono,monospace';
-    empty.innerHTML = '<div style="font-size:2.5em">🎯</div><div>No goals yet — click <strong style="color:var(--text)">+ New Goal</strong> to create one</div>';
-    area.appendChild(empty);
-    return;
+  if(!store.goals.length){
+    const e=document.createElement('div');
+    e.style.cssText='display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:.75rem;color:var(--dim);font-size:.78em;font-family:JetBrains Mono,monospace';
+    e.innerHTML='<div style="font-size:2.5em">🎯</div><div>No goals yet — click <strong style="color:var(--text)">+ New Goal</strong></div>';
+    area.appendChild(e); return;
   }
+  const allTasks=getAllTasks();
+  store.goals.forEach(goal=>{
+    const{done,total,pct}=goalProgress(goal);
+    const placedIds=new Set(treeTaskIds(goal.tree||[]));
+    const unplaced=allTasks.filter(t=>!placedIds.has(t.id));
+    const dl=goal.deadline?Math.round((parseDmy(goal.deadline)-Date.now())/86400000):null;
+    const dlCol=dl===null?'var(--muted)':dl<0?'#e74c3c':dl<=14?'#f1c40f':'#2ecc71';
+    const dlTxt=dl===null?'No deadline':dl<0?'Overdue '+Math.abs(dl)+'d':dl===0?'Today!':dl+'d left';
+    const fill=pct===100?'#2ecc71':pct>50?'#3498db':pct>20?'#f1c40f':'#e74c3c';
 
-  const allTasks = getAllTasks();
+    const card=document.createElement('div'); card.className='goal-card';
 
-  store.goals.forEach(goal => {
-    const { done, total, pct } = goalProgress(goal);
-    const goalPlacedIds = new Set(treeTaskIds(goal.tree || []));
-    const unplaced = allTasks.filter(t => !goalPlacedIds.has(t.id));
-    const daysLeft = goal.deadline ? Math.round((parseDmy(goal.deadline) - Date.now()) / 86400000) : null;
-    const dlColor = daysLeft === null ? 'var(--muted)' : daysLeft < 0 ? '#e74c3c' : daysLeft <= 14 ? '#f1c40f' : '#2ecc71';
-    const dlText = daysLeft === null ? 'No deadline' : daysLeft < 0 ? 'Overdue by ' + Math.abs(daysLeft) + 'd' : daysLeft === 0 ? 'Due today!' : daysLeft + 'd left';
-
-    const card = document.createElement('div');
-    card.className = 'goal-card';
-
-    // Goal header
-    const cardHdr = document.createElement('div');
-    cardHdr.className = 'goal-card-hdr';
-    cardHdr.style.cursor = 'default';
-    const fillColor = pct === 100 ? '#2ecc71' : pct > 50 ? '#3498db' : pct > 20 ? '#f1c40f' : '#e74c3c';
-    cardHdr.innerHTML =
-      '<div class="goal-card-hdr-left">' +
-        '<div class="goal-title">🎯 ' + esc(goal.name) + '</div>' +
-        '<div class="goal-meta" style="display:flex;align-items:center;gap:.75rem;margin-top:.3rem">' +
-          '<span style="color:' + dlColor + '">📅 ' + dlText + '</span>' +
-          '<span>' + done + '/' + total + ' tasks done</span>' +
-          '<span style="color:' + fillColor + '">' + pct + '%</span>' +
-        '</div>' +
-      '</div>' +
-      '<div style="display:flex;gap:.4rem;align-items:center">' +
-        '<button data-gid="' + goal.id + '" onclick="addSubgoalToRoot(this.dataset.gid)" class="admin-nudge-btn">📌 Sub-goal</button>' +
-        '<button data-gid="' + goal.id + '" onclick="openEditGoalModal(this.dataset.gid)" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">✎</button>' +
+    // Header
+    const chdr=document.createElement('div'); chdr.className='goal-card-hdr';
+    chdr.innerHTML='<div class="goal-card-hdr-left"><div class="goal-title">🎯 '+esc(goal.name)+'</div>'+
+      '<div class="goal-meta"><span style="color:'+dlCol+'">📅 '+dlTxt+'</span><span>'+done+'/'+total+' done</span><span style="color:'+fill+'">'+pct+'%</span></div></div>'+
+      '<div style="display:flex;gap:.4rem">'+
+        '<button data-gid="'+goal.id+'" onclick="addSubgoalPrompt(this.dataset.gid)" class="admin-nudge-btn" style="color:#e67e22;border-color:rgba(230,126,34,.3)">📌 Sub-goal</button>'+
+        '<button data-gid="'+goal.id+'" onclick="openEditGoalModal(this.dataset.gid)" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">✎</button>'+
       '</div>';
-    card.appendChild(cardHdr);
+    card.appendChild(chdr);
 
-    // Progress bar
-    const prog = document.createElement('div');
-    prog.className = 'goal-progress-wrap';
-    prog.innerHTML = '<div class="goal-progress-bar"><div class="goal-progress-fill" style="width:' + pct + '%;background:' + fillColor + '"></div></div>' +
-      '<div class="goal-progress-nums"><span>' + pct + '% complete</span><span>' + done + ' / ' + total + ' tasks</span></div>';
-    card.appendChild(prog);
+    // Progress
+    const pw=document.createElement('div'); pw.className='goal-progress-wrap';
+    pw.innerHTML='<div class="goal-progress-bar"><div class="goal-progress-fill" style="width:'+pct+'%;background:'+fill+'"></div></div>'+
+      '<div class="goal-progress-nums"><span>'+pct+'% complete</span><span>'+done+' / '+total+'</span></div>';
+    card.appendChild(pw);
 
-    // Split layout: tree + sidebar
-    const split = document.createElement('div');
-    split.style.cssText = 'display:grid;grid-template-columns:1fr 220px;min-height:200px;border-top:1px solid var(--border)';
+    // Body: flowchart + sidebar
+    const body=document.createElement('div'); body.className='goal-body';
 
-    // Tree panel
-    const treePanel = document.createElement('div');
-    treePanel.className = 'goal-tree';
-    treePanel.style.borderRight = '1px solid var(--border)';
+    // Flowchart
+    const fw=document.createElement('div'); fw.className='flowchart-wrap';
 
     // Root drop zone
-    const rootDrop = document.createElement('div');
-    rootDrop.className = 'tree-drop-root';
-    rootDrop.textContent = '⬆ Drop here to make top-level';
-    rootDrop.addEventListener('dragover', e => { e.preventDefault(); rootDrop.classList.add('drag-over'); });
-    rootDrop.addEventListener('dragleave', () => rootDrop.classList.remove('drag-over'));
-    rootDrop.addEventListener('drop', async e => {
-      e.preventDefault(); rootDrop.classList.remove('drag-over');
-      if (!goalDragNodeId || goalDragGoalId !== goal.id) return;
-      // Move node to root
-      const node = findNode(goal.tree || [], goalDragNodeId);
-      if (!node) return;
-      removeNodeFromTree(goal.tree, goalDragNodeId);
-      goal.tree.push(node);
-      renderBoard();
-      try { await saveData(); toast('Moved to top level', 'success'); } catch { toast('Save failed','error'); }
-    });
-    treePanel.appendChild(rootDrop);
+    const rootDrop=document.createElement('div'); rootDrop.className='fc-root-drop';
+    rootDrop.textContent='⬆ Drop here to make top-level';
+    setupFcDropZone(rootDrop,null,goal);
+    fw.appendChild(rootDrop);
 
-    // Render tree nodes
-    const treeContainer = document.createElement('div');
-    treeContainer.style.cssText = 'display:flex;flex-direction:column;gap:.4rem';
-    (goal.tree || []).forEach(node => {
-      const el = renderGoalNode(node, goal, allTasks);
-      if (el) treeContainer.appendChild(el);
-    });
-    treePanel.appendChild(treeContainer);
-    split.appendChild(treePanel);
+    // Root node
+    const rootWrap=document.createElement('div'); rootWrap.className='fc-col';
+    const rootBox=document.createElement('div'); rootBox.className='fc-root';
+    rootBox.textContent='🎯 '+esc(goal.name);
+    setupFcDropZone(rootBox,null,goal);
+    rootWrap.appendChild(rootBox);
 
-    // Sidebar: unplaced tasks
-    const sidebar = document.createElement('div');
-    sidebar.style.cssText = 'padding:.6rem;display:flex;flex-direction:column;gap:.25rem;background:var(--surface2);overflow-y:auto;max-height:400px';
-    const sideHdr = document.createElement('div');
-    sideHdr.style.cssText = 'font-size:.58em;letter-spacing:.1em;color:var(--muted);font-family:JetBrains Mono,monospace;margin-bottom:.3rem;flex-shrink:0';
-    sideHdr.textContent = 'UNPLACED TASKS';
-    sidebar.appendChild(sideHdr);
+    // Render children of root
+    if((goal.tree||[]).length){
+      const childRow=buildFcChildRow(goal.tree,goal,allTasks);
+      rootWrap.appendChild(childRow);
+    }
+    fw.appendChild(rootWrap);
+    body.appendChild(fw);
 
-    if (!unplaced.length) {
-      const allDone = document.createElement('div');
-      allDone.style.cssText = 'font-size:.65em;color:var(--dim);font-family:JetBrains Mono,monospace;text-align:center;padding:.75rem 0';
-      allDone.textContent = 'All tasks placed ✓';
-      sidebar.appendChild(allDone);
+    // Sidebar
+    const sb=document.createElement('div'); sb.className='goal-sidebar';
+    const sbHdr=document.createElement('div'); sbHdr.className='sb-hdr';
+    sbHdr.innerHTML='<span>UNPLACED ('+unplaced.length+')</span>'+
+      (unplaced.length ? '<button data-gid="' + goal.id + '" onclick="toggleAllSb(event,this.dataset.gid)" style="font-size:.85em;background:transparent;border:none;color:var(--muted);cursor:pointer">☐ All</button>' : '');
+    sb.appendChild(sbHdr);
+
+    if(!unplaced.length){
+      const done2=document.createElement('div');
+      done2.style.cssText='font-size:.65em;color:var(--dim);font-family:JetBrains Mono,monospace;text-align:center;padding:.75rem 0';
+      done2.textContent='All placed ✓'; sb.appendChild(done2);
     } else {
-      unplaced.forEach(task => {
-        const chip = document.createElement('div');
-        chip.className = 'tree-task-chip';
-        chip.style.cssText = 'width:100%;box-sizing:border-box;cursor:grab;border-left:3px solid ' + (task.subColor || 'var(--border2)');
-        chip.draggable = true;
-        chip.dataset.taskId = task.id;
-        chip.dataset.goalId = goal.id;
-        chip.dataset.isSidebar = '1';
-        const pri = task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : task.priority === 'low' ? '🟢' : '';
-        chip.innerHTML = '<span style="font-size:.8em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(task.name) + '</span>' +
-          (pri ? '<span style="flex-shrink:0">' + pri + '</span>' : '') +
-          '<span style="font-size:.65em;color:var(--dim);flex-shrink:0">' + esc(task.subLabel) + '</span>';
-        chip.addEventListener('dragstart', e => {
-          goalDragNodeId = null;
-          goalDragGoalId = goal.id;
-          e.dataTransfer.setData('taskId', task.id);
-          e.dataTransfer.setData('isSidebar', '1');
-          e.dataTransfer.effectAllowed = 'move';
-          setTimeout(() => chip.classList.add('dragging'), 0);
+      unplaced.forEach(task=>{
+        const chip=document.createElement('div'); chip.className='sb-task'+(sbSelected.has(task.id)?' sb-selected':'');
+        chip.style.borderLeftColor=task.subColor||'var(--border2)';
+        chip.draggable=true; chip.dataset.taskId=task.id; chip.dataset.goalId=goal.id;
+        const pri=task.priority==='high'?'🔴':task.priority==='medium'?'🟡':task.priority==='low'?'🟢':'';
+        const checkedAttr = sbSelected.has(task.id) ? ' checked' : '';
+        chip.innerHTML = '<input type="checkbox" class="sb-check" data-tid="' + task.id + '"' + checkedAttr + '>' +
+          (pri?'<span>'+pri+'</span>':'')+
+          '<span style="font-size:.85em;color:var(--dim);flex-shrink:0;white-space:nowrap">'+esc(task.subLabel)+'</span>';
+        chip.querySelector('.sb-check').addEventListener('change',e=>{
+          e.stopPropagation();
+          if(e.target.checked) sbSelected.add(task.id); else sbSelected.delete(task.id);
+          chip.classList.toggle('sb-selected',sbSelected.has(task.id));
         });
-        chip.addEventListener('dragend', () => {
+        chip.addEventListener('dragstart',e=>{
+          fcDragNodeId=null; fcDragGoalId=goal.id;
+          // Drag all selected, or just this one
+          fcDragTaskIds=sbSelected.size>0?[...sbSelected]:[task.id];
+          if(!fcDragTaskIds.includes(task.id)) fcDragTaskIds=[task.id];
+          e.dataTransfer.setData('isSidebar','1');
+          e.dataTransfer.effectAllowed='move';
+          setTimeout(()=>chip.classList.add('dragging'),0);
+        });
+        chip.addEventListener('dragend',()=>{
           chip.classList.remove('dragging');
-          document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+          document.querySelectorAll('.fc-drag-over').forEach(x=>x.classList.remove('fc-drag-over'));
         });
-        sidebar.appendChild(chip);
+        sb.appendChild(chip);
       });
     }
-    split.appendChild(sidebar);
-    card.appendChild(split);
+    body.appendChild(sb);
+    card.appendChild(body);
     area.appendChild(card);
   });
 }
 
-function renderGoalNode(node, goal, allTasks) {
-  if (node.type === 'task') return renderGoalTaskNode(node, goal, allTasks);
-  if (node.type === 'subgoal') return renderGoalSubgoalNode(node, goal, allTasks);
-  return null;
+function toggleAllSb(e,goalId) {
+  const allTasks=getAllTasks();
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  if(!goal)return;
+  const placed=new Set(treeTaskIds(goal.tree||[]));
+  const unplaced=allTasks.filter(t=>!placed.has(t.id));
+  if(sbSelected.size>0){ sbSelected.clear(); e.target.textContent='☐ All'; }
+  else { unplaced.forEach(t=>sbSelected.add(t.id)); e.target.textContent='☑ All'; }
+  renderBoard();
 }
 
-function renderGoalTaskNode(node, goal, allTasks) {
-  const task = allTasks.find(t => t.id === node.taskId);
-  if (!task) return null;
-  const sub = SUBS.find(s => s.id === task.subId);
-  const statusIcon = task.status === 'done' ? '✅' : task.status === 'inprogress' ? '◑' : '–';
-  const pri = task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : task.priority === 'low' ? '🟢' : '';
-  const statusCls = task.status === 'done' ? 'done' : task.status === 'inprogress' ? 'inprogress' : '';
+function buildFcChildRow(nodes,goal,allTasks) {
+  const row=document.createElement('div'); row.className='fc-children-row';
+  nodes.forEach(node=>{
+    const branch=document.createElement('div'); branch.className='fc-branch';
+    const el=buildFcNode(node,goal,allTasks);
+    branch.appendChild(el); row.appendChild(branch);
+  });
+  return row;
+}
 
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'display:flex;flex-direction:column;gap:.3rem';
+function buildFcNode(node,goal,allTasks) {
+  if(node.type==='task') return buildFcTaskNode(node,goal,allTasks);
+  if(node.type==='subgoal') return buildFcSubgoalNode(node,goal,allTasks);
+  return document.createElement('div');
+}
 
-  const row = document.createElement('div');
-  row.style.display = 'flex';
-  row.style.alignItems = 'center';
-  row.style.gap = '.35rem';
+function buildFcTaskNode(node,goal,allTasks) {
+  const task=allTasks.find(t=>t.id===node.taskId);
+  if(!task){ const d=document.createElement('div'); return d; }
+  const sub=SUBS.find(s=>s.id===task.subId);
+  const statusCls=task.status==='done'?'done':task.status==='inprogress'?'inprogress':'';
+  const pri=task.priority==='high'?'🔴':task.priority==='medium'?'🟡':task.priority==='low'?'🟢':'';
+  const icon=task.status==='done'?'✅':task.status==='inprogress'?'◑':'–';
 
-  const chip = document.createElement('div');
-  chip.className = 'tree-task-chip ' + statusCls;
-  chip.style.borderLeftColor = sub?.color || 'var(--border2)';
-  chip.draggable = true;
-  chip.dataset.nodeId = node.nodeId;
-  chip.dataset.goalId = goal.id;
-  chip.innerHTML = '<span style="color:var(--dim);cursor:grab;margin-right:.1rem">⠿</span>' +
-    '<span style="color:var(--muted);flex-shrink:0">' + statusIcon + '</span>' +
-    '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(task.name) + '</span>' +
-    (pri ? '<span style="flex-shrink:0">' + pri + '</span>' : '') +
-    (task.dueDate ? '<span style="color:var(--dim);font-size:.8em;flex-shrink:0">📅 ' + esc(task.dueDate) + '</span>' : '');
-  chip.onclick = () => openEditModal(task.subId, task.id);
-  setupTreeDrag(chip, node.nodeId, goal, false);
+  const wrap=document.createElement('div'); wrap.className='fc-node-wrap';
+  const box=document.createElement('div'); box.className='fc-box '+statusCls;
+  box.style.borderLeftColor=sub?.color||'var(--border2)';
+  box.draggable=true; box.dataset.nodeId=node.nodeId; box.dataset.goalId=goal.id;
+  box.innerHTML='<span style="color:var(--dim);cursor:grab;font-size:.8em">⠿</span>'+
+    '<span style="color:var(--muted)">'+icon+'</span>'+
+    '<span style="overflow:hidden;text-overflow:ellipsis">'+esc(task.name)+'</span>'+
+    (pri?'<span>'+pri+'</span>':'')+
+    '<span class="fc-remove" data-gid="' + goal.id + '" data-nid="' + node.nodeId + '" onclick="event.stopPropagation();removeFromTree(this.dataset.gid,this.dataset.nid)">✕</span>';
+  box.onclick=()=>openEditModal(task.subId,task.id);
+  setupFcDrag(box,node.nodeId,goal);
+  setupFcDropZone(box,node.nodeId,goal);
+  wrap.appendChild(box);
 
-  const removeBtn = document.createElement('button');
-  removeBtn.innerHTML = '✕';
-  removeBtn.title = 'Remove from tree';
-  removeBtn.style.cssText = 'background:none;border:none;color:var(--dim);cursor:pointer;font-size:.7em;padding:.1rem .3rem;flex-shrink:0';
-  removeBtn.onclick = async () => {
-    removeNodeFromTree(goal.tree, node.nodeId);
-    renderBoard();
-    try { await saveData(); toast('Removed from tree', 'success'); } catch {}
-  };
-
-  row.appendChild(chip);
-  row.appendChild(removeBtn);
-  wrap.appendChild(row);
-
-  if ((node.children || []).length) {
-    const childWrap = document.createElement('div');
-    childWrap.className = 'tree-children';
-    node.children.forEach(child => {
-      const el = renderGoalNode(child, goal, allTasks);
-      if (el) childWrap.appendChild(el);
-    });
-    wrap.appendChild(childWrap);
+  if((node.children||[]).length){
+    const cr=buildFcChildRow(node.children,goal,allTasks);
+    wrap.appendChild(cr);
   }
   return wrap;
 }
 
-function renderGoalSubgoalNode(node, goal, allTasks) {
-  const { done, total, pct } = subgoalProgress(node, allTasks);
-  const daysLeft = node.deadline ? Math.round((parseDmy(node.deadline) - Date.now()) / 86400000) : null;
-  const dlColor = daysLeft === null ? 'var(--muted)' : daysLeft < 0 ? '#e74c3c' : daysLeft <= 7 ? '#f1c40f' : '#2ecc71';
-  const dlText = daysLeft === null ? '' : daysLeft < 0 ? ' · overdue' : ' · ' + daysLeft + 'd';
-  const fillColor = pct === 100 ? '#2ecc71' : pct > 50 ? '#3498db' : '#f1c40f';
+function buildFcSubgoalNode(node,goal,allTasks) {
+  const{done,total,pct}=subProgress(node,allTasks);
+  const dl=node.deadline?Math.round((parseDmy(node.deadline)-Date.now())/86400000):null;
+  const dlCol=dl===null?'var(--muted)':dl<0?'#e74c3c':dl<=7?'#f1c40f':'#2ecc71';
+  const fill=pct===100?'#2ecc71':pct>50?'#3498db':'#f1c40f';
 
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'display:flex;flex-direction:column;gap:.3rem';
+  const wrap=document.createElement('div'); wrap.className='fc-node-wrap';
+  const box=document.createElement('div'); box.className='fc-subgoal';
+  box.draggable=true; box.dataset.nodeId=node.nodeId; box.dataset.goalId=goal.id;
+  box.innerHTML='<span style="cursor:grab;color:rgba(230,126,34,.5)">⠿</span> 📌 '+esc(node.name)+
+    (node.deadline?'<span style="font-size:.6em;font-family:JetBrains Mono,monospace;color:'+dlCol+';margin-left:.35rem">'+esc(node.deadline)+'</span>':'')+
+    '<span style="font-size:.6em;font-family:JetBrains Mono,monospace;color:var(--muted);margin-left:.4rem">'+done+'/'+total+'</span>'+
+    '<div style="width:40px;height:3px;background:var(--bg);border-radius:2px;margin-left:.4rem;overflow:hidden;display:inline-block;vertical-align:middle"><div style="height:100%;width:'+pct+'%;background:'+fill+'"></div></div>'+
+    '<span class="fc-remove" data-gid="' + goal.id + '" data-nid="' + node.nodeId + '" onclick="event.stopPropagation();removeFromTree(this.dataset.gid,this.dataset.nid)">✕</span>';
+  box.onclick=()=>openEditSubgoalModal(node,goal.id);
+  setupFcDrag(box,node.nodeId,goal);
+  setupFcDropZone(box,node.nodeId,goal);
+  wrap.appendChild(box);
 
-  // Subgoal header chip
-  const sgChip = document.createElement('div');
-  sgChip.draggable = true;
-  sgChip.dataset.nodeId = node.nodeId;
-  sgChip.dataset.goalId = goal.id;
-  sgChip.style.cssText = 'display:flex;align-items:center;gap:.5rem;padding:.4rem .75rem;border-radius:8px;border:1px solid rgba(230,126,34,.4);background:rgba(230,126,34,.08);cursor:grab;user-select:none';
-  sgChip.innerHTML =
-    '<span style="color:var(--dim);cursor:grab">⠿</span>' +
-    '<span style="font-size:.75em;font-weight:700;color:#e67e22">📌 ' + esc(node.name) + '</span>' +
-    (node.deadline ? '<span style="font-size:.6em;font-family:JetBrains Mono,monospace;color:' + dlColor + '">' + esc(node.deadline) + dlText + '</span>' : '') +
-    '<span style="font-size:.62em;font-family:JetBrains Mono,monospace;color:var(--muted);margin-left:auto">' + done + '/' + total + '</span>' +
-    '<div style="width:50px;height:4px;background:var(--bg);border-radius:2px;flex-shrink:0;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:' + fillColor + ';border-radius:2px"></div></div>';
-  sgChip.onclick = () => openEditSubgoalModal(node, goal.id);
-  setupTreeDrag(sgChip, node.nodeId, goal, true);
+  // Drop hint inside subgoal
+  const hint=document.createElement('div'); hint.className='fc-drop-hint';
+  hint.textContent='+ Drop inside';
+  setupFcDropZone(hint,node.nodeId,goal);
+  wrap.appendChild(hint);
 
-  const sgRow = document.createElement('div');
-  sgRow.style.cssText = 'display:flex;align-items:center;gap:.35rem';
-  const removeBtn = document.createElement('button');
-  removeBtn.innerHTML = '✕';
-  removeBtn.title = 'Remove sub-goal';
-  removeBtn.style.cssText = 'background:none;border:none;color:var(--dim);cursor:pointer;font-size:.7em;padding:.1rem .3rem;flex-shrink:0';
-  removeBtn.onclick = async () => {
-    if (!confirm('Remove sub-goal and all tasks under it from the tree?')) return;
-    removeNodeFromTree(goal.tree, node.nodeId);
-    renderBoard();
-    try { await saveData(); toast('Sub-goal removed', 'success'); } catch {}
-  };
-  sgRow.appendChild(sgChip);
-  sgRow.appendChild(removeBtn);
-  wrap.appendChild(sgRow);
-
-  // Children under subgoal + its own drop zone
-  const childWrap = document.createElement('div');
-  childWrap.className = 'tree-children';
-
-  // Drop zone inside subgoal
-  const innerDrop = document.createElement('div');
-  innerDrop.className = 'tree-drop-root';
-  innerDrop.style.cssText = 'border-color:rgba(230,126,34,.3);font-size:.58em;min-height:24px';
-  innerDrop.textContent = '+ Drop task here';
-  setupDropZone(innerDrop, node.nodeId, goal);
-  childWrap.appendChild(innerDrop);
-
-  (node.children || []).forEach(child => {
-    const el = renderGoalNode(child, goal, allTasks);
-    if (el) childWrap.appendChild(el);
-  });
-  wrap.appendChild(childWrap);
+  if((node.children||[]).length){
+    const cr=buildFcChildRow(node.children,goal,allTasks);
+    wrap.appendChild(cr);
+  }
   return wrap;
 }
 
-function setupTreeDrag(el, nodeId, goal, isSubgoal) {
-  el.addEventListener('dragstart', e => {
-    goalDragNodeId = nodeId;
-    goalDragGoalId = goal.id;
-    e.dataTransfer.effectAllowed = 'move';
-    setTimeout(() => el.classList.add('dragging'), 0);
+function setupFcDrag(el,nodeId,goal) {
+  el.addEventListener('dragstart',e=>{
+    fcDragNodeId=nodeId; fcDragGoalId=goal.id; fcDragTaskIds=[];
+    e.dataTransfer.effectAllowed='move';
+    setTimeout(()=>el.classList.add('dragging'),0);
   });
-  el.addEventListener('dragend', () => {
+  el.addEventListener('dragend',()=>{
     el.classList.remove('dragging');
-    document.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over'));
-  });
-  el.addEventListener('dragover', e => {
-    if (goalDragNodeId && goalDragNodeId !== nodeId) { e.preventDefault(); el.classList.add('drag-over'); }
-  });
-  el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
-  el.addEventListener('drop', async e => {
-    e.preventDefault(); e.stopPropagation();
-    el.classList.remove('drag-over');
-    await handleGoalDrop(goal, nodeId, e);
+    document.querySelectorAll('.fc-drag-over').forEach(x=>x.classList.remove('fc-drag-over'));
   });
 }
 
-function setupDropZone(el, parentNodeId, goal) {
-  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
-  el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
-  el.addEventListener('drop', async e => {
+function setupFcDropZone(el,parentNodeId,goal) {
+  el.addEventListener('dragover',e=>{ e.preventDefault(); e.stopPropagation(); el.classList.add('fc-drag-over'); });
+  el.addEventListener('dragleave',e=>{ el.classList.remove('fc-drag-over'); });
+  el.addEventListener('drop',async e=>{
     e.preventDefault(); e.stopPropagation();
-    el.classList.remove('drag-over');
-    await handleGoalDrop(goal, parentNodeId, e);
+    el.classList.remove('fc-drag-over');
+    document.querySelectorAll('.fc-drag-over').forEach(x=>x.classList.remove('fc-drag-over'));
+    const isSidebar=e.dataTransfer.getData('isSidebar')==='1';
+    if(!goal.tree)goal.tree=[];
+
+    if(isSidebar && fcDragGoalId===goal.id) {
+      // Drop one or more tasks from sidebar
+      for(const taskId of fcDragTaskIds){
+        const existing=treeTaskIds(goal.tree).includes(taskId);
+        if(!existing){
+          const newNode={nodeId:makeNodeId(),type:'task',taskId,children:[]};
+          insertNodeInTree(goal.tree,parentNodeId,newNode);
+        }
+      }
+      sbSelected.clear();
+      renderBoard();
+      try{ await saveData(); toast(fcDragTaskIds.length+' task(s) added','success'); }catch{ toast('Save failed','error'); }
+    } else if(fcDragNodeId && fcDragGoalId===goal.id && fcDragNodeId!==parentNodeId) {
+      // Move existing node
+      const node=findNode(goal.tree,fcDragNodeId);
+      if(!node)return;
+      // Prevent nesting inside own descendant
+      if(parentNodeId && findNode(node.children||[],parentNodeId)){ toast('Cannot nest parent inside child','error'); return; }
+      removeNodeFromTree(goal.tree,fcDragNodeId);
+      insertNodeInTree(goal.tree,parentNodeId,node);
+      renderBoard();
+      try{ await saveData(); toast('Moved','success'); }catch{ toast('Save failed','error'); }
+    }
   });
 }
 
-async function handleGoalDrop(goal, parentNodeId, e) {
-  const isSidebar = e.dataTransfer.getData('isSidebar') === '1';
-  if (isSidebar) {
-    // Drop from sidebar — create new task node under parentNodeId
-    const taskId = e.dataTransfer.getData('taskId');
-    if (!taskId) return;
-    const newNode = { nodeId: makeNodeId(), type: 'task', taskId, children: [] };
-    if (!goal.tree) goal.tree = [];
-    insertNodeInTree(goal.tree, parentNodeId, newNode);
-    renderBoard();
-    try { await saveData(); toast('Task added to tree', 'success'); } catch { toast('Save failed','error'); }
-  } else if (goalDragNodeId && goalDragGoalId === goal.id) {
-    // Move existing node within tree
-    const node = findNode(goal.tree, goalDragNodeId);
-    if (!node || goalDragNodeId === parentNodeId) return;
-    // Prevent nesting a parent inside its own child
-    if (findNode(node.children || [], parentNodeId)) { toast('Cannot nest a parent inside its child', 'error'); return; }
-    removeNodeFromTree(goal.tree, goalDragNodeId);
-    insertNodeInTree(goal.tree, parentNodeId, node);
-    renderBoard();
-    try { await saveData(); toast('Moved', 'success'); } catch { toast('Save failed','error'); }
-  }
+async function removeFromTree(goalId,nodeId) {
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  if(!goal)return;
+  removeNodeFromTree(goal.tree,nodeId);
+  renderBoard();
+  try{ await saveData(); toast('Removed','success'); }catch{}
 }
 
 function openAddGoalModal() {
-  showModal(
-    '<div class="modal-title">🎯 New Goal</div>' +
-    '<div class="mfield"><label>NAME</label><input type="text" id="goal-name" placeholder="e.g. Complete rover for ARCh 2027" maxlength="100"></div>' +
-    '<div class="mfield"><label>DEADLINE (optional)</label><input type="date" id="goal-deadline" style="color-scheme:dark"></div>' +
-    '<div class="mfield"><label>DESCRIPTION (optional)</label><textarea id="goal-desc" rows="2"></textarea></div>' +
-    '<div class="modal-footer">' +
-      '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>' +
-      '<button class="mbtn primary" onclick="addGoal()">Create</button>' +
-    '</div>'
-  );
-  setTimeout(() => document.getElementById('goal-name')?.focus(), 50);
+  showModal('<div class="modal-title">🎯 New Goal</div>'+
+    '<div class="mfield"><label>NAME</label><input type="text" id="goal-name" placeholder="e.g. Complete rover for ARCh 2027" maxlength="100"></div>'+
+    '<div class="mfield"><label>DEADLINE (optional)</label><input type="date" id="goal-deadline" style="color-scheme:dark"></div>'+
+    '<div class="mfield"><label>DESCRIPTION (optional)</label><textarea id="goal-desc" rows="2"></textarea></div>'+
+    '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Cancel</button><button class="mbtn primary" onclick="addGoal()">Create</button></div>');
+  setTimeout(()=>document.getElementById('goal-name')?.focus(),50);
 }
-
 async function addGoal() {
-  const name = document.getElementById('goal-name').value.trim();
-  const dr = document.getElementById('goal-deadline').value;
-  const desc = document.getElementById('goal-desc').value.trim();
-  if (!name) { alert('Name required'); return; }
-  if (!store.goals) store.goals = [];
-  store.goals.push({ id: makeId(), name, deadline: dr ? ymdToDmy(dr) : null, description: desc || null, tree: [], addedAt: Date.now() });
+  const name=document.getElementById('goal-name').value.trim();
+  const dr=document.getElementById('goal-deadline').value;
+  if(!name){alert('Name required');return;}
+  if(!store.goals)store.goals=[];
+  store.goals.push({id:makeId(),name,deadline:dr?ymdToDmy(dr):null,description:document.getElementById('goal-desc').value.trim()||null,tree:[],addedAt:Date.now()});
   closeModal(); renderBoard();
-  try { await saveData(); toast('Goal created!', 'success'); } catch { toast('Save failed','error'); }
+  try{await saveData();toast('Goal created!','success');}catch{toast('Save failed','error');}
 }
-
 function openEditGoalModal(goalId) {
-  const goal = (store.goals || []).find(g => g.id === goalId);
-  if (!goal) return;
-  showModal(
-    '<div class="modal-title">✎ Edit Goal</div>' +
-    '<div class="mfield"><label>NAME</label><input type="text" id="goal-name" value="' + esc(goal.name) + '" maxlength="100"></div>' +
-    '<div class="mfield"><label>DEADLINE</label><input type="date" id="goal-deadline" value="' + esc(goal.deadline ? dmyToYmd(goal.deadline) : '') + '" style="color-scheme:dark"></div>' +
-    '<div class="mfield"><label>DESCRIPTION</label><textarea id="goal-desc" rows="2">' + esc(goal.description || '') + '</textarea></div>' +
-    '<div class="modal-footer">' +
-      '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>' +
-      '<button class="mbtn danger" data-gid="' + goal.id + '" onclick="deleteGoal(this.dataset.gid)">Delete</button>' +
-      '<button class="mbtn primary" data-gid="' + goal.id + '" onclick="saveGoal(this.dataset.gid)">Save</button>' +
-    '</div>'
-  );
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  if(!goal)return;
+  showModal('<div class="modal-title">✎ Edit Goal</div>'+
+    '<div class="mfield"><label>NAME</label><input type="text" id="goal-name" value="'+esc(goal.name)+'" maxlength="100"></div>'+
+    '<div class="mfield"><label>DEADLINE</label><input type="date" id="goal-deadline" value="'+esc(goal.deadline?dmyToYmd(goal.deadline):'')+'" style="color-scheme:dark"></div>'+
+    '<div class="mfield"><label>DESCRIPTION</label><textarea id="goal-desc" rows="2">'+esc(goal.description||'')+'</textarea></div>'+
+    '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
+    '<button class="mbtn danger" data-gid="'+goal.id+'" onclick="deleteGoal(this.dataset.gid)">Delete</button>'+
+    '<button class="mbtn primary" data-gid="'+goal.id+'" onclick="saveGoal(this.dataset.gid)">Save</button></div>');
 }
-
 async function saveGoal(goalId) {
-  const goal = (store.goals || []).find(g => g.id === goalId);
-  if (!goal) return;
-  goal.name = document.getElementById('goal-name').value.trim();
-  const dr = document.getElementById('goal-deadline').value;
-  goal.deadline = dr ? ymdToDmy(dr) : null;
-  goal.description = document.getElementById('goal-desc').value.trim() || null;
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  if(!goal)return;
+  goal.name=document.getElementById('goal-name').value.trim();
+  const dr=document.getElementById('goal-deadline').value;
+  goal.deadline=dr?ymdToDmy(dr):null;
+  goal.description=document.getElementById('goal-desc').value.trim()||null;
   closeModal(); renderBoard();
-  try { await saveData(); toast('Saved', 'success'); } catch { toast('Save failed','error'); }
+  try{await saveData();toast('Saved','success');}catch{toast('Save failed','error');}
 }
-
 async function deleteGoal(goalId) {
-  if (!confirm('Delete this goal?')) return;
-  store.goals = (store.goals || []).filter(g => g.id !== goalId);
+  if(!confirm('Delete this goal?'))return;
+  store.goals=(store.goals||[]).filter(g=>g.id!==goalId);
   closeModal(); renderBoard();
-  try { await saveData(); toast('Goal deleted', 'success'); } catch { toast('Save failed','error'); }
+  try{await saveData();toast('Goal deleted','success');}catch{toast('Save failed','error');}
 }
-
-async function addSubgoalToRoot(goalId) {
-  const name = prompt('Sub-goal name:');
-  if (!name?.trim()) return;
-  const deadlineRaw = prompt('Deadline (leave blank for none, format: DD/MM/YYYY):');
-  let deadline = null;
-  if (deadlineRaw?.trim()) {
-    const parts = deadlineRaw.trim().split('/');
-    if (parts.length === 3) deadline = deadlineRaw.trim();
-  }
-  const goal = (store.goals || []).find(g => g.id === goalId);
-  if (!goal) return;
-  if (!goal.tree) goal.tree = [];
-  goal.tree.push({ nodeId: makeNodeId(), type: 'subgoal', name: name.trim(), deadline, children: [] });
-  renderBoard();
-  try { await saveData(); toast('Sub-goal added', 'success'); } catch { toast('Save failed','error'); }
+async function addSubgoalPrompt(goalId) {
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  if(!goal)return;
+  showModal('<div class="modal-title">📌 New Sub-goal</div>'+
+    '<div class="mfield"><label>NAME</label><input type="text" id="sg-name" placeholder="e.g. Mechanical Complete" maxlength="80"></div>'+
+    '<div class="mfield"><label>DEADLINE (optional)</label><input type="date" id="sg-deadline" style="color-scheme:dark"></div>'+
+    '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
+    '<button class="mbtn primary" data-gid="'+goalId+'" onclick="addSubgoal(this.dataset.gid)">Add</button></div>');
+  setTimeout(()=>document.getElementById('sg-name')?.focus(),50);
 }
-
-function openEditSubgoalModal(node, goalId) {
-  showModal(
-    '<div class="modal-title">✎ Edit Sub-goal</div>' +
-    '<div class="mfield"><label>NAME</label><input type="text" id="sg-name" value="' + esc(node.name) + '" maxlength="80"></div>' +
-    '<div class="mfield"><label>DEADLINE (optional)</label><input type="date" id="sg-deadline" value="' + esc(node.deadline ? dmyToYmd(node.deadline) : '') + '" style="color-scheme:dark"></div>' +
-    '<div class="modal-footer">' +
-      '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>' +
-      '<button class="mbtn primary" data-nid="' + node.nodeId + '" data-gid="' + goalId + '" onclick="saveSubgoal(this.dataset.nid,this.dataset.gid)">Save</button>' +
-    '</div>'
-  );
-}
-
-async function saveSubgoal(nodeId, goalId) {
-  const goal = (store.goals || []).find(g => g.id === goalId);
-  if (!goal) return;
-  const node = findNode(goal.tree || [], nodeId);
-  if (!node) return;
-  node.name = document.getElementById('sg-name').value.trim() || node.name;
-  const dr = document.getElementById('sg-deadline').value;
-  node.deadline = dr ? ymdToDmy(dr) : null;
+async function addSubgoal(goalId) {
+  const name=document.getElementById('sg-name').value.trim();
+  if(!name){alert('Name required');return;}
+  const dr=document.getElementById('sg-deadline').value;
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  if(!goal)return;
+  if(!goal.tree)goal.tree=[];
+  goal.tree.push({nodeId:makeNodeId(),type:'subgoal',name,deadline:dr?ymdToDmy(dr):null,children:[]});
   closeModal(); renderBoard();
-  try { await saveData(); toast('Sub-goal saved', 'success'); } catch { toast('Save failed','error'); }
+  try{await saveData();toast('Sub-goal added','success');}catch{toast('Save failed','error');}
+}
+function openEditSubgoalModal(node,goalId) {
+  showModal('<div class="modal-title">✎ Edit Sub-goal</div>'+
+    '<div class="mfield"><label>NAME</label><input type="text" id="sg-name" value="'+esc(node.name)+'" maxlength="80"></div>'+
+    '<div class="mfield"><label>DEADLINE</label><input type="date" id="sg-deadline" value="'+esc(node.deadline?dmyToYmd(node.deadline):'')+'" style="color-scheme:dark"></div>'+
+    '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
+    '<button class="mbtn primary" data-nid="'+node.nodeId+'" data-gid="'+goalId+'" onclick="saveSubgoal(this.dataset.nid,this.dataset.gid)">Save</button></div>');
+}
+async function saveSubgoal(nodeId,goalId) {
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  if(!goal)return;
+  const node=findNode(goal.tree||[],nodeId);
+  if(!node)return;
+  node.name=document.getElementById('sg-name').value.trim()||node.name;
+  const dr=document.getElementById('sg-deadline').value;
+  node.deadline=dr?ymdToDmy(dr):null;
+  closeModal(); renderBoard();
+  try{await saveData();toast('Sub-goal saved','success');}catch{toast('Save failed','error');}
 }
 
 // ── MEETINGS ──
