@@ -294,7 +294,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .fc-zoom-btn:hover{background:var(--surface2)}
 /* TREE NODES */
 .fc-col{display:flex;flex-direction:column;align-items:center;gap:0}
-.fc-h-row{display:flex;flex-direction:row;justify-content:center;align-items:flex-start;gap:3rem;position:relative;padding-top:30px}
+.fc-h-row{display:flex;flex-direction:row;justify-content:center;align-items:flex-start;gap:1.5rem;position:relative;padding-top:30px}
 .fc-h-row::before{content:'';position:absolute;top:0;left:50%;width:1px;height:30px;background:var(--border2)}
 .fc-branch{display:flex;flex-direction:column;align-items:center;position:relative}
 .fc-branch::before{content:'';position:absolute;top:0;right:50%;border-top:1px solid var(--border2);width:calc(50% + 1.5rem);height:0}
@@ -308,10 +308,10 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 /* NODE BOXES */
 .fc-root{padding:.6rem 1.4rem;border-radius:12px;border:2px solid rgba(231,76,60,.5);background:rgba(231,76,60,.08);font-size:.82em;font-weight:800;color:#e74c3c;white-space:nowrap;cursor:default;position:relative}
 .fc-root.fc-dz:hover,.fc-root.fc-drag-over{border-color:#f1c40f!important;box-shadow:0 0 0 2px rgba(241,196,15,.3)!important}
-.fc-subgoal{display:flex;flex-direction:column;align-items:flex-start;padding:.5rem .9rem;border-radius:10px;border:2px solid rgba(230,126,34,.45);background:rgba(230,126,34,.08);font-size:.75em;font-weight:700;color:#e67e22;cursor:pointer;position:relative;min-width:140px;max-width:220px;transition:all .2s}
+.fc-subgoal{display:flex;flex-direction:column;align-items:flex-start;padding:.4rem .7rem;border-radius:10px;border:2px solid rgba(230,126,34,.45);background:rgba(230,126,34,.08);font-size:.72em;font-weight:700;color:#e67e22;cursor:pointer;position:relative;min-width:110px;max-width:180px;transition:all .2s}
 .fc-subgoal:hover{transform:translateY(-1px);box-shadow:0 3px 12px rgba(230,126,34,.2)}
 .fc-subgoal.fc-drag-over{border-color:#f1c40f!important;box-shadow:0 0 0 2px rgba(241,196,15,.3)!important}
-.fc-box{display:inline-flex;align-items:center;gap:.4rem;padding:.35rem .65rem;border-radius:7px;border:1px solid var(--border2);background:var(--surface2);font-size:.7em;cursor:pointer;white-space:nowrap;max-width:220px;position:relative;transition:all .15s;user-select:none}
+.fc-box{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .55rem;border-radius:7px;border:1px solid var(--border2);background:var(--surface2);font-size:.68em;cursor:pointer;white-space:nowrap;max-width:180px;position:relative;transition:all .15s;user-select:none}
 .fc-box:hover{border-color:rgba(255,255,255,.2);box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .fc-box.done{opacity:.4;text-decoration:line-through}
 .fc-box.inprogress{border-color:rgba(52,152,219,.4);background:rgba(52,152,219,.07)}
@@ -1462,7 +1462,7 @@ function renderGoalsView(area) {
 // Build children: horizontal for subgoals, vertical for tasks
 function buildFcChildren(nodes,goal,allTasks,canvas,s,isRoot=false) {
   const subgoals=nodes.filter(n=>n.type==='subgoal');
-  const tasks=nodes.filter(n=>n.type==='task');
+  const tasks=nodes.filter(n=>n.type==='task').filter(n=>{ const t=allTasks.find(x=>x.id===n.taskId); return !t || t.status!=='done'; });
   const wrap=document.createElement('div'); wrap.className='fc-col';
 
   // Subgoals horizontal
@@ -1502,7 +1502,7 @@ function buildFcTaskNode(node,goal,allTasks,canvas,s) {
   box.draggable=true; box.dataset.nodeId=node.nodeId; box.dataset.goalId=goal.id;
   box.innerHTML='<span style="color:var(--dim);cursor:grab;font-size:.8em">⠿</span>'+
     '<span style="color:var(--muted)">'+icon+'</span>'+
-    '<span style="overflow:hidden;text-overflow:ellipsis;max-width:150px">'+esc(task.name)+'</span>'+
+    '<span style="overflow:hidden;text-overflow:ellipsis;max-width:120px">'+esc(task.name)+'</span>'+
     (pri?'<span>'+pri+'</span>':'')+
     '<span class="fc-remove" data-gid="'+goal.id+'" data-nid="'+node.nodeId+'" onclick="event.stopPropagation();removeFromTree(this.dataset.gid,this.dataset.nid)">✕</span>';
   box.onclick=()=>openEditModal(task.subId,task.id);
@@ -1526,15 +1526,15 @@ function buildFcSubgoalNode(node,goal,allTasks,canvas,s) {
   const wrap=document.createElement('div'); wrap.className='fc-col';
   const box=document.createElement('div'); box.className='fc-subgoal';
   box.draggable=true; box.dataset.nodeId=node.nodeId; box.dataset.goalId=goal.id;
-  box.innerHTML='<div style="display:flex;align-items:center;gap:.4rem;width:100%">'+
-    '<span style="cursor:grab;color:rgba(230,126,34,.5);font-size:.85em">⠿</span>'+
-    '<span>📌 '+esc(node.name)+'</span>'+
-    (node.deadline?'<span style="font-size:.58em;font-family:JetBrains Mono,monospace;color:'+dlCol+';margin-left:auto">'+esc(node.deadline)+'</span>':'')+
-    '<span class="fc-remove" data-gid="'+goal.id+'" data-nid="'+node.nodeId+'" onclick="event.stopPropagation();removeFromTree(this.dataset.gid,this.dataset.nid)">✕</span>'+
+  box.innerHTML='<div style="display:flex;align-items:center;gap:.35rem;width:100%">'+
+    '<span style="cursor:grab;color:rgba(230,126,34,.5);font-size:.8em">⠿</span>'+
+    '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px">📌 '+esc(node.name)+'</span>'+
+    '<span class="fc-remove" data-gid="'+goal.id+'" data-nid="'+node.nodeId+'" onclick="event.stopPropagation();removeFromTree(this.dataset.gid,this.dataset.nid)" style="margin-left:auto">✕</span>'+
     '</div>'+
-    '<div style="display:flex;align-items:center;gap:.4rem;margin-top:.3rem;font-size:.7em;font-weight:400;color:var(--muted)">'+
-      '<div style="flex:1;height:3px;background:var(--bg);border-radius:2px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+fill+'"></div></div>'+
-      '<span style="font-family:JetBrains Mono,monospace;font-size:.85em">'+done+'/'+total+'</span>'+
+    (node.deadline?'<div style="font-size:.58em;font-family:JetBrains Mono,monospace;color:'+dlCol+';margin-top:.1rem">📅 '+esc(node.deadline)+'</div>':'')+
+    '<div style="display:flex;align-items:center;gap:.35rem;margin-top:.3rem">'+
+      '<div style="flex:1;height:4px;background:var(--bg);border-radius:2px;overflow:hidden;min-width:50px"><div style="height:100%;width:'+pct+'%;background:'+fill+';border-radius:2px;transition:width .4s"></div></div>'+
+      '<span style="font-size:.6em;font-family:JetBrains Mono,monospace;color:var(--muted);flex-shrink:0">'+done+'/'+total+'</span>'+
     '</div>';
   box.onclick=()=>openEditSubgoalModal(node,goal.id);
   setupFcDrag(box,node.nodeId,goal,canvas,s);
@@ -1583,10 +1583,18 @@ function setupFcDZ(el,parentNodeId,goal,canvas,s) {
       const node=findNode(goal.tree,fcDragNodeId);
       if(!node)return;
       if(parentNodeId && findNode(node.children||[],parentNodeId)){toast('Cannot nest parent inside child','error');return;}
-      removeNodeFromTree(goal.tree,fcDragNodeId);
-      insertNodeInTree(goal.tree,parentNodeId,node);
-      renderBoard();
-      try{await saveData();toast('Moved','success');}catch{toast('Save failed','error');}
+      if(node.type==='task') {
+        // Tasks always LINK (copy) — same task can appear multiple places
+        insertNodeInTree(goal.tree,parentNodeId,{nodeId:makeNodeId(),type:'task',taskId:node.taskId,children:[]});
+        renderBoard();
+        try{await saveData();toast('Task linked here ✓ (original kept)','success');}catch{toast('Save failed','error');}
+      } else {
+        // Subgoals MOVE
+        removeNodeFromTree(goal.tree,fcDragNodeId);
+        insertNodeInTree(goal.tree,parentNodeId,node);
+        renderBoard();
+        try{await saveData();toast('Moved','success');}catch{toast('Save failed','error');}
+      }
     }
   });
 }
