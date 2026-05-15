@@ -290,6 +290,7 @@ async function loadData() {
     adminReminders:      r.adminReminders      || [],
     pendingNudges:       r.pendingNudges       || [],
     meetings:            r.meetings            || [],
+    goals:               r.goals               || [],
   };
   for (const sub of SUBSYSTEMS) {
     if (!store.tasks[sub.id]) store.tasks[sub.id] = [];
@@ -334,6 +335,23 @@ const saveData = limiter.wrap(async () => {
       for (const subId of Object.keys(latest.tasks)) {
         if (!store.tasks[subId]) store.tasks[subId] = latest.tasks[subId];
       }
+    }
+    // Preserve goals — if JSONBin has more goals than memory, keep JSONBin ones
+    if (latest.goals && latest.goals.length > (store.goals || []).length) {
+      store.goals = latest.goals;
+    }
+    // Preserve meetings
+    if (latest.meetings && latest.meetings.length > (store.meetings || []).length) {
+      store.meetings = latest.meetings;
+    }
+    // Preserve milestones
+    if (latest.milestones && latest.milestones.length > (store.milestones || []).length) {
+      store.milestones = latest.milestones;
+    }
+    // Preserve admin data
+    if (latest.adminNotes) store.adminNotes = { ...(store.adminNotes || {}), ...latest.adminNotes };
+    if (latest.adminReminders && latest.adminReminders.length > (store.adminReminders || []).length) {
+      store.adminReminders = latest.adminReminders;
     }
   } catch (e) { console.error("Merge check failed:", e.message); }
   await jsonbinRequest("PUT", store);
