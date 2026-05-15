@@ -274,54 +274,63 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .admin-cal-chip{background:rgba(241,196,15,.2);color:#f1c40f;border-radius:3px;padding:.1rem .3rem;margin-bottom:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 
 /* GOALS */
-.goals-area{padding:var(--pad);display:flex;flex-direction:column;gap:1.5rem;max-width:1400px;margin:0 auto}
+.goals-area{padding:var(--pad);display:flex;flex-direction:column;gap:1.5rem;max-width:100%}
 .goal-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
-.goal-card-hdr{padding:.85rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem}
+.goal-card-hdr{padding:.75rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem}
 .goal-card-hdr-left{flex:1;min-width:0}
-.goal-title{font-size:.88em;font-weight:700;color:var(--text)}
-.goal-meta{font-size:.62em;font-family:'JetBrains Mono',monospace;color:var(--muted);margin-top:.25rem;display:flex;align-items:center;gap:.75rem}
-.goal-progress-wrap{padding:.5rem 1rem;border-bottom:1px solid var(--border);background:var(--surface2)}
-.goal-progress-bar{height:5px;background:var(--bg);border-radius:3px;overflow:hidden;margin:.25rem 0}
-.goal-progress-fill{height:100%;border-radius:3px;transition:width .6s ease}
-.goal-progress-nums{display:flex;justify-content:space-between;font-size:.6em;font-family:'JetBrains Mono',monospace;color:var(--muted)}
-.goal-body{display:grid;grid-template-columns:1fr 210px;min-height:250px}
-.flowchart-wrap{overflow:auto;padding:1.5rem 1.5rem 2rem;border-right:1px solid var(--border)}
-.fc-col{display:flex;flex-direction:column;align-items:center}
-.fc-children-row{display:flex;justify-content:center;gap:2.5rem;position:relative;padding-top:30px;margin-top:0}
-.fc-children-row::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:1px;height:30px;background:var(--border2)}
+.goal-title{font-size:.85em;font-weight:700;color:var(--text)}
+.goal-meta{font-size:.6em;font-family:'JetBrains Mono',monospace;color:var(--muted);margin-top:.2rem;display:flex;gap:.75rem}
+.goal-progress-wrap{padding:.4rem 1rem;border-bottom:1px solid var(--border);background:var(--surface2)}
+.goal-progress-bar{height:4px;background:var(--bg);border-radius:2px;overflow:hidden;margin:.2rem 0}
+.goal-progress-fill{height:100%;border-radius:2px;transition:width .6s}
+.goal-progress-nums{display:flex;justify-content:space-between;font-size:.58em;font-family:'JetBrains Mono',monospace;color:var(--muted)}
+.goal-body{display:grid;grid-template-columns:1fr 200px}
+/* CANVAS VIEWPORT */
+.fc-viewport{position:relative;height:520px;overflow:hidden;background:var(--bg);cursor:grab;border-right:1px solid var(--border)}
+.fc-viewport.panning{cursor:grabbing}
+.fc-canvas{position:absolute;top:0;left:0;transform-origin:0 0;padding:2rem;min-width:max-content}
+.fc-zoom-controls{position:absolute;bottom:.6rem;right:.6rem;display:flex;gap:.3rem;z-index:10}
+.fc-zoom-btn{width:28px;height:28px;border-radius:6px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-size:.85em;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.fc-zoom-btn:hover{background:var(--surface2)}
+/* TREE NODES */
+.fc-col{display:flex;flex-direction:column;align-items:center;gap:0}
+.fc-h-row{display:flex;flex-direction:row;justify-content:center;align-items:flex-start;gap:3rem;position:relative;padding-top:30px}
+.fc-h-row::before{content:'';position:absolute;top:0;left:50%;width:1px;height:30px;background:var(--border2)}
 .fc-branch{display:flex;flex-direction:column;align-items:center;position:relative}
-.fc-branch::before{content:'';position:absolute;top:0;right:50%;border-top:1px solid var(--border2);width:calc(50% + 1.25rem);height:0}
-.fc-branch::after{content:'';position:absolute;top:0;left:50%;border-top:1px solid var(--border2);width:calc(50% + 1.25rem);height:0}
+.fc-branch::before{content:'';position:absolute;top:0;right:50%;border-top:1px solid var(--border2);width:calc(50% + 1.5rem);height:0}
+.fc-branch::after{content:'';position:absolute;top:0;left:50%;border-top:1px solid var(--border2);width:calc(50% + 1.5rem);height:0}
 .fc-branch:only-child::before,.fc-branch:only-child::after{display:none}
-.fc-branch:only-child{padding-top:0}
-.fc-node-wrap{display:flex;flex-direction:column;align-items:center}
-.fc-box{display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .75rem;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);font-size:.72em;cursor:pointer;transition:all .2s;white-space:nowrap;max-width:220px;position:relative;user-select:none}
-.fc-box:hover{border-color:rgba(255,255,255,.2);transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.2)}
-.fc-box.done{opacity:.45;text-decoration:line-through}
-.fc-box.inprogress{border-color:rgba(52,152,219,.4);background:rgba(52,152,219,.07)}
-.fc-box.fc-drag-over{border-color:#f1c40f!important;box-shadow:0 0 0 2px rgba(241,196,15,.3)!important;transform:scale(1.03)}
-.fc-box.dragging{opacity:.25}
-.fc-box.sb-selected-drag{border-color:#f1c40f;box-shadow:0 0 0 2px rgba(241,196,15,.25)}
-.fc-subgoal{padding:.5rem 1rem;border-radius:10px;border:2px solid rgba(230,126,34,.5);background:rgba(230,126,34,.09);font-size:.75em;font-weight:700;color:#e67e22;cursor:pointer;transition:all .2s;white-space:nowrap;max-width:240px;position:relative;user-select:none}
+.fc-v-stack{display:flex;flex-direction:column;align-items:center;gap:0;padding-top:22px;position:relative}
+.fc-v-stack::before{content:'';position:absolute;top:0;left:50%;width:1px;height:22px;background:var(--border2)}
+.fc-v-item{display:flex;flex-direction:column;align-items:center;position:relative}
+.fc-v-item+.fc-v-item{padding-top:14px}
+.fc-v-item+.fc-v-item::before{content:'';position:absolute;top:0;left:50%;width:1px;height:14px;background:var(--border2)}
+/* NODE BOXES */
+.fc-root{padding:.6rem 1.4rem;border-radius:12px;border:2px solid rgba(231,76,60,.5);background:rgba(231,76,60,.08);font-size:.82em;font-weight:800;color:#e74c3c;white-space:nowrap;cursor:default;position:relative}
+.fc-root.fc-dz:hover,.fc-root.fc-drag-over{border-color:#f1c40f!important;box-shadow:0 0 0 2px rgba(241,196,15,.3)!important}
+.fc-subgoal{display:flex;flex-direction:column;align-items:flex-start;padding:.5rem .9rem;border-radius:10px;border:2px solid rgba(230,126,34,.45);background:rgba(230,126,34,.08);font-size:.75em;font-weight:700;color:#e67e22;cursor:pointer;position:relative;min-width:140px;max-width:220px;transition:all .2s}
 .fc-subgoal:hover{transform:translateY(-1px);box-shadow:0 3px 12px rgba(230,126,34,.2)}
 .fc-subgoal.fc-drag-over{border-color:#f1c40f!important;box-shadow:0 0 0 2px rgba(241,196,15,.3)!important}
-.fc-root{padding:.65rem 1.5rem;border-radius:12px;border:2px solid rgba(231,76,60,.5);background:rgba(231,76,60,.08);font-size:.82em;font-weight:800;color:#e74c3c;white-space:nowrap;position:relative;cursor:default}
-.fc-root.fc-drag-over{border-color:#f1c40f!important;box-shadow:0 0 0 2px rgba(241,196,15,.3)!important}
-.fc-remove{position:absolute;top:-8px;right:-8px;width:16px;height:16px;border-radius:50%;background:var(--surface3);border:1px solid var(--border2);color:var(--muted);font-size:.55em;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .15s;z-index:1}
-.fc-box:hover .fc-remove,.fc-subgoal:hover .fc-remove,.fc-root:hover .fc-remove{opacity:1}
-.fc-drop-hint{margin-top:.5rem;min-height:26px;padding:.2rem .6rem;border:1px dashed rgba(230,126,34,.3);border-radius:6px;font-size:.58em;color:var(--dim);font-family:'JetBrains Mono',monospace;transition:all .2s;cursor:default;display:flex;align-items:center;justify-content:center}
-.fc-drop-hint.fc-drag-over{border-color:#e67e22;color:#e67e22;background:rgba(230,126,34,.06)}
-.fc-root-drop{min-height:28px;padding:.2rem .75rem;border:1px dashed var(--border2);border-radius:7px;font-size:.6em;color:var(--dim);font-family:'JetBrains Mono',monospace;margin-bottom:.85rem;transition:all .2s;cursor:default;display:flex;align-items:center;justify-content:center}
+.fc-box{display:inline-flex;align-items:center;gap:.4rem;padding:.35rem .65rem;border-radius:7px;border:1px solid var(--border2);background:var(--surface2);font-size:.7em;cursor:pointer;white-space:nowrap;max-width:220px;position:relative;transition:all .15s;user-select:none}
+.fc-box:hover{border-color:rgba(255,255,255,.2);box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.fc-box.done{opacity:.4;text-decoration:line-through}
+.fc-box.inprogress{border-color:rgba(52,152,219,.4);background:rgba(52,152,219,.07)}
+.fc-box.fc-drag-over{border-color:#f1c40f!important;box-shadow:0 0 0 2px rgba(241,196,15,.3)!important}
+.fc-box.dragging,.fc-subgoal.dragging{opacity:.25}
+.fc-remove{position:absolute;top:-7px;right:-7px;width:15px;height:15px;border-radius:50%;background:var(--surface3);border:1px solid var(--border2);color:var(--muted);font-size:.55em;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .15s;z-index:2}
+.fc-box:hover .fc-remove,.fc-subgoal:hover .fc-remove{opacity:1}
+.fc-drop-inside{font-size:.58em;color:var(--dim);font-family:'JetBrains Mono',monospace;padding:.2rem .6rem;border:1px dashed rgba(230,126,34,.3);border-radius:5px;margin-top:.35rem;text-align:center;transition:all .2s;cursor:default}
+.fc-drop-inside.fc-drag-over{border-color:#e67e22;color:#e67e22;background:rgba(230,126,34,.06)}
+.fc-root-drop{min-height:26px;padding:.2rem .75rem;border:1px dashed var(--border2);border-radius:6px;font-size:.6em;color:var(--dim);font-family:'JetBrains Mono',monospace;margin-bottom:.85rem;transition:all .2s;cursor:default;display:flex;align-items:center;justify-content:center;white-space:nowrap}
 .fc-root-drop.fc-drag-over{border-color:#2ecc71;color:#2ecc71;background:rgba(46,204,113,.05)}
-.goal-sidebar{padding:.65rem;overflow-y:auto;background:var(--surface2);display:flex;flex-direction:column;gap:.25rem}
-.sb-hdr{font-size:.58em;letter-spacing:.12em;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:.35rem;flex-shrink:0;display:flex;justify-content:space-between;align-items:center}
-.sb-task{display:flex;align-items:center;gap:.4rem;padding:.3rem .5rem;border-radius:6px;border:1px solid var(--border);border-left-width:3px;background:var(--surface);font-size:.68em;cursor:grab;user-select:none;transition:all .15s}
-.sb-task:hover{border-color:rgba(255,255,255,.15)}
+/* SIDEBAR */
+.goal-sidebar{padding:.65rem;overflow-y:auto;background:var(--surface2);display:flex;flex-direction:column;gap:.25rem;max-height:520px}
+.sb-hdr{font-size:.58em;letter-spacing:.1em;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:.3rem;flex-shrink:0;display:flex;justify-content:space-between;align-items:center}
+.sb-task{display:flex;align-items:center;gap:.35rem;padding:.28rem .45rem;border-radius:5px;border:1px solid var(--border);border-left-width:3px;background:var(--surface);font-size:.67em;cursor:grab;user-select:none;transition:all .15s}
+.sb-task:hover{background:var(--surface2)}
 .sb-task.sb-selected{background:rgba(241,196,15,.06);border-right-color:#f1c40f;border-top-color:#f1c40f;border-bottom-color:#f1c40f}
 .sb-task.dragging{opacity:.3}
-.sb-check{width:13px;height:13px;accent-color:#f1c40f;cursor:pointer;flex-shrink:0}
-.tree-drop-root{min-height:30px;border:1px dashed var(--border2);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.62em;color:var(--dim);font-family:JetBrains Mono,monospace;transition:all .2s;padding:.35rem}
-.tree-drop-root.drag-over{border-color:#2ecc71;color:#2ecc71;background:rgba(46,204,113,.05)}
+.sb-check{width:12px;height:12px;accent-color:#f1c40f;cursor:pointer;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -1262,7 +1271,7 @@ function getAllTasks() {
 function makeNodeId() { return 'n'+Math.random().toString(36).slice(2,8); }
 function treeTaskIds(nodes=[]) {
   const ids=[];
-  for(const n of nodes){ if(n.type==='task')ids.push(n.taskId); ids.push(...treeTaskIds(n.children)); }
+  for(const n of nodes){ if(n.type==='task')ids.push(n.taskId); ids.push(...treeTaskIds(n.children||[])); }
   return ids;
 }
 function removeNodeFromTree(nodes,nodeId) {
@@ -1295,6 +1304,17 @@ function subProgress(node,allTasks) {
 }
 
 let fcDragNodeId=null,fcDragGoalId=null,fcDragTaskIds=[],sbSelected=new Set();
+const fcState={};  // per-goal: {scale,panX,panY}
+
+function getFcState(goalId) {
+  if(!fcState[goalId]) fcState[goalId]={scale:0.9,panX:60,panY:60};
+  return fcState[goalId];
+}
+
+function applyFcTransform(canvas,goalId) {
+  const s=getFcState(goalId);
+  canvas.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
+}
 
 function renderGoalsView(area) {
   area.className='goals-area';
@@ -1319,12 +1339,14 @@ function renderGoalsView(area) {
     const dlCol=dl===null?'var(--muted)':dl<0?'#e74c3c':dl<=14?'#f1c40f':'#2ecc71';
     const dlTxt=dl===null?'No deadline':dl<0?'Overdue '+Math.abs(dl)+'d':dl===0?'Today!':dl+'d left';
     const fill=pct===100?'#2ecc71':pct>50?'#3498db':pct>20?'#f1c40f':'#e74c3c';
+    const s=getFcState(goal.id);
 
     const card=document.createElement('div'); card.className='goal-card';
 
     // Header
     const chdr=document.createElement('div'); chdr.className='goal-card-hdr';
-    chdr.innerHTML='<div class="goal-card-hdr-left"><div class="goal-title">🎯 '+esc(goal.name)+'</div>'+
+    chdr.innerHTML='<div class="goal-card-hdr-left">'+
+      '<div class="goal-title">🎯 '+esc(goal.name)+'</div>'+
       '<div class="goal-meta"><span style="color:'+dlCol+'">📅 '+dlTxt+'</span><span>'+done+'/'+total+' done</span><span style="color:'+fill+'">'+pct+'%</span></div></div>'+
       '<div style="display:flex;gap:.4rem">'+
         '<button data-gid="'+goal.id+'" onclick="addSubgoalPrompt(this.dataset.gid)" class="admin-nudge-btn" style="color:#e67e22;border-color:rgba(230,126,34,.3)">📌 Sub-goal</button>'+
@@ -1332,58 +1354,87 @@ function renderGoalsView(area) {
       '</div>';
     card.appendChild(chdr);
 
-    // Progress
     const pw=document.createElement('div'); pw.className='goal-progress-wrap';
     pw.innerHTML='<div class="goal-progress-bar"><div class="goal-progress-fill" style="width:'+pct+'%;background:'+fill+'"></div></div>'+
-      '<div class="goal-progress-nums"><span>'+pct+'% complete</span><span>'+done+' / '+total+'</span></div>';
+      '<div class="goal-progress-nums"><span>'+pct+'% complete</span><span>'+done+'/'+total+'</span></div>';
     card.appendChild(pw);
 
-    // Body: flowchart + sidebar
     const body=document.createElement('div'); body.className='goal-body';
 
-    // Flowchart
-    const fw=document.createElement('div'); fw.className='flowchart-wrap';
+    // VIEWPORT
+    const vp=document.createElement('div'); vp.className='fc-viewport';
+    let isPanning=false,panStart=null;
+
+    vp.addEventListener('mousedown',e=>{
+      if(e.target.closest('.fc-box,.fc-subgoal,.fc-root,.sb-task,.fc-remove,.fc-zoom-btn'))return;
+      isPanning=true; vp.classList.add('panning');
+      panStart={x:e.clientX-s.panX,y:e.clientY-s.panY};
+    });
+    window.addEventListener('mousemove',e=>{
+      if(!isPanning)return;
+      s.panX=e.clientX-panStart.x; s.panY=e.clientY-panStart.y;
+      canvas.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
+    });
+    window.addEventListener('mouseup',()=>{ isPanning=false; vp.classList.remove('panning'); });
+    vp.addEventListener('wheel',e=>{
+      e.preventDefault();
+      const delta=e.deltaY>0?0.9:1.1;
+      s.scale=Math.min(3,Math.max(0.15,s.scale*delta));
+      canvas.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
+    },{passive:false});
+
+    // CANVAS
+    const canvas=document.createElement('div'); canvas.className='fc-canvas';
+    canvas.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
 
     // Root drop zone
     const rootDrop=document.createElement('div'); rootDrop.className='fc-root-drop';
     rootDrop.textContent='⬆ Drop here to make top-level';
-    setupFcDropZone(rootDrop,null,goal);
-    fw.appendChild(rootDrop);
+    setupFcDZ(rootDrop,null,goal,canvas,s);
+    canvas.appendChild(rootDrop);
 
-    // Root node
-    const rootWrap=document.createElement('div'); rootWrap.className='fc-col';
+    // Root col
+    const rootCol=document.createElement('div'); rootCol.className='fc-col';
     const rootBox=document.createElement('div'); rootBox.className='fc-root';
-    rootBox.textContent='🎯 '+esc(goal.name);
-    setupFcDropZone(rootBox,null,goal);
-    rootWrap.appendChild(rootBox);
+    rootBox.innerHTML='🎯 '+esc(goal.name);
+    setupFcDZ(rootBox,null,goal,canvas,s);
+    rootCol.appendChild(rootBox);
 
-    // Render children of root
+    // Children of root — subgoals horizontal, tasks vertical
     if((goal.tree||[]).length){
-      const childRow=buildFcChildRow(goal.tree,goal,allTasks);
-      rootWrap.appendChild(childRow);
+      const childEl=buildFcChildren(goal.tree,goal,allTasks,canvas,s,true);
+      rootCol.appendChild(childEl);
     }
-    fw.appendChild(rootWrap);
-    body.appendChild(fw);
+    canvas.appendChild(rootCol);
+    vp.appendChild(canvas);
 
-    // Sidebar
+    // Zoom controls
+    const zc=document.createElement('div'); zc.className='fc-zoom-controls';
+    const makeZBtn=(txt,fn)=>{const b=document.createElement('button');b.className='fc-zoom-btn';b.textContent=txt;b.onclick=fn;return b;};
+    zc.appendChild(makeZBtn('＋',()=>{s.scale=Math.min(3,s.scale*1.2);canvas.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;} ));
+    zc.appendChild(makeZBtn('－',()=>{s.scale=Math.max(0.15,s.scale*0.8);canvas.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;} ));
+    zc.appendChild(makeZBtn('⌂',()=>{s.scale=0.9;s.panX=60;s.panY=60;canvas.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;} ));
+    vp.appendChild(zc);
+    body.appendChild(vp);
+
+    // SIDEBAR
     const sb=document.createElement('div'); sb.className='goal-sidebar';
     const sbHdr=document.createElement('div'); sbHdr.className='sb-hdr';
     sbHdr.innerHTML='<span>UNPLACED ('+unplaced.length+')</span>'+
-      (unplaced.length ? '<button data-gid="' + goal.id + '" onclick="toggleAllSb(event,this.dataset.gid)" style="font-size:.85em;background:transparent;border:none;color:var(--muted);cursor:pointer">☐ All</button>' : '');
+      (unplaced.length?'<button data-gid="'+goal.id+'" onclick="toggleAllSb(event,this.dataset.gid)" style="font-size:.85em;background:transparent;border:none;color:var(--muted);cursor:pointer">☐ All</button>':'');
     sb.appendChild(sbHdr);
-
     if(!unplaced.length){
-      const done2=document.createElement('div');
-      done2.style.cssText='font-size:.65em;color:var(--dim);font-family:JetBrains Mono,monospace;text-align:center;padding:.75rem 0';
-      done2.textContent='All placed ✓'; sb.appendChild(done2);
+      const d=document.createElement('div');
+      d.style.cssText='font-size:.65em;color:var(--dim);font-family:JetBrains Mono,monospace;text-align:center;padding:.75rem 0';
+      d.textContent='All placed ✓'; sb.appendChild(d);
     } else {
       unplaced.forEach(task=>{
         const chip=document.createElement('div'); chip.className='sb-task'+(sbSelected.has(task.id)?' sb-selected':'');
         chip.style.borderLeftColor=task.subColor||'var(--border2)';
         chip.draggable=true; chip.dataset.taskId=task.id; chip.dataset.goalId=goal.id;
         const pri=task.priority==='high'?'🔴':task.priority==='medium'?'🟡':task.priority==='low'?'🟢':'';
-        const checkedAttr = sbSelected.has(task.id) ? ' checked' : '';
-        chip.innerHTML = '<input type="checkbox" class="sb-check" data-tid="' + task.id + '"' + checkedAttr + '>' +
+        const checked=sbSelected.has(task.id)?'checked':'';
+        chip.innerHTML='<input type="checkbox" class="sb-check" '+checked+'><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+esc(task.name)+'</span>'+
           (pri?'<span>'+pri+'</span>':'')+
           '<span style="font-size:.85em;color:var(--dim);flex-shrink:0;white-space:nowrap">'+esc(task.subLabel)+'</span>';
         chip.querySelector('.sb-check').addEventListener('change',e=>{
@@ -1393,17 +1444,12 @@ function renderGoalsView(area) {
         });
         chip.addEventListener('dragstart',e=>{
           fcDragNodeId=null; fcDragGoalId=goal.id;
-          // Drag all selected, or just this one
-          fcDragTaskIds=sbSelected.size>0?[...sbSelected]:[task.id];
-          if(!fcDragTaskIds.includes(task.id)) fcDragTaskIds=[task.id];
+          fcDragTaskIds=sbSelected.size>0&&sbSelected.has(task.id)?[...sbSelected]:[task.id];
           e.dataTransfer.setData('isSidebar','1');
           e.dataTransfer.effectAllowed='move';
           setTimeout(()=>chip.classList.add('dragging'),0);
         });
-        chip.addEventListener('dragend',()=>{
-          chip.classList.remove('dragging');
-          document.querySelectorAll('.fc-drag-over').forEach(x=>x.classList.remove('fc-drag-over'));
-        });
+        chip.addEventListener('dragend',()=>{ chip.classList.remove('dragging'); document.querySelectorAll('.fc-drag-over').forEach(x=>x.classList.remove('fc-drag-over')); });
         sb.appendChild(chip);
       });
     }
@@ -1413,138 +1459,134 @@ function renderGoalsView(area) {
   });
 }
 
-function toggleAllSb(e,goalId) {
-  const allTasks=getAllTasks();
-  const goal=(store.goals||[]).find(g=>g.id===goalId);
-  if(!goal)return;
-  const placed=new Set(treeTaskIds(goal.tree||[]));
-  const unplaced=allTasks.filter(t=>!placed.has(t.id));
-  if(sbSelected.size>0){ sbSelected.clear(); e.target.textContent='☐ All'; }
-  else { unplaced.forEach(t=>sbSelected.add(t.id)); e.target.textContent='☑ All'; }
-  renderBoard();
-}
+// Build children: horizontal for subgoals, vertical for tasks
+function buildFcChildren(nodes,goal,allTasks,canvas,s,isRoot=false) {
+  const subgoals=nodes.filter(n=>n.type==='subgoal');
+  const tasks=nodes.filter(n=>n.type==='task');
+  const wrap=document.createElement('div'); wrap.className='fc-col';
 
-function buildFcChildRow(nodes,goal,allTasks) {
-  const row=document.createElement('div'); row.className='fc-children-row';
-  nodes.forEach(node=>{
-    const branch=document.createElement('div'); branch.className='fc-branch';
-    const el=buildFcNode(node,goal,allTasks);
-    branch.appendChild(el); row.appendChild(branch);
-  });
-  return row;
-}
-
-function buildFcNode(node,goal,allTasks) {
-  if(node.type==='task') return buildFcTaskNode(node,goal,allTasks);
-  if(node.type==='subgoal') return buildFcSubgoalNode(node,goal,allTasks);
-  return document.createElement('div');
-}
-
-function buildFcTaskNode(node,goal,allTasks) {
-  const task=allTasks.find(t=>t.id===node.taskId);
-  if(!task){ const d=document.createElement('div'); return d; }
-  const sub=SUBS.find(s=>s.id===task.subId);
-  const statusCls=task.status==='done'?'done':task.status==='inprogress'?'inprogress':'';
-  const pri=task.priority==='high'?'🔴':task.priority==='medium'?'🟡':task.priority==='low'?'🟢':'';
-  const icon=task.status==='done'?'✅':task.status==='inprogress'?'◑':'–';
-
-  const wrap=document.createElement('div'); wrap.className='fc-node-wrap';
-  const box=document.createElement('div'); box.className='fc-box '+statusCls;
-  box.style.borderLeftColor=sub?.color||'var(--border2)';
-  box.draggable=true; box.dataset.nodeId=node.nodeId; box.dataset.goalId=goal.id;
-  box.innerHTML='<span style="color:var(--dim);cursor:grab;font-size:.8em">⠿</span>'+
-    '<span style="color:var(--muted)">'+icon+'</span>'+
-    '<span style="overflow:hidden;text-overflow:ellipsis">'+esc(task.name)+'</span>'+
-    (pri?'<span>'+pri+'</span>':'')+
-    '<span class="fc-remove" data-gid="' + goal.id + '" data-nid="' + node.nodeId + '" onclick="event.stopPropagation();removeFromTree(this.dataset.gid,this.dataset.nid)">✕</span>';
-  box.onclick=()=>openEditModal(task.subId,task.id);
-  setupFcDrag(box,node.nodeId,goal);
-  setupFcDropZone(box,node.nodeId,goal);
-  wrap.appendChild(box);
-
-  if((node.children||[]).length){
-    const cr=buildFcChildRow(node.children,goal,allTasks);
-    wrap.appendChild(cr);
+  // Subgoals horizontal
+  if(subgoals.length) {
+    const row=document.createElement('div'); row.className='fc-h-row';
+    subgoals.forEach(node=>{
+      const branch=document.createElement('div'); branch.className='fc-branch';
+      branch.appendChild(buildFcSubgoalNode(node,goal,allTasks,canvas,s));
+      row.appendChild(branch);
+    });
+    wrap.appendChild(row);
+  }
+  // Tasks vertical
+  if(tasks.length) {
+    const vstack=document.createElement('div'); vstack.className='fc-v-stack';
+    tasks.forEach((node,i)=>{
+      const item=document.createElement('div'); item.className='fc-v-item';
+      item.appendChild(buildFcTaskNode(node,goal,allTasks,canvas,s));
+      vstack.appendChild(item);
+    });
+    wrap.appendChild(vstack);
   }
   return wrap;
 }
 
-function buildFcSubgoalNode(node,goal,allTasks) {
+function buildFcTaskNode(node,goal,allTasks,canvas,s) {
+  const task=allTasks.find(t=>t.id===node.taskId);
+  if(!task){const d=document.createElement('div');return d;}
+  const sub=SUBS.find(ss=>ss.id===task.subId);
+  const sc=task.status==='done'?'done':task.status==='inprogress'?'inprogress':'';
+  const pri=task.priority==='high'?'🔴':task.priority==='medium'?'🟡':task.priority==='low'?'🟢':'';
+  const icon=task.status==='done'?'✅':task.status==='inprogress'?'◑':'–';
+
+  const wrap=document.createElement('div'); wrap.className='fc-col';
+  const box=document.createElement('div'); box.className='fc-box '+sc;
+  box.style.borderLeftColor=sub?.color||'var(--border2)';
+  box.draggable=true; box.dataset.nodeId=node.nodeId; box.dataset.goalId=goal.id;
+  box.innerHTML='<span style="color:var(--dim);cursor:grab;font-size:.8em">⠿</span>'+
+    '<span style="color:var(--muted)">'+icon+'</span>'+
+    '<span style="overflow:hidden;text-overflow:ellipsis;max-width:150px">'+esc(task.name)+'</span>'+
+    (pri?'<span>'+pri+'</span>':'')+
+    '<span class="fc-remove" data-gid="'+goal.id+'" data-nid="'+node.nodeId+'" onclick="event.stopPropagation();removeFromTree(this.dataset.gid,this.dataset.nid)">✕</span>';
+  box.onclick=()=>openEditModal(task.subId,task.id);
+  setupFcDrag(box,node.nodeId,goal,canvas,s);
+  setupFcDZ(box,node.nodeId,goal,canvas,s);
+  wrap.appendChild(box);
+
+  if((node.children||[]).length){
+    const ch=buildFcChildren(node.children,goal,allTasks,canvas,s);
+    wrap.appendChild(ch);
+  }
+  return wrap;
+}
+
+function buildFcSubgoalNode(node,goal,allTasks,canvas,s) {
   const{done,total,pct}=subProgress(node,allTasks);
   const dl=node.deadline?Math.round((parseDmy(node.deadline)-Date.now())/86400000):null;
   const dlCol=dl===null?'var(--muted)':dl<0?'#e74c3c':dl<=7?'#f1c40f':'#2ecc71';
   const fill=pct===100?'#2ecc71':pct>50?'#3498db':'#f1c40f';
 
-  const wrap=document.createElement('div'); wrap.className='fc-node-wrap';
+  const wrap=document.createElement('div'); wrap.className='fc-col';
   const box=document.createElement('div'); box.className='fc-subgoal';
   box.draggable=true; box.dataset.nodeId=node.nodeId; box.dataset.goalId=goal.id;
-  box.innerHTML='<span style="cursor:grab;color:rgba(230,126,34,.5)">⠿</span> 📌 '+esc(node.name)+
-    (node.deadline?'<span style="font-size:.6em;font-family:JetBrains Mono,monospace;color:'+dlCol+';margin-left:.35rem">'+esc(node.deadline)+'</span>':'')+
-    '<span style="font-size:.6em;font-family:JetBrains Mono,monospace;color:var(--muted);margin-left:.4rem">'+done+'/'+total+'</span>'+
-    '<div style="width:40px;height:3px;background:var(--bg);border-radius:2px;margin-left:.4rem;overflow:hidden;display:inline-block;vertical-align:middle"><div style="height:100%;width:'+pct+'%;background:'+fill+'"></div></div>'+
-    '<span class="fc-remove" data-gid="' + goal.id + '" data-nid="' + node.nodeId + '" onclick="event.stopPropagation();removeFromTree(this.dataset.gid,this.dataset.nid)">✕</span>';
+  box.innerHTML='<div style="display:flex;align-items:center;gap:.4rem;width:100%">'+
+    '<span style="cursor:grab;color:rgba(230,126,34,.5);font-size:.85em">⠿</span>'+
+    '<span>📌 '+esc(node.name)+'</span>'+
+    (node.deadline?'<span style="font-size:.58em;font-family:JetBrains Mono,monospace;color:'+dlCol+';margin-left:auto">'+esc(node.deadline)+'</span>':'')+
+    '<span class="fc-remove" data-gid="'+goal.id+'" data-nid="'+node.nodeId+'" onclick="event.stopPropagation();removeFromTree(this.dataset.gid,this.dataset.nid)">✕</span>'+
+    '</div>'+
+    '<div style="display:flex;align-items:center;gap:.4rem;margin-top:.3rem;font-size:.7em;font-weight:400;color:var(--muted)">'+
+      '<div style="flex:1;height:3px;background:var(--bg);border-radius:2px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+fill+'"></div></div>'+
+      '<span style="font-family:JetBrains Mono,monospace;font-size:.85em">'+done+'/'+total+'</span>'+
+    '</div>';
   box.onclick=()=>openEditSubgoalModal(node,goal.id);
-  setupFcDrag(box,node.nodeId,goal);
-  setupFcDropZone(box,node.nodeId,goal);
+  setupFcDrag(box,node.nodeId,goal,canvas,s);
+  setupFcDZ(box,node.nodeId,goal,canvas,s);
   wrap.appendChild(box);
 
-  // Drop hint inside subgoal
-  const hint=document.createElement('div'); hint.className='fc-drop-hint';
-  hint.textContent='+ Drop inside';
-  setupFcDropZone(hint,node.nodeId,goal);
-  wrap.appendChild(hint);
+  const dropInside=document.createElement('div'); dropInside.className='fc-drop-inside';
+  dropInside.textContent='+ Drop inside';
+  setupFcDZ(dropInside,node.nodeId,goal,canvas,s);
+  wrap.appendChild(dropInside);
 
   if((node.children||[]).length){
-    const cr=buildFcChildRow(node.children,goal,allTasks);
-    wrap.appendChild(cr);
+    const ch=buildFcChildren(node.children,goal,allTasks,canvas,s);
+    wrap.appendChild(ch);
   }
   return wrap;
 }
 
-function setupFcDrag(el,nodeId,goal) {
+function setupFcDrag(el,nodeId,goal,canvas,s) {
   el.addEventListener('dragstart',e=>{
     fcDragNodeId=nodeId; fcDragGoalId=goal.id; fcDragTaskIds=[];
     e.dataTransfer.effectAllowed='move';
     setTimeout(()=>el.classList.add('dragging'),0);
   });
-  el.addEventListener('dragend',()=>{
-    el.classList.remove('dragging');
-    document.querySelectorAll('.fc-drag-over').forEach(x=>x.classList.remove('fc-drag-over'));
-  });
+  el.addEventListener('dragend',()=>{ el.classList.remove('dragging'); document.querySelectorAll('.fc-drag-over').forEach(x=>x.classList.remove('fc-drag-over')); });
 }
 
-function setupFcDropZone(el,parentNodeId,goal) {
+function setupFcDZ(el,parentNodeId,goal,canvas,s) {
   el.addEventListener('dragover',e=>{ e.preventDefault(); e.stopPropagation(); el.classList.add('fc-drag-over'); });
-  el.addEventListener('dragleave',e=>{ el.classList.remove('fc-drag-over'); });
+  el.addEventListener('dragleave',()=>{ el.classList.remove('fc-drag-over'); });
   el.addEventListener('drop',async e=>{
     e.preventDefault(); e.stopPropagation();
     el.classList.remove('fc-drag-over');
     document.querySelectorAll('.fc-drag-over').forEach(x=>x.classList.remove('fc-drag-over'));
     const isSidebar=e.dataTransfer.getData('isSidebar')==='1';
     if(!goal.tree)goal.tree=[];
-
     if(isSidebar && fcDragGoalId===goal.id) {
-      // Drop one or more tasks from sidebar
+      const placed=new Set(treeTaskIds(goal.tree));
       for(const taskId of fcDragTaskIds){
-        const existing=treeTaskIds(goal.tree).includes(taskId);
-        if(!existing){
-          const newNode={nodeId:makeNodeId(),type:'task',taskId,children:[]};
-          insertNodeInTree(goal.tree,parentNodeId,newNode);
-        }
+        if(!placed.has(taskId)) insertNodeInTree(goal.tree,parentNodeId,{nodeId:makeNodeId(),type:'task',taskId,children:[]});
       }
       sbSelected.clear();
       renderBoard();
-      try{ await saveData(); toast(fcDragTaskIds.length+' task(s) added','success'); }catch{ toast('Save failed','error'); }
+      try{await saveData();toast(fcDragTaskIds.length+' task(s) added','success');}catch{toast('Save failed','error');}
     } else if(fcDragNodeId && fcDragGoalId===goal.id && fcDragNodeId!==parentNodeId) {
-      // Move existing node
       const node=findNode(goal.tree,fcDragNodeId);
       if(!node)return;
-      // Prevent nesting inside own descendant
-      if(parentNodeId && findNode(node.children||[],parentNodeId)){ toast('Cannot nest parent inside child','error'); return; }
+      if(parentNodeId && findNode(node.children||[],parentNodeId)){toast('Cannot nest parent inside child','error');return;}
       removeNodeFromTree(goal.tree,fcDragNodeId);
       insertNodeInTree(goal.tree,parentNodeId,node);
       renderBoard();
-      try{ await saveData(); toast('Moved','success'); }catch{ toast('Save failed','error'); }
+      try{await saveData();toast('Moved','success');}catch{toast('Save failed','error');}
     }
   });
 }
@@ -1554,7 +1596,17 @@ async function removeFromTree(goalId,nodeId) {
   if(!goal)return;
   removeNodeFromTree(goal.tree,nodeId);
   renderBoard();
-  try{ await saveData(); toast('Removed','success'); }catch{}
+  try{await saveData();toast('Removed','success');}catch{}
+}
+
+function toggleAllSb(e,goalId) {
+  const at=getAllTasks(),goal=(store.goals||[]).find(g=>g.id===goalId);
+  if(!goal)return;
+  const placed=new Set(treeTaskIds(goal.tree||[]));
+  const unplaced=at.filter(t=>!placed.has(t.id));
+  if(sbSelected.size>0){sbSelected.clear();e.target.textContent='☐ All';}
+  else{unplaced.forEach(t=>sbSelected.add(t.id));e.target.textContent='☑ All';}
+  renderBoard();
 }
 
 function openAddGoalModal() {
