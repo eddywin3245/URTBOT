@@ -1711,58 +1711,30 @@ function renderAdminView(area) {
     '<button onclick="lockAdmin()" style="padding:.3rem .7rem;background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">🔒 Lock</button>';
   area.appendChild(hdr);
 
-  // 1. Task Overview + Nudge
-  const overviewSec = document.createElement('div');
-  overviewSec.className = 'admin-section';
-  overviewSec.innerHTML = '<div class="admin-section-hdr"><div class="admin-section-title">📋 Task Overview — Click to nudge team lead</div></div>';
-  const overviewBody = document.createElement('div');
-  overviewBody.className = 'admin-section-body';
-
-  SUBS.forEach(sub => {
-    const tasks = (store.tasks[sub.id] || []).filter(t => t.status !== 'done');
-    const done  = (store.tasks[sub.id] || []).filter(t => t.status === 'done').length;
-    const total = (store.tasks[sub.id] || []).length;
-    const pct   = total === 0 ? 0 : Math.round(done / total * 100);
-
-    const row = document.createElement('div');
-    row.className = 'admin-sub-row';
-    const nameDiv = document.createElement('div');
-    nameDiv.className = 'admin-sub-name';
-    nameDiv.innerHTML = '<div style="width:8px;height:8px;border-radius:50%;background:' + sub.color + ';flex-shrink:0"></div>' +
-      esc(sub.label) + '<span style="font-size:.75em;color:var(--muted);font-weight:400">' + done + '/' + total + '</span>';
-    row.appendChild(nameDiv);
-
-    const taskList = document.createElement('div');
-    taskList.className = 'admin-task-list';
-    if (tasks.length === 0) {
-      taskList.innerHTML = '<div style="font-size:.68em;color:var(--dim);font-family:JetBrains Mono,monospace;padding:.3rem 0">All done ✓</div>';
-    } else {
-      tasks.slice(0, 6).forEach(task => {
-        const item = document.createElement('div');
-        item.className = 'admin-task-item';
-        const who = task.assignees?.length ? task.assignees.map(id => memberName(id)).join(', ') : 'unassigned';
-        const pri = task.priority ? ' ' + (task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : '🟢') : '';
-        const statusIcon = task.status === 'inprogress' ? '◑ ' : '– ';
-        item.innerHTML =
-          '<div class="admin-task-name"><span>' + statusIcon + esc(task.name) + pri + '</span>' +
-          '<span style="color:var(--dim);font-size:.9em;flex-shrink:0;margin-left:.4rem">👤 ' + esc(who) + '</span></div>' +
-          '<button class="admin-nudge-btn" data-sub="' + sub.id + '" data-task="' + task.id + '">📣 Nudge</button>';
-        item.querySelector('.admin-nudge-btn').addEventListener('click', e => {
-          e.stopPropagation();
-          openNudgeModal(sub.id, task.id);
-        });
-        item.addEventListener('click', () => openEditModal(sub.id, task.id));
-        taskList.appendChild(item);
-      });
-      if (tasks.length > 6) {
-        taskList.innerHTML += '<div style="font-size:.65em;color:var(--dim);font-family:JetBrains Mono,monospace;padding:.2rem .5rem">...and ' + (tasks.length - 6) + ' more</div>';
-      }
-    }
-    row.appendChild(taskList);
-    overviewBody.appendChild(row);
+  // 1. Notepad — one large free-form notepad for the project lead
+  const notepadSec = document.createElement('div');
+  notepadSec.className = 'admin-section';
+  notepadSec.innerHTML = '<div class="admin-section-hdr"><div class="admin-section-title">📓 Project Lead Notepad</div><span style="font-size:.6em;color:var(--dim);font-family:JetBrains Mono,monospace">Auto-saves</span></div>';
+  const notepadBody = document.createElement('div');
+  notepadBody.className = 'admin-section-body';
+  if (!store.adminNotes) store.adminNotes = {};
+  const notepad = document.createElement('textarea');
+  notepad.className = 'admin-note-area';
+  notepad.style.minHeight = '200px';
+  notepad.style.width = '100%';
+  notepad.placeholder = 'Your private notes, ideas, to-dos...';
+  notepad.value = store.adminNotes['__notepad__'] || '';
+  let notepadTimer = null;
+  notepad.addEventListener('input', () => {
+    clearTimeout(notepadTimer);
+    notepadTimer = setTimeout(async () => {
+      store.adminNotes['__notepad__'] = notepad.value;
+      try { await saveData(); toast('Saved', 'success'); } catch { toast('Save failed', 'error'); }
+    }, 1000);
   });
-  overviewSec.appendChild(overviewBody);
-  area.appendChild(overviewSec);
+  notepadBody.appendChild(notepad);
+  notepadSec.appendChild(notepadBody);
+  area.appendChild(notepadSec);
 
   // 2. Private Subsystem Notes
   const notesSec = document.createElement('div');
