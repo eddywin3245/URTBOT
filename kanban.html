@@ -272,6 +272,35 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .admin-cal-cell.has-reminder{border-color:rgba(241,196,15,.4);background:rgba(241,196,15,.05)}
 .admin-cal-date{color:var(--muted);margin-bottom:.2rem}
 .admin-cal-chip{background:rgba(241,196,15,.2);color:#f1c40f;border-radius:3px;padding:.1rem .3rem;margin-bottom:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+
+/* GOALS */
+.goals-area{padding:var(--pad);display:flex;flex-direction:column;gap:1.25rem;max-width:1100px;margin:0 auto}
+.goal-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:box-shadow .2s}
+.goal-card:hover{box-shadow:0 4px 20px rgba(0,0,0,.25)}
+.goal-card-hdr{padding:.85rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem;cursor:pointer}
+.goal-card-hdr-left{flex:1;min-width:0}
+.goal-title{font-size:.88em;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.goal-meta{font-size:.62em;font-family:'JetBrains Mono',monospace;color:var(--muted);margin-top:.15rem}
+.goal-progress-wrap{padding:.6rem 1rem;border-bottom:1px solid var(--border);background:var(--surface2)}
+.goal-progress-bar{height:6px;background:var(--bg);border-radius:3px;overflow:hidden;margin:.3rem 0}
+.goal-progress-fill{height:100%;border-radius:3px;transition:width .6s ease}
+.goal-progress-nums{display:flex;justify-content:space-between;font-size:.6em;font-family:'JetBrains Mono',monospace;color:var(--muted)}
+.goal-tree{padding:.75rem 1rem;overflow-x:auto}
+.tree-node{display:flex;flex-direction:column;gap:.3rem}
+.tree-row{display:flex;align-items:flex-start;gap:0}
+.tree-connector{display:flex;flex-direction:column;align-items:center;width:24px;flex-shrink:0}
+.tree-vert{width:1px;background:var(--border2);flex:1;min-height:8px}
+.tree-horiz{display:flex;align-items:center;gap:0;padding-top:14px}
+.tree-h-line{width:16px;height:1px;background:var(--border2);flex-shrink:0}
+.tree-task-chip{display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .65rem;border-radius:7px;font-size:.72em;border:1px solid var(--border2);background:var(--surface2);cursor:pointer;transition:all .15s;max-width:300px}
+.tree-task-chip:hover{border-color:var(--border2);background:var(--surface3)}
+.tree-task-chip.done{opacity:.5;text-decoration:line-through}
+.tree-task-chip.inprogress{border-color:rgba(52,152,219,.4);background:rgba(52,152,219,.06)}
+.tree-task-chip.blocked{border-color:rgba(231,76,60,.3);background:rgba(231,76,60,.05)}
+.tree-children{margin-left:24px;border-left:1px solid var(--border2);padding-left:8px;display:flex;flex-direction:column;gap:.4rem;margin-top:.4rem}
+.goal-add-task-btn{margin:.5rem 1rem 1rem;display:inline-flex;align-items:center;gap:.4rem;padding:.35rem .75rem;background:transparent;border:1px dashed var(--border2);border-radius:7px;color:var(--dim);font-size:.68em;font-family:'JetBrains Mono',monospace;cursor:pointer;transition:all .2s}
+.goal-add-task-btn:hover{border-color:var(--border2);color:var(--muted)}
+.goal-empty{font-size:.72em;color:var(--dim);font-family:'JetBrains Mono',monospace;padding:1rem;text-align:center}
 </style>
 </head>
 <body>
@@ -383,6 +412,7 @@ async function loadData() {
   if (!store.members)   store.members   = {};
   if (!store.milestones) store.milestones = [];
   if (!store.meetings)   store.meetings   = [];
+  if (!store.goals)     store.goals     = [];
   SUBS.forEach(s => {
     if (!store.tasks[s.id]) store.tasks[s.id] = [];
     store.tasks[s.id].forEach(t => {
@@ -462,6 +492,7 @@ function renderTabs() {
   const allTot = Object.values(store.tasks).flat().length;
   bar.appendChild(makeTab('all',      'All',      '#3498db', allRem, allTot));
   bar.appendChild(makeTab('calendar', '📅 Calendar', '#9b59b6', null, null));
+  bar.appendChild(makeTab('goals',   '🎯 Goals',   '#e67e22', null, null));
   bar.appendChild(makeTab('finance', '💰 Finance' + (financeUnlocked ? ' 🔓' : ' 🔒'), '#2ecc71', null, null));
   bar.appendChild(makeTab('lead-panel', '🔐 Lead Panel' + (adminUnlocked ? ' 🔓' : ' 🔒'), '#e74c3c', null, null));
   SUBS.forEach(sub => {
@@ -494,6 +525,7 @@ function renderBoard() {
   const area = document.getElementById('main-area');
   if      (activeTab === 'all')      renderAllView(area);
   else if (activeTab === 'calendar') renderCalendarView(area);
+  else if (activeTab === 'goals')    renderGoalsView(area);
   else if (activeTab === 'finance')  renderFinanceView(area);
   else if (activeTab === 'lead-panel')    renderAdminView(area);
   else                               renderSubView(area, activeTab);
@@ -1196,6 +1228,323 @@ async function removeCheckIn(subId, taskId, index) {
   task.checkIns.splice(index, 1);
   document.getElementById('checkin-list').innerHTML = buildCheckInDisplay(task, subId, taskId);
   try { await saveData(); toast('Check-in removed', 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
+// ── GOALS ──
+
+function getAllTasks() {
+  const all = [];
+  for (const sub of SUBS) {
+    for (const task of store.tasks[sub.id] || []) {
+      all.push({ ...task, subId: sub.id, subLabel: sub.label, subColor: sub.color });
+    }
+  }
+  return all;
+}
+
+function getGoalProgress(goal) {
+  const all = getAllTasks();
+  const linked = all.filter(t => (goal.taskIds || []).includes(t.id));
+  const done = linked.filter(t => t.status === 'done').length;
+  return { done, total: linked.length, pct: linked.length === 0 ? 0 : Math.round(done / linked.length * 100) };
+}
+
+function buildTaskTree(taskId, allTasks, visited = new Set()) {
+  if (visited.has(taskId)) return null;
+  visited.add(taskId);
+  const task = allTasks.find(t => t.id === taskId);
+  if (!task) return null;
+  const children = allTasks
+    .filter(t => (t.dependsOn || []).includes(taskId))
+    .map(t => buildTaskTree(t.id, allTasks, visited))
+    .filter(Boolean);
+  return { task, children };
+}
+
+function renderTreeNode(node, goalId, depth = 0) {
+  const { task, children } = node;
+  const statusCls = task.status === 'done' ? 'done' : task.status === 'inprogress' ? 'inprogress' : '';
+  const pri = task.priority ? ' ' + (task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : '🟢') : '';
+  const sub = SUBS.find(s => s.id === task.subId);
+  const dot = sub ? '<span style="width:7px;height:7px;border-radius:50%;background:' + sub.color + ';flex-shrink:0;display:inline-block"></span>' : '';
+  const statusIcon = task.status === 'done' ? '✅' : task.status === 'inprogress' ? '◑' : '–';
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:.35rem';
+
+  const chipRow = document.createElement('div');
+  chipRow.style.display = 'flex';
+  chipRow.style.alignItems = 'center';
+  chipRow.style.gap = '.4rem';
+
+  const chip = document.createElement('div');
+  chip.className = 'tree-task-chip ' + statusCls;
+  chip.style.borderLeftColor = sub?.color || 'var(--border2)';
+  chip.innerHTML = dot + '<span style="color:var(--muted);flex-shrink:0">' + statusIcon + '</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(task.name) + pri + '</span>' + (task.dueDate ? '<span style="color:var(--dim);font-size:.85em;flex-shrink:0">📅 ' + esc(task.dueDate) + '</span>' : '');
+  chip.onclick = () => openEditModal(task.subId, task.id);
+
+  const removeBtn = document.createElement('button');
+  removeBtn.title = 'Remove from goal';
+  removeBtn.innerHTML = '✕';
+  removeBtn.style.cssText = 'background:none;border:none;color:var(--dim);cursor:pointer;font-size:.75em;padding:.1rem .3rem;flex-shrink:0';
+  removeBtn.onclick = (e) => { e.stopPropagation(); removeTaskFromGoal(goalId, task.id); };
+
+  chipRow.appendChild(chip);
+  chipRow.appendChild(removeBtn);
+  wrap.appendChild(chipRow);
+
+  if (children.length) {
+    const childWrap = document.createElement('div');
+    childWrap.className = 'tree-children';
+    for (const child of children) {
+      const childNode = renderTreeNode(child, goalId, depth + 1);
+      if (childNode) childWrap.appendChild(childNode);
+    }
+    wrap.appendChild(childWrap);
+  }
+  return wrap;
+}
+
+function renderGoalsView(area) {
+  area.className = 'goals-area';
+  area.innerHTML = '';
+
+  // Header
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between';
+  hdr.innerHTML = '<div style="font-size:.85em;font-weight:700;color:var(--text)">🎯 Team Goals</div>' +
+    '<button onclick="openAddGoalModal()" class="mbtn primary" style="font-size:.72em">+ Add Goal</button>';
+  area.appendChild(hdr);
+
+  const goals = store.goals || [];
+  if (!goals.length) {
+    const empty = document.createElement('div');
+    empty.className = 'goal-empty';
+    empty.style.padding = '3rem';
+    empty.innerHTML = '🎯<br><br>No goals yet — click <strong>+ Add Goal</strong> to create one';
+    area.appendChild(empty);
+    return;
+  }
+
+  const allTasks = getAllTasks();
+
+  goals.forEach(goal => {
+    const { done, total, pct } = getGoalProgress(goal);
+    const daysLeft = goal.deadline ? Math.round((parseDmy(goal.deadline) - Date.now()) / 86400000) : null;
+    const deadlineColor = daysLeft === null ? 'var(--muted)' : daysLeft < 0 ? '#e74c3c' : daysLeft <= 7 ? '#f1c40f' : '#2ecc71';
+    const deadlineText = daysLeft === null ? '' : daysLeft < 0 ? 'Overdue by ' + Math.abs(daysLeft) + 'd' : daysLeft === 0 ? 'Due today!' : daysLeft + 'd remaining';
+
+    const card = document.createElement('div');
+    card.className = 'goal-card';
+
+    // Header
+    const cardHdr = document.createElement('div');
+    cardHdr.className = 'goal-card-hdr';
+    cardHdr.innerHTML =
+      '<div class="goal-card-hdr-left">' +
+        '<div class="goal-title">' + esc(goal.name) + '</div>' +
+        '<div class="goal-meta">' +
+          (goal.deadline ? '📅 ' + esc(goal.deadline) + (deadlineText ? ' · <span style="color:' + deadlineColor + '">' + deadlineText + '</span>' : '') : 'No deadline') +
+          ' · ' + done + '/' + total + ' tasks done' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:.4rem">' +
+        '<button data-gid="' + goal.id + '" onclick="event.stopPropagation();openAddTaskToGoalModal(this.dataset.gid)" class="admin-nudge-btn">+ Task</button>' +
+        '<button data-gid="' + goal.id + '" onclick="event.stopPropagation();openEditGoalModal(this.dataset.gid)" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">✎</button>' +
+      '</div>';
+    card.appendChild(cardHdr);
+
+    // Progress
+    const progWrap = document.createElement('div');
+    progWrap.className = 'goal-progress-wrap';
+    const fillColor = pct === 100 ? '#2ecc71' : pct > 50 ? '#f1c40f' : '#e74c3c';
+    progWrap.innerHTML =
+      '<div class="goal-progress-bar"><div class="goal-progress-fill" style="width:' + pct + '%;background:' + fillColor + '"></div></div>' +
+      '<div class="goal-progress-nums"><span>' + pct + '% complete</span><span>' + done + ' / ' + total + ' tasks</span></div>';
+    card.appendChild(progWrap);
+
+    // Tree
+    const treeWrap = document.createElement('div');
+    treeWrap.className = 'goal-tree';
+
+    if (!total) {
+      treeWrap.innerHTML = '<div class="goal-empty">No tasks linked yet — click + Task to add some</div>';
+    } else {
+      // Build tree: find root tasks (tasks in this goal whose dependsOn are NOT in this goal)
+      const goalTaskIds = new Set(goal.taskIds || []);
+      const goalTasks = allTasks.filter(t => goalTaskIds.has(t.id));
+      const roots = goalTasks.filter(t => !(t.dependsOn || []).some(d => goalTaskIds.has(d)));
+      
+      if (!roots.length) {
+        // Circular or all have deps — just show flat list
+        goalTasks.forEach(t => {
+          const chip = document.createElement('div');
+          chip.style.marginBottom = '.35rem';
+          const node = renderTreeNode({ task: t, children: [] }, goal.id);
+          if (node) chip.appendChild(node);
+          treeWrap.appendChild(chip);
+        });
+      } else {
+        roots.forEach((rootTask, i) => {
+          const tree = buildTaskTree(rootTask.id, goalTasks);
+          if (tree) {
+            const node = renderTreeNode(tree, goal.id);
+            if (node) {
+              if (i > 0) node.style.marginTop = '.5rem';
+              treeWrap.appendChild(node);
+            }
+          }
+        });
+      }
+    }
+    card.appendChild(treeWrap);
+    area.appendChild(card);
+  });
+}
+
+function openAddGoalModal() {
+  showModal(
+    '<div class="modal-title">🎯 New Goal</div>' +
+    '<div class="mfield"><label>GOAL NAME</label><input type="text" id="goal-name" placeholder="e.g. Complete rover for ARCh 2027" maxlength="100"></div>' +
+    '<div class="mfield"><label>DEADLINE (optional)</label><input type="date" id="goal-deadline" style="color-scheme:dark"></div>' +
+    '<div class="mfield"><label>DESCRIPTION (optional)</label><textarea id="goal-desc" rows="2" placeholder="What does achieving this goal mean?"></textarea></div>' +
+    '<div class="modal-footer">' +
+      '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>' +
+      '<button class="mbtn primary" onclick="addGoal()">Create Goal</button>' +
+    '</div>'
+  );
+  setTimeout(() => document.getElementById('goal-name')?.focus(), 50);
+}
+
+async function addGoal() {
+  const name = document.getElementById('goal-name').value.trim();
+  const deadlineRaw = document.getElementById('goal-deadline').value;
+  const desc = document.getElementById('goal-desc').value.trim();
+  if (!name) { alert('Goal name is required.'); return; }
+  if (!store.goals) store.goals = [];
+  store.goals.push({ id: makeId(), name, deadline: deadlineRaw ? ymdToDmy(deadlineRaw) : null, description: desc || null, taskIds: [], addedAt: Date.now() });
+  closeModal();
+  renderBoard();
+  try { await saveData(); toast('Goal created!', 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
+function openEditGoalModal(goalId) {
+  const goal = (store.goals || []).find(g => g.id === goalId);
+  if (!goal) return;
+  showModal(
+    '<div class="modal-title">✎ Edit Goal</div>' +
+    '<div class="mfield"><label>GOAL NAME</label><input type="text" id="goal-name" value="' + esc(goal.name) + '" maxlength="100"></div>' +
+    '<div class="mfield"><label>DEADLINE</label><input type="date" id="goal-deadline" value="' + esc(goal.deadline ? dmyToYmd(goal.deadline) : '') + '" style="color-scheme:dark"></div>' +
+    '<div class="mfield"><label>DESCRIPTION</label><textarea id="goal-desc" rows="2">' + esc(goal.description || '') + '</textarea></div>' +
+    '<div class="modal-footer">' +
+      '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>' +
+      '<button class="mbtn danger" data-gid="' + goal.id + '" onclick="deleteGoal(this.dataset.gid)">Delete</button>' +
+      '<button class="mbtn primary" data-gid="' + goal.id + '" onclick="saveGoal(this.dataset.gid)">Save</button>' +
+    '</div>'
+  );
+}
+
+async function saveGoal(goalId) {
+  const goal = (store.goals || []).find(g => g.id === goalId);
+  if (!goal) return;
+  goal.name = document.getElementById('goal-name').value.trim();
+  const dr = document.getElementById('goal-deadline').value;
+  goal.deadline = dr ? ymdToDmy(dr) : null;
+  goal.description = document.getElementById('goal-desc').value.trim() || null;
+  closeModal(); renderBoard();
+  try { await saveData(); toast('Goal saved', 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
+async function deleteGoal(goalId) {
+  if (!confirm('Delete this goal?')) return;
+  store.goals = (store.goals || []).filter(g => g.id !== goalId);
+  closeModal(); renderBoard();
+  try { await saveData(); toast('Goal deleted', 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
+function openAddTaskToGoalModal(goalId) {
+  const goal = (store.goals || []).find(g => g.id === goalId);
+  if (!goal) return;
+  const allTasks = getAllTasks();
+  const linked = new Set(goal.taskIds || []);
+
+  showModal(
+    '<div class="modal-title">+ Add Task to Goal</div>' +
+    '<div style="font-size:.75em;color:var(--muted);margin-bottom:.75rem">Pick an existing task or create a new one</div>' +
+
+    // Existing tasks picker
+    '<div class="mfield"><label>EXISTING TASK</label>' +
+    '<input type="text" id="goal-task-search" placeholder="Search tasks..." oninput="filterGoalTasks()" style="width:100%;padding:.45rem .7rem;background:var(--bg);border:1px solid var(--border2);border-bottom:none;border-radius:7px 7px 0 0;color:var(--text);font-size:.78em;outline:none">' +
+    '<div id="goal-task-list" style="max-height:150px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 7px 7px;padding:.25rem">' +
+    allTasks.filter(t => !linked.has(t.id)).map(t => {
+      const sub = SUBS.find(s => s.id === t.subId);
+      return '<label class="goal-task-label" style="display:flex;align-items:center;gap:.5rem;padding:.3rem .5rem;border-radius:5px;cursor:pointer">' +
+        '<input type="radio" name="goal-task-pick" value="' + t.id + '" style="accent-color:#e67e22;cursor:pointer">' +
+        '<span style="width:7px;height:7px;border-radius:50%;background:' + (sub?.color || '#999') + ';flex-shrink:0"></span>' +
+        '<span style="font-size:.75em;font-family:JetBrains Mono,monospace;color:var(--text)">' + esc(t.name) + '</span>' +
+        '<span style="font-size:.65em;color:var(--muted)">' + esc(sub?.label || '') + '</span>' +
+        '</label>';
+    }).join('') +
+    '</div></div>' +
+
+    // New task creation
+    '<div style="margin:.75rem 0;font-size:.62em;letter-spacing:.1em;color:var(--muted);font-family:JetBrains Mono,monospace">— OR CREATE NEW —</div>' +
+    '<div class="mfield"><label>NEW TASK NAME</label><input type="text" id="goal-new-task" placeholder="Task name..."></div>' +
+    '<div class="mfield"><label>SUBSYSTEM</label><select id="goal-new-sub">' +
+    SUBS.map(s => '<option value="' + s.id + '">' + s.label + '</option>').join('') +
+    '</select></div>' +
+
+    '<div class="modal-footer">' +
+      '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>' +
+      '<button class="mbtn primary" data-gid="' + goalId + '" onclick="addTaskToGoal(this.dataset.gid)">Add</button>' +
+    '</div>'
+  );
+}
+
+function filterGoalTasks() {
+  const q = (document.getElementById('goal-task-search')?.value || '').toLowerCase();
+  document.querySelectorAll('.goal-task-label').forEach(label => {
+    label.style.display = label.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+async function addTaskToGoal(goalId) {
+  const goal = (store.goals || []).find(g => g.id === goalId);
+  if (!goal) return;
+
+  const picked = document.querySelector('input[name="goal-task-pick"]:checked')?.value;
+  const newName = document.getElementById('goal-new-task')?.value.trim();
+  const newSub = document.getElementById('goal-new-sub')?.value;
+
+  if (!picked && !newName) { alert('Pick an existing task or enter a new task name.'); return; }
+
+  if (newName && newSub) {
+    // Create new task and add to goal
+    const newTask = { id: makeId(), name: newName, status: 'todo', done: false, priority: '', assignees: [], startDate: null, dueDate: null, notes: null, dependsOn: [], checkIns: [], addedAt: Date.now() };
+    if (!store.tasks[newSub]) store.tasks[newSub] = [];
+    store.tasks[newSub].push(newTask);
+    if (!goal.taskIds) goal.taskIds = [];
+    goal.taskIds.push(newTask.id);
+  } else if (picked) {
+    if (!goal.taskIds) goal.taskIds = [];
+    if (!goal.taskIds.includes(picked)) goal.taskIds.push(picked);
+  }
+
+  closeModal(); renderBoard();
+  try { await saveData(); toast('Task added to goal!', 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
+async function removeTaskFromGoal(goalId, taskId) {
+  const goal = (store.goals || []).find(g => g.id === goalId);
+  if (!goal) return;
+  goal.taskIds = (goal.taskIds || []).filter(id => id !== taskId);
+  renderBoard();
+  try { await saveData(); toast('Task removed from goal', 'success'); }
   catch { toast('Save failed', 'error'); }
 }
 
@@ -1954,6 +2303,7 @@ async function addMilestone() {
   const desc = document.getElementById('ms-desc').value.trim();
   if (!store.milestones) store.milestones = [];
   if (!store.meetings)   store.meetings   = [];
+  if (!store.goals)     store.goals     = [];
   store.milestones.push({ id: makeId(), name, date, time, description: desc || null });
   closeModal();
   renderMilestoneBar();
