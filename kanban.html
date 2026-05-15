@@ -1247,270 +1247,408 @@ function getAllTasks() {
   return all;
 }
 
-function getGoalProgress(goal) {
-  const all = getAllTasks();
-  const linked = all.filter(t => (goal.taskIds || []).includes(t.id));
+function makeNodeId() { return 'n' + Math.random().toString(36).slice(2,8); }
+
+// Get all taskIds referenced in a tree
+function treeTaskIds(nodes) {
+  const ids = [];
+  for (const node of nodes || []) {
+    if (node.type === 'task') ids.push(node.taskId);
+    ids.push(...treeTaskIds(node.children));
+  }
+  return ids;
+}
+
+// Get all nodeIds in a tree
+function allNodeIds(nodes) {
+  const ids = [];
+  for (const node of nodes || []) {
+    ids.push(node.nodeId);
+    ids.push(...allNodeIds(node.children));
+  }
+  return ids;
+}
+
+// Calculate progress for a goal
+function goalProgress(goal) {
+  const allTasks = getAllTasks();
+  const ids = treeTaskIds(goal.tree || []);
+  const linked = ids.map(id => allTasks.find(t => t.id === id)).filter(Boolean);
   const done = linked.filter(t => t.status === 'done').length;
-  return { done, total: linked.length, pct: linked.length === 0 ? 0 : Math.round(done / linked.length * 100) };
+  return { done, total: linked.length, pct: linked.length ? Math.round(done/linked.length*100) : 0 };
 }
 
-function buildTaskTree(taskId, allTasks, visited = new Set()) {
-  if (visited.has(taskId)) return null;
-  visited.add(taskId);
-  const task = allTasks.find(t => t.id === taskId);
-  if (!task) return null;
-  const children = allTasks
-    .filter(t => (t.dependsOn || []).includes(taskId))
-    .map(t => buildTaskTree(t.id, allTasks, visited))
-    .filter(Boolean);
-  return { task, children };
+// Calculate progress for a subgoal node
+function subgoalProgress(node, allTasks) {
+  const ids = treeTaskIds(node.children || []);
+  const linked = ids.map(id => allTasks.find(t => t.id === id)).filter(Boolean);
+  const done = linked.filter(t => t.status === 'done').length;
+  return { done, total: linked.length, pct: linked.length ? Math.round(done/linked.length*100) : 0 };
 }
 
-function renderTreeNode(node, goalId, depth = 0) {
-  const { task, children } = node;
-  const statusCls = task.status === 'done' ? 'done' : task.status === 'inprogress' ? 'inprogress' : '';
-  const pri = task.priority ? ' ' + (task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : '🟢') : '';
-  const sub = SUBS.find(s => s.id === task.subId);
-  const dot = sub ? '<span style="width:7px;height:7px;border-radius:50%;background:' + sub.color + ';flex-shrink:0;display:inline-block"></span>' : '';
-  const statusIcon = task.status === 'done' ? '✅' : task.status === 'inprogress' ? '◑' : '–';
-
-  const wrap = document.createElement('div');
-  wrap.style.cssText = 'display:flex;flex-direction:column;gap:.35rem';
-
-  const chipRow = document.createElement('div');
-  chipRow.style.display = 'flex';
-  chipRow.style.alignItems = 'center';
-  chipRow.style.gap = '.4rem';
-
-  const chip = document.createElement('div');
-  chip.className = 'tree-task-chip ' + statusCls;
-  chip.style.borderLeftColor = sub?.color || 'var(--border2)';
-  chip.draggable = true;
-  chip.dataset.taskId = task.id;
-  chip.dataset.goalId = goalId;
-  chip.innerHTML = '<span style="color:var(--dim);font-size:.8em;cursor:grab;margin-right:.1rem">⠿</span>' + dot +
-    '<span style="color:var(--muted);flex-shrink:0">' + statusIcon + '</span>' +
-    '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(task.name) + pri + '</span>' +
-    (task.dueDate ? '<span style="color:var(--dim);font-size:.85em;flex-shrink:0">📅 ' + esc(task.dueDate) + '</span>' : '');
-  chip.onclick = () => openEditModal(task.subId, task.id);
-
-  // Drag events
-  chip.addEventListener('dragstart', e => {
-    draggedTaskId = task.id;
-    draggedTaskGoalId = goalId;
-    setTimeout(() => chip.classList.add('dragging'), 0);
-    e.dataTransfer.effectAllowed = 'move';
-  });
-  chip.addEventListener('dragend', () => {
-    chip.classList.remove('dragging');
-    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-  });
-  chip.addEventListener('dragover', e => {
-    if (draggedTaskId && draggedTaskId !== task.id) {
-      e.preventDefault();
-      chip.classList.add('drag-over');
-    }
-  });
-  chip.addEventListener('dragleave', () => chip.classList.remove('drag-over'));
-  chip.addEventListener('drop', async e => {
-    e.preventDefault();
-    chip.classList.remove('drag-over');
-    if (!draggedTaskId || draggedTaskId === task.id) return;
-    // Set dragged task to depend on this task
-    await setTaskDependency(goalId, draggedTaskId, task.id);
-  });
-
-  const removeBtn = document.createElement('button');
-  removeBtn.title = 'Remove from goal';
-  removeBtn.innerHTML = '✕';
-  removeBtn.style.cssText = 'background:none;border:none;color:var(--dim);cursor:pointer;font-size:.75em;padding:.1rem .3rem;flex-shrink:0';
-  removeBtn.onclick = (e) => { e.stopPropagation(); removeTaskFromGoal(goalId, task.id); };
-
-  chipRow.appendChild(chip);
-  chipRow.appendChild(removeBtn);
-  wrap.appendChild(chipRow);
-
-  if (children.length) {
-    const childWrap = document.createElement('div');
-    childWrap.className = 'tree-children';
-    for (const child of children) {
-      const childNode = renderTreeNode(child, goalId, depth + 1);
-      if (childNode) childWrap.appendChild(childNode);
-    }
-    wrap.appendChild(childWrap);
+// Find and remove a node from a tree by nodeId
+function removeNodeFromTree(nodes, nodeId) {
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    if (nodes[i].nodeId === nodeId) { nodes.splice(i, 1); return true; }
+    if (removeNodeFromTree(nodes[i].children || [], nodeId)) return true;
   }
-  return wrap;
+  return false;
 }
 
-async function setTaskDependency(goalId, taskId, dependsOnId) {
-  // Find the task across all subsystems
-  const allTasks = getAllTasks();
-  const task = allTasks.find(t => t.id === taskId);
-  const target = allTasks.find(t => t.id === dependsOnId);
-  if (!task || !target) return;
-
-  // Prevent circular dependency — check if target already depends on task
-  function wouldCreateCycle(checkId, targetId, visited = new Set()) {
-    if (checkId === targetId) return true;
-    if (visited.has(checkId)) return false;
-    visited.add(checkId);
-    const t = allTasks.find(x => x.id === checkId);
-    for (const dep of t?.dependsOn || []) {
-      if (wouldCreateCycle(dep, targetId, visited)) return true;
-    }
-    return false;
+// Insert a node under a parent nodeId, or at root if parentId is null
+function insertNodeInTree(nodes, parentId, node) {
+  if (!parentId) { nodes.push(node); return true; }
+  for (const n of nodes) {
+    if (n.nodeId === parentId) { if (!n.children) n.children = []; n.children.push(node); return true; }
+    if (insertNodeInTree(n.children || [], parentId, node)) return true;
   }
-  if (wouldCreateCycle(dependsOnId, taskId)) {
-    toast('Cannot create circular dependency', 'error');
-    return;
-  }
-
-  // Add dependency to the actual task in the store
-  const storeTask = (store.tasks[task.subId] || []).find(t => t.id === taskId);
-  if (!storeTask) return;
-  if (!storeTask.dependsOn) storeTask.dependsOn = [];
-  if (!storeTask.dependsOn.includes(dependsOnId)) {
-    storeTask.dependsOn.push(dependsOnId);
-  }
-  renderBoard();
-  try { await saveData(); toast(esc(task.name) + ' now depends on ' + esc(target.name), 'success'); }
-  catch { toast('Save failed', 'error'); }
+  return false;
 }
 
-async function clearTaskDependencies(goalId, taskId) {
-  const allTasks = getAllTasks();
-  const task = allTasks.find(t => t.id === taskId);
-  if (!task) return;
-  const goal = (store.goals || []).find(g => g.id === goalId);
-  const goalIds = new Set(goal?.taskIds || []);
-  const storeTask = (store.tasks[task.subId] || []).find(t => t.id === taskId);
-  if (!storeTask) return;
-  // Only remove dependencies that are within this goal
-  storeTask.dependsOn = (storeTask.dependsOn || []).filter(id => !goalIds.has(id));
-  renderBoard();
-  try { await saveData(); toast(esc(task.name) + ' moved to root', 'success'); }
-  catch { toast('Save failed', 'error'); }
+// Find a node by nodeId
+function findNode(nodes, nodeId) {
+  for (const n of nodes) {
+    if (n.nodeId === nodeId) return n;
+    const found = findNode(n.children || [], nodeId);
+    if (found) return found;
+  }
+  return null;
 }
+
+let goalDragNodeId = null, goalDragGoalId = null;
 
 function renderGoalsView(area) {
   area.className = 'goals-area';
   area.innerHTML = '';
+  if (!store.goals) store.goals = [];
 
-  // Header
   const hdr = document.createElement('div');
-  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between';
-  hdr.innerHTML = '<div style="font-size:.85em;font-weight:700;color:var(--text)">🎯 Team Goals</div>' +
-    '<button onclick="openAddGoalModal()" class="mbtn primary" style="font-size:.72em">+ Add Goal</button>';
+  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem';
+  hdr.innerHTML = '<div style="font-size:.85em;font-weight:700;color:var(--text)">🎯 Goals</div>' +
+    '<button onclick="openAddGoalModal()" class="mbtn primary" style="font-size:.72em">+ New Goal</button>';
   area.appendChild(hdr);
 
-  const goals = store.goals || [];
-  if (!goals.length) {
+  if (!store.goals.length) {
     const empty = document.createElement('div');
-    empty.className = 'goal-empty';
-    empty.style.padding = '3rem';
-    empty.innerHTML = '🎯<br><br>No goals yet — click <strong>+ Add Goal</strong> to create one';
+    empty.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:.75rem;color:var(--dim);font-size:.78em;font-family:JetBrains Mono,monospace';
+    empty.innerHTML = '<div style="font-size:2.5em">🎯</div><div>No goals yet — click <strong style="color:var(--text)">+ New Goal</strong> to create one</div>';
     area.appendChild(empty);
     return;
   }
 
   const allTasks = getAllTasks();
 
-  goals.forEach(goal => {
-    const { done, total, pct } = getGoalProgress(goal);
+  store.goals.forEach(goal => {
+    const { done, total, pct } = goalProgress(goal);
+    const goalPlacedIds = new Set(treeTaskIds(goal.tree || []));
+    const unplaced = allTasks.filter(t => !goalPlacedIds.has(t.id));
     const daysLeft = goal.deadline ? Math.round((parseDmy(goal.deadline) - Date.now()) / 86400000) : null;
-    const deadlineColor = daysLeft === null ? 'var(--muted)' : daysLeft < 0 ? '#e74c3c' : daysLeft <= 7 ? '#f1c40f' : '#2ecc71';
-    const deadlineText = daysLeft === null ? '' : daysLeft < 0 ? 'Overdue by ' + Math.abs(daysLeft) + 'd' : daysLeft === 0 ? 'Due today!' : daysLeft + 'd remaining';
+    const dlColor = daysLeft === null ? 'var(--muted)' : daysLeft < 0 ? '#e74c3c' : daysLeft <= 14 ? '#f1c40f' : '#2ecc71';
+    const dlText = daysLeft === null ? 'No deadline' : daysLeft < 0 ? 'Overdue by ' + Math.abs(daysLeft) + 'd' : daysLeft === 0 ? 'Due today!' : daysLeft + 'd left';
 
     const card = document.createElement('div');
     card.className = 'goal-card';
 
-    // Header
+    // Goal header
     const cardHdr = document.createElement('div');
     cardHdr.className = 'goal-card-hdr';
+    cardHdr.style.cursor = 'default';
+    const fillColor = pct === 100 ? '#2ecc71' : pct > 50 ? '#3498db' : pct > 20 ? '#f1c40f' : '#e74c3c';
     cardHdr.innerHTML =
       '<div class="goal-card-hdr-left">' +
-        '<div class="goal-title">' + esc(goal.name) + '</div>' +
-        '<div class="goal-meta">' +
-          (goal.deadline ? '📅 ' + esc(goal.deadline) + (deadlineText ? ' · <span style="color:' + deadlineColor + '">' + deadlineText + '</span>' : '') : 'No deadline') +
-          ' · ' + done + '/' + total + ' tasks done' +
+        '<div class="goal-title">🎯 ' + esc(goal.name) + '</div>' +
+        '<div class="goal-meta" style="display:flex;align-items:center;gap:.75rem;margin-top:.3rem">' +
+          '<span style="color:' + dlColor + '">📅 ' + dlText + '</span>' +
+          '<span>' + done + '/' + total + ' tasks done</span>' +
+          '<span style="color:' + fillColor + '">' + pct + '%</span>' +
         '</div>' +
       '</div>' +
-      '<div style="display:flex;gap:.4rem">' +
-        '<button data-gid="' + goal.id + '" onclick="event.stopPropagation();openAddTaskToGoalModal(this.dataset.gid)" class="admin-nudge-btn">+ Task</button>' +
-        '<button data-gid="' + goal.id + '" onclick="event.stopPropagation();openEditGoalModal(this.dataset.gid)" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">✎</button>' +
+      '<div style="display:flex;gap:.4rem;align-items:center">' +
+        '<button data-gid="' + goal.id + '" onclick="addSubgoalToRoot(this.dataset.gid)" class="admin-nudge-btn">📌 Sub-goal</button>' +
+        '<button data-gid="' + goal.id + '" onclick="openEditGoalModal(this.dataset.gid)" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">✎</button>' +
       '</div>';
     card.appendChild(cardHdr);
 
-    // Progress
-    const progWrap = document.createElement('div');
-    progWrap.className = 'goal-progress-wrap';
-    const fillColor = pct === 100 ? '#2ecc71' : pct > 50 ? '#f1c40f' : '#e74c3c';
-    progWrap.innerHTML =
-      '<div class="goal-progress-bar"><div class="goal-progress-fill" style="width:' + pct + '%;background:' + fillColor + '"></div></div>' +
+    // Progress bar
+    const prog = document.createElement('div');
+    prog.className = 'goal-progress-wrap';
+    prog.innerHTML = '<div class="goal-progress-bar"><div class="goal-progress-fill" style="width:' + pct + '%;background:' + fillColor + '"></div></div>' +
       '<div class="goal-progress-nums"><span>' + pct + '% complete</span><span>' + done + ' / ' + total + ' tasks</span></div>';
-    card.appendChild(progWrap);
+    card.appendChild(prog);
 
-    // Tree
-    const treeWrap = document.createElement('div');
-    treeWrap.className = 'goal-tree';
+    // Split layout: tree + sidebar
+    const split = document.createElement('div');
+    split.style.cssText = 'display:grid;grid-template-columns:1fr 220px;min-height:200px;border-top:1px solid var(--border)';
 
-    if (!total) {
-      treeWrap.innerHTML = '<div class="goal-empty">No tasks linked yet — click + Task to add some</div>';
+    // Tree panel
+    const treePanel = document.createElement('div');
+    treePanel.className = 'goal-tree';
+    treePanel.style.borderRight = '1px solid var(--border)';
+
+    // Root drop zone
+    const rootDrop = document.createElement('div');
+    rootDrop.className = 'tree-drop-root';
+    rootDrop.textContent = '⬆ Drop here to make top-level';
+    rootDrop.addEventListener('dragover', e => { e.preventDefault(); rootDrop.classList.add('drag-over'); });
+    rootDrop.addEventListener('dragleave', () => rootDrop.classList.remove('drag-over'));
+    rootDrop.addEventListener('drop', async e => {
+      e.preventDefault(); rootDrop.classList.remove('drag-over');
+      if (!goalDragNodeId || goalDragGoalId !== goal.id) return;
+      // Move node to root
+      const node = findNode(goal.tree || [], goalDragNodeId);
+      if (!node) return;
+      removeNodeFromTree(goal.tree, goalDragNodeId);
+      goal.tree.push(node);
+      renderBoard();
+      try { await saveData(); toast('Moved to top level', 'success'); } catch { toast('Save failed','error'); }
+    });
+    treePanel.appendChild(rootDrop);
+
+    // Render tree nodes
+    const treeContainer = document.createElement('div');
+    treeContainer.style.cssText = 'display:flex;flex-direction:column;gap:.4rem';
+    (goal.tree || []).forEach(node => {
+      const el = renderGoalNode(node, goal, allTasks);
+      if (el) treeContainer.appendChild(el);
+    });
+    treePanel.appendChild(treeContainer);
+    split.appendChild(treePanel);
+
+    // Sidebar: unplaced tasks
+    const sidebar = document.createElement('div');
+    sidebar.style.cssText = 'padding:.6rem;display:flex;flex-direction:column;gap:.25rem;background:var(--surface2);overflow-y:auto;max-height:400px';
+    const sideHdr = document.createElement('div');
+    sideHdr.style.cssText = 'font-size:.58em;letter-spacing:.1em;color:var(--muted);font-family:JetBrains Mono,monospace;margin-bottom:.3rem;flex-shrink:0';
+    sideHdr.textContent = 'UNPLACED TASKS';
+    sidebar.appendChild(sideHdr);
+
+    if (!unplaced.length) {
+      const allDone = document.createElement('div');
+      allDone.style.cssText = 'font-size:.65em;color:var(--dim);font-family:JetBrains Mono,monospace;text-align:center;padding:.75rem 0';
+      allDone.textContent = 'All tasks placed ✓';
+      sidebar.appendChild(allDone);
     } else {
-      // Build tree: find root tasks (tasks in this goal whose dependsOn are NOT in this goal)
-      const goalTaskIds = new Set(goal.taskIds || []);
-      const goalTasks = allTasks.filter(t => goalTaskIds.has(t.id));
-      const roots = goalTasks.filter(t => !(t.dependsOn || []).some(d => goalTaskIds.has(d)));
-      
-      if (!roots.length) {
-        // Circular or all have deps — just show flat list
-        goalTasks.forEach(t => {
-          const chip = document.createElement('div');
-          chip.style.marginBottom = '.35rem';
-          const node = renderTreeNode({ task: t, children: [] }, goal.id);
-          if (node) chip.appendChild(node);
-          treeWrap.appendChild(chip);
+      unplaced.forEach(task => {
+        const chip = document.createElement('div');
+        chip.className = 'tree-task-chip';
+        chip.style.cssText = 'width:100%;box-sizing:border-box;cursor:grab;border-left:3px solid ' + (task.subColor || 'var(--border2)');
+        chip.draggable = true;
+        chip.dataset.taskId = task.id;
+        chip.dataset.goalId = goal.id;
+        chip.dataset.isSidebar = '1';
+        const pri = task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : task.priority === 'low' ? '🟢' : '';
+        chip.innerHTML = '<span style="font-size:.8em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(task.name) + '</span>' +
+          (pri ? '<span style="flex-shrink:0">' + pri + '</span>' : '') +
+          '<span style="font-size:.65em;color:var(--dim);flex-shrink:0">' + esc(task.subLabel) + '</span>';
+        chip.addEventListener('dragstart', e => {
+          goalDragNodeId = null;
+          goalDragGoalId = goal.id;
+          e.dataTransfer.setData('taskId', task.id);
+          e.dataTransfer.setData('isSidebar', '1');
+          e.dataTransfer.effectAllowed = 'move';
+          setTimeout(() => chip.classList.add('dragging'), 0);
         });
-      } else {
-        // Root drop zone — drag a task here to make it a root (remove its goal dependencies)
-      const rootDrop = document.createElement('div');
-      rootDrop.className = 'tree-drop-root';
-      rootDrop.textContent = '⬆ Drop here to make root (no dependency)';
-      rootDrop.addEventListener('dragover', e => { e.preventDefault(); rootDrop.classList.add('drag-over'); });
-      rootDrop.addEventListener('dragleave', () => rootDrop.classList.remove('drag-over'));
-      rootDrop.addEventListener('drop', async e => {
-        e.preventDefault();
-        rootDrop.classList.remove('drag-over');
-        if (draggedTaskId) await clearTaskDependencies(goal.id, draggedTaskId);
+        chip.addEventListener('dragend', () => {
+          chip.classList.remove('dragging');
+          document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        });
+        sidebar.appendChild(chip);
       });
-      treeWrap.appendChild(rootDrop);
-
-      roots.forEach((rootTask, i) => {
-          const tree = buildTaskTree(rootTask.id, goalTasks);
-          if (tree) {
-            const node = renderTreeNode(tree, goal.id);
-            if (node) {
-              if (i > 0) node.style.marginTop = '.5rem';
-              treeWrap.appendChild(node);
-            }
-          }
-        });
-      }
     }
-    card.appendChild(treeWrap);
+    split.appendChild(sidebar);
+    card.appendChild(split);
     area.appendChild(card);
   });
+}
+
+function renderGoalNode(node, goal, allTasks) {
+  if (node.type === 'task') return renderGoalTaskNode(node, goal, allTasks);
+  if (node.type === 'subgoal') return renderGoalSubgoalNode(node, goal, allTasks);
+  return null;
+}
+
+function renderGoalTaskNode(node, goal, allTasks) {
+  const task = allTasks.find(t => t.id === node.taskId);
+  if (!task) return null;
+  const sub = SUBS.find(s => s.id === task.subId);
+  const statusIcon = task.status === 'done' ? '✅' : task.status === 'inprogress' ? '◑' : '–';
+  const pri = task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : task.priority === 'low' ? '🟢' : '';
+  const statusCls = task.status === 'done' ? 'done' : task.status === 'inprogress' ? 'inprogress' : '';
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:.3rem';
+
+  const row = document.createElement('div');
+  row.style.display = 'flex';
+  row.style.alignItems = 'center';
+  row.style.gap = '.35rem';
+
+  const chip = document.createElement('div');
+  chip.className = 'tree-task-chip ' + statusCls;
+  chip.style.borderLeftColor = sub?.color || 'var(--border2)';
+  chip.draggable = true;
+  chip.dataset.nodeId = node.nodeId;
+  chip.dataset.goalId = goal.id;
+  chip.innerHTML = '<span style="color:var(--dim);cursor:grab;margin-right:.1rem">⠿</span>' +
+    '<span style="color:var(--muted);flex-shrink:0">' + statusIcon + '</span>' +
+    '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(task.name) + '</span>' +
+    (pri ? '<span style="flex-shrink:0">' + pri + '</span>' : '') +
+    (task.dueDate ? '<span style="color:var(--dim);font-size:.8em;flex-shrink:0">📅 ' + esc(task.dueDate) + '</span>' : '');
+  chip.onclick = () => openEditModal(task.subId, task.id);
+  setupTreeDrag(chip, node.nodeId, goal, false);
+
+  const removeBtn = document.createElement('button');
+  removeBtn.innerHTML = '✕';
+  removeBtn.title = 'Remove from tree';
+  removeBtn.style.cssText = 'background:none;border:none;color:var(--dim);cursor:pointer;font-size:.7em;padding:.1rem .3rem;flex-shrink:0';
+  removeBtn.onclick = async () => {
+    removeNodeFromTree(goal.tree, node.nodeId);
+    renderBoard();
+    try { await saveData(); toast('Removed from tree', 'success'); } catch {}
+  };
+
+  row.appendChild(chip);
+  row.appendChild(removeBtn);
+  wrap.appendChild(row);
+
+  if ((node.children || []).length) {
+    const childWrap = document.createElement('div');
+    childWrap.className = 'tree-children';
+    node.children.forEach(child => {
+      const el = renderGoalNode(child, goal, allTasks);
+      if (el) childWrap.appendChild(el);
+    });
+    wrap.appendChild(childWrap);
+  }
+  return wrap;
+}
+
+function renderGoalSubgoalNode(node, goal, allTasks) {
+  const { done, total, pct } = subgoalProgress(node, allTasks);
+  const daysLeft = node.deadline ? Math.round((parseDmy(node.deadline) - Date.now()) / 86400000) : null;
+  const dlColor = daysLeft === null ? 'var(--muted)' : daysLeft < 0 ? '#e74c3c' : daysLeft <= 7 ? '#f1c40f' : '#2ecc71';
+  const dlText = daysLeft === null ? '' : daysLeft < 0 ? ' · overdue' : ' · ' + daysLeft + 'd';
+  const fillColor = pct === 100 ? '#2ecc71' : pct > 50 ? '#3498db' : '#f1c40f';
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:.3rem';
+
+  // Subgoal header chip
+  const sgChip = document.createElement('div');
+  sgChip.draggable = true;
+  sgChip.dataset.nodeId = node.nodeId;
+  sgChip.dataset.goalId = goal.id;
+  sgChip.style.cssText = 'display:flex;align-items:center;gap:.5rem;padding:.4rem .75rem;border-radius:8px;border:1px solid rgba(230,126,34,.4);background:rgba(230,126,34,.08);cursor:grab;user-select:none';
+  sgChip.innerHTML =
+    '<span style="color:var(--dim);cursor:grab">⠿</span>' +
+    '<span style="font-size:.75em;font-weight:700;color:#e67e22">📌 ' + esc(node.name) + '</span>' +
+    (node.deadline ? '<span style="font-size:.6em;font-family:JetBrains Mono,monospace;color:' + dlColor + '">' + esc(node.deadline) + dlText + '</span>' : '') +
+    '<span style="font-size:.62em;font-family:JetBrains Mono,monospace;color:var(--muted);margin-left:auto">' + done + '/' + total + '</span>' +
+    '<div style="width:50px;height:4px;background:var(--bg);border-radius:2px;flex-shrink:0;overflow:hidden"><div style="height:100%;width:' + pct + '%;background:' + fillColor + ';border-radius:2px"></div></div>';
+  sgChip.onclick = () => openEditSubgoalModal(node, goal.id);
+  setupTreeDrag(sgChip, node.nodeId, goal, true);
+
+  const sgRow = document.createElement('div');
+  sgRow.style.cssText = 'display:flex;align-items:center;gap:.35rem';
+  const removeBtn = document.createElement('button');
+  removeBtn.innerHTML = '✕';
+  removeBtn.title = 'Remove sub-goal';
+  removeBtn.style.cssText = 'background:none;border:none;color:var(--dim);cursor:pointer;font-size:.7em;padding:.1rem .3rem;flex-shrink:0';
+  removeBtn.onclick = async () => {
+    if (!confirm('Remove sub-goal and all tasks under it from the tree?')) return;
+    removeNodeFromTree(goal.tree, node.nodeId);
+    renderBoard();
+    try { await saveData(); toast('Sub-goal removed', 'success'); } catch {}
+  };
+  sgRow.appendChild(sgChip);
+  sgRow.appendChild(removeBtn);
+  wrap.appendChild(sgRow);
+
+  // Children under subgoal + its own drop zone
+  const childWrap = document.createElement('div');
+  childWrap.className = 'tree-children';
+
+  // Drop zone inside subgoal
+  const innerDrop = document.createElement('div');
+  innerDrop.className = 'tree-drop-root';
+  innerDrop.style.cssText = 'border-color:rgba(230,126,34,.3);font-size:.58em;min-height:24px';
+  innerDrop.textContent = '+ Drop task here';
+  setupDropZone(innerDrop, node.nodeId, goal);
+  childWrap.appendChild(innerDrop);
+
+  (node.children || []).forEach(child => {
+    const el = renderGoalNode(child, goal, allTasks);
+    if (el) childWrap.appendChild(el);
+  });
+  wrap.appendChild(childWrap);
+  return wrap;
+}
+
+function setupTreeDrag(el, nodeId, goal, isSubgoal) {
+  el.addEventListener('dragstart', e => {
+    goalDragNodeId = nodeId;
+    goalDragGoalId = goal.id;
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => el.classList.add('dragging'), 0);
+  });
+  el.addEventListener('dragend', () => {
+    el.classList.remove('dragging');
+    document.querySelectorAll('.drag-over').forEach(x => x.classList.remove('drag-over'));
+  });
+  el.addEventListener('dragover', e => {
+    if (goalDragNodeId && goalDragNodeId !== nodeId) { e.preventDefault(); el.classList.add('drag-over'); }
+  });
+  el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+  el.addEventListener('drop', async e => {
+    e.preventDefault(); e.stopPropagation();
+    el.classList.remove('drag-over');
+    await handleGoalDrop(goal, nodeId, e);
+  });
+}
+
+function setupDropZone(el, parentNodeId, goal) {
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
+  el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+  el.addEventListener('drop', async e => {
+    e.preventDefault(); e.stopPropagation();
+    el.classList.remove('drag-over');
+    await handleGoalDrop(goal, parentNodeId, e);
+  });
+}
+
+async function handleGoalDrop(goal, parentNodeId, e) {
+  const isSidebar = e.dataTransfer.getData('isSidebar') === '1';
+  if (isSidebar) {
+    // Drop from sidebar — create new task node under parentNodeId
+    const taskId = e.dataTransfer.getData('taskId');
+    if (!taskId) return;
+    const newNode = { nodeId: makeNodeId(), type: 'task', taskId, children: [] };
+    if (!goal.tree) goal.tree = [];
+    insertNodeInTree(goal.tree, parentNodeId, newNode);
+    renderBoard();
+    try { await saveData(); toast('Task added to tree', 'success'); } catch { toast('Save failed','error'); }
+  } else if (goalDragNodeId && goalDragGoalId === goal.id) {
+    // Move existing node within tree
+    const node = findNode(goal.tree, goalDragNodeId);
+    if (!node || goalDragNodeId === parentNodeId) return;
+    // Prevent nesting a parent inside its own child
+    if (findNode(node.children || [], parentNodeId)) { toast('Cannot nest a parent inside its child', 'error'); return; }
+    removeNodeFromTree(goal.tree, goalDragNodeId);
+    insertNodeInTree(goal.tree, parentNodeId, node);
+    renderBoard();
+    try { await saveData(); toast('Moved', 'success'); } catch { toast('Save failed','error'); }
+  }
 }
 
 function openAddGoalModal() {
   showModal(
     '<div class="modal-title">🎯 New Goal</div>' +
-    '<div class="mfield"><label>GOAL NAME</label><input type="text" id="goal-name" placeholder="e.g. Complete rover for ARCh 2027" maxlength="100"></div>' +
+    '<div class="mfield"><label>NAME</label><input type="text" id="goal-name" placeholder="e.g. Complete rover for ARCh 2027" maxlength="100"></div>' +
     '<div class="mfield"><label>DEADLINE (optional)</label><input type="date" id="goal-deadline" style="color-scheme:dark"></div>' +
-    '<div class="mfield"><label>DESCRIPTION (optional)</label><textarea id="goal-desc" rows="2" placeholder="What does achieving this goal mean?"></textarea></div>' +
+    '<div class="mfield"><label>DESCRIPTION (optional)</label><textarea id="goal-desc" rows="2"></textarea></div>' +
     '<div class="modal-footer">' +
       '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>' +
-      '<button class="mbtn primary" onclick="addGoal()">Create Goal</button>' +
+      '<button class="mbtn primary" onclick="addGoal()">Create</button>' +
     '</div>'
   );
   setTimeout(() => document.getElementById('goal-name')?.focus(), 50);
@@ -1518,15 +1656,13 @@ function openAddGoalModal() {
 
 async function addGoal() {
   const name = document.getElementById('goal-name').value.trim();
-  const deadlineRaw = document.getElementById('goal-deadline').value;
+  const dr = document.getElementById('goal-deadline').value;
   const desc = document.getElementById('goal-desc').value.trim();
-  if (!name) { alert('Goal name is required.'); return; }
+  if (!name) { alert('Name required'); return; }
   if (!store.goals) store.goals = [];
-  store.goals.push({ id: makeId(), name, deadline: deadlineRaw ? ymdToDmy(deadlineRaw) : null, description: desc || null, taskIds: [], addedAt: Date.now() });
-  closeModal();
-  renderBoard();
-  try { await saveData(); toast('Goal created!', 'success'); }
-  catch { toast('Save failed', 'error'); }
+  store.goals.push({ id: makeId(), name, deadline: dr ? ymdToDmy(dr) : null, description: desc || null, tree: [], addedAt: Date.now() });
+  closeModal(); renderBoard();
+  try { await saveData(); toast('Goal created!', 'success'); } catch { toast('Save failed','error'); }
 }
 
 function openEditGoalModal(goalId) {
@@ -1534,7 +1670,7 @@ function openEditGoalModal(goalId) {
   if (!goal) return;
   showModal(
     '<div class="modal-title">✎ Edit Goal</div>' +
-    '<div class="mfield"><label>GOAL NAME</label><input type="text" id="goal-name" value="' + esc(goal.name) + '" maxlength="100"></div>' +
+    '<div class="mfield"><label>NAME</label><input type="text" id="goal-name" value="' + esc(goal.name) + '" maxlength="100"></div>' +
     '<div class="mfield"><label>DEADLINE</label><input type="date" id="goal-deadline" value="' + esc(goal.deadline ? dmyToYmd(goal.deadline) : '') + '" style="color-scheme:dark"></div>' +
     '<div class="mfield"><label>DESCRIPTION</label><textarea id="goal-desc" rows="2">' + esc(goal.description || '') + '</textarea></div>' +
     '<div class="modal-footer">' +
@@ -1553,98 +1689,55 @@ async function saveGoal(goalId) {
   goal.deadline = dr ? ymdToDmy(dr) : null;
   goal.description = document.getElementById('goal-desc').value.trim() || null;
   closeModal(); renderBoard();
-  try { await saveData(); toast('Goal saved', 'success'); }
-  catch { toast('Save failed', 'error'); }
+  try { await saveData(); toast('Saved', 'success'); } catch { toast('Save failed','error'); }
 }
 
 async function deleteGoal(goalId) {
   if (!confirm('Delete this goal?')) return;
   store.goals = (store.goals || []).filter(g => g.id !== goalId);
   closeModal(); renderBoard();
-  try { await saveData(); toast('Goal deleted', 'success'); }
-  catch { toast('Save failed', 'error'); }
+  try { await saveData(); toast('Goal deleted', 'success'); } catch { toast('Save failed','error'); }
 }
 
-function openAddTaskToGoalModal(goalId) {
+async function addSubgoalToRoot(goalId) {
+  const name = prompt('Sub-goal name:');
+  if (!name?.trim()) return;
+  const deadlineRaw = prompt('Deadline (leave blank for none, format: DD/MM/YYYY):');
+  let deadline = null;
+  if (deadlineRaw?.trim()) {
+    const parts = deadlineRaw.trim().split('/');
+    if (parts.length === 3) deadline = deadlineRaw.trim();
+  }
   const goal = (store.goals || []).find(g => g.id === goalId);
   if (!goal) return;
-  const allTasks = getAllTasks();
-  const linked = new Set(goal.taskIds || []);
+  if (!goal.tree) goal.tree = [];
+  goal.tree.push({ nodeId: makeNodeId(), type: 'subgoal', name: name.trim(), deadline, children: [] });
+  renderBoard();
+  try { await saveData(); toast('Sub-goal added', 'success'); } catch { toast('Save failed','error'); }
+}
 
+function openEditSubgoalModal(node, goalId) {
   showModal(
-    '<div class="modal-title">+ Add Task to Goal</div>' +
-    '<div style="font-size:.75em;color:var(--muted);margin-bottom:.75rem">Pick an existing task or create a new one</div>' +
-
-    // Existing tasks picker
-    '<div class="mfield"><label>EXISTING TASK</label>' +
-    '<input type="text" id="goal-task-search" placeholder="Search tasks..." oninput="filterGoalTasks()" style="width:100%;padding:.45rem .7rem;background:var(--bg);border:1px solid var(--border2);border-bottom:none;border-radius:7px 7px 0 0;color:var(--text);font-size:.78em;outline:none">' +
-    '<div id="goal-task-list" style="max-height:150px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 7px 7px;padding:.25rem">' +
-    allTasks.filter(t => !linked.has(t.id)).map(t => {
-      const sub = SUBS.find(s => s.id === t.subId);
-      return '<label class="goal-task-label" style="display:flex;align-items:center;gap:.5rem;padding:.3rem .5rem;border-radius:5px;cursor:pointer">' +
-        '<input type="radio" name="goal-task-pick" value="' + t.id + '" style="accent-color:#e67e22;cursor:pointer">' +
-        '<span style="width:7px;height:7px;border-radius:50%;background:' + (sub?.color || '#999') + ';flex-shrink:0"></span>' +
-        '<span style="font-size:.75em;font-family:JetBrains Mono,monospace;color:var(--text)">' + esc(t.name) + '</span>' +
-        '<span style="font-size:.65em;color:var(--muted)">' + esc(sub?.label || '') + '</span>' +
-        '</label>';
-    }).join('') +
-    '</div></div>' +
-
-    // New task creation
-    '<div style="margin:.75rem 0;font-size:.62em;letter-spacing:.1em;color:var(--muted);font-family:JetBrains Mono,monospace">— OR CREATE NEW —</div>' +
-    '<div class="mfield"><label>NEW TASK NAME</label><input type="text" id="goal-new-task" placeholder="Task name..."></div>' +
-    '<div class="mfield"><label>SUBSYSTEM</label><select id="goal-new-sub">' +
-    SUBS.map(s => '<option value="' + s.id + '">' + s.label + '</option>').join('') +
-    '</select></div>' +
-
+    '<div class="modal-title">✎ Edit Sub-goal</div>' +
+    '<div class="mfield"><label>NAME</label><input type="text" id="sg-name" value="' + esc(node.name) + '" maxlength="80"></div>' +
+    '<div class="mfield"><label>DEADLINE (optional)</label><input type="date" id="sg-deadline" value="' + esc(node.deadline ? dmyToYmd(node.deadline) : '') + '" style="color-scheme:dark"></div>' +
     '<div class="modal-footer">' +
       '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>' +
-      '<button class="mbtn primary" data-gid="' + goalId + '" onclick="addTaskToGoal(this.dataset.gid)">Add</button>' +
+      '<button class="mbtn primary" data-nid="' + node.nodeId + '" data-gid="' + goalId + '" onclick="saveSubgoal(this.dataset.nid,this.dataset.gid)">Save</button>' +
     '</div>'
   );
 }
 
-function filterGoalTasks() {
-  const q = (document.getElementById('goal-task-search')?.value || '').toLowerCase();
-  document.querySelectorAll('.goal-task-label').forEach(label => {
-    label.style.display = label.textContent.toLowerCase().includes(q) ? '' : 'none';
-  });
-}
-
-async function addTaskToGoal(goalId) {
+async function saveSubgoal(nodeId, goalId) {
   const goal = (store.goals || []).find(g => g.id === goalId);
   if (!goal) return;
-
-  const picked = document.querySelector('input[name="goal-task-pick"]:checked')?.value;
-  const newName = document.getElementById('goal-new-task')?.value.trim();
-  const newSub = document.getElementById('goal-new-sub')?.value;
-
-  if (!picked && !newName) { alert('Pick an existing task or enter a new task name.'); return; }
-
-  if (newName && newSub) {
-    // Create new task and add to goal
-    const newTask = { id: makeId(), name: newName, status: 'todo', done: false, priority: '', assignees: [], startDate: null, dueDate: null, notes: null, dependsOn: [], checkIns: [], addedAt: Date.now() };
-    if (!store.tasks[newSub]) store.tasks[newSub] = [];
-    store.tasks[newSub].push(newTask);
-    if (!goal.taskIds) goal.taskIds = [];
-    goal.taskIds.push(newTask.id);
-  } else if (picked) {
-    if (!goal.taskIds) goal.taskIds = [];
-    if (!goal.taskIds.includes(picked)) goal.taskIds.push(picked);
-  }
-
+  const node = findNode(goal.tree || [], nodeId);
+  if (!node) return;
+  node.name = document.getElementById('sg-name').value.trim() || node.name;
+  const dr = document.getElementById('sg-deadline').value;
+  node.deadline = dr ? ymdToDmy(dr) : null;
   closeModal(); renderBoard();
-  try { await saveData(); toast('Task added to goal!', 'success'); }
-  catch { toast('Save failed', 'error'); }
-}
-
-async function removeTaskFromGoal(goalId, taskId) {
-  const goal = (store.goals || []).find(g => g.id === goalId);
-  if (!goal) return;
-  goal.taskIds = (goal.taskIds || []).filter(id => id !== taskId);
-  renderBoard();
-  try { await saveData(); toast('Task removed from goal', 'success'); }
-  catch { toast('Save failed', 'error'); }
+  try { await saveData(); toast('Sub-goal saved', 'success'); } catch { toast('Save failed','error'); }
 }
 
 // ── MEETINGS ──
