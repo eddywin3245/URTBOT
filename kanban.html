@@ -292,7 +292,11 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .tree-vert{width:1px;background:var(--border2);flex:1;min-height:8px}
 .tree-horiz{display:flex;align-items:center;gap:0;padding-top:14px}
 .tree-h-line{width:16px;height:1px;background:var(--border2);flex-shrink:0}
-.tree-task-chip{display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .65rem;border-radius:7px;font-size:.72em;border:1px solid var(--border2);background:var(--surface2);cursor:pointer;transition:all .15s;max-width:300px}
+.tree-task-chip{display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .65rem;border-radius:7px;font-size:.72em;border:1px solid var(--border2);background:var(--surface2);cursor:grab;transition:all .15s;max-width:300px}
+.tree-task-chip.dragging{opacity:.4;cursor:grabbing}
+.tree-task-chip.drag-over{border-color:#3498db;background:rgba(52,152,219,.12);box-shadow:0 0 0 2px rgba(52,152,219,.3)}
+.tree-drop-root{min-height:32px;border:1px dashed var(--border2);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:.65em;color:var(--dim);font-family:JetBrains Mono,monospace;margin-bottom:.5rem;transition:all .2s;padding:.4rem}
+.tree-drop-root.drag-over{border-color:#2ecc71;color:#2ecc71;background:rgba(46,204,113,.05)}
 .tree-task-chip:hover{border-color:var(--border2);background:var(--surface3)}
 .tree-task-chip.done{opacity:.5;text-decoration:line-through}
 .tree-task-chip.inprogress{border-color:rgba(52,152,219,.4);background:rgba(52,152,219,.06)}
@@ -360,7 +364,7 @@ const STATUSES = [
 const PRI_ORDER  = { high:0, medium:1, low:2, '':3 };
 const PRI_LABELS = { high:'HIGH', medium:'MED', low:'LOW' };
 
-let store = {}, activeTab = 'all', refreshTimer = null, financeUnlocked = false, adminUnlocked = false;
+let store = {}, activeTab = 'all', refreshTimer = null, financeUnlocked = false, adminUnlocked = false, draggedTaskId = null, draggedTaskGoalId = null;
 let dragData = null;
 let calMonth = new Date().getMonth();
 let calYear  = new Date().getFullYear();
@@ -1281,8 +1285,40 @@ function renderTreeNode(node, goalId, depth = 0) {
   const chip = document.createElement('div');
   chip.className = 'tree-task-chip ' + statusCls;
   chip.style.borderLeftColor = sub?.color || 'var(--border2)';
-  chip.innerHTML = dot + '<span style="color:var(--muted);flex-shrink:0">' + statusIcon + '</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(task.name) + pri + '</span>' + (task.dueDate ? '<span style="color:var(--dim);font-size:.85em;flex-shrink:0">📅 ' + esc(task.dueDate) + '</span>' : '');
+  chip.draggable = true;
+  chip.dataset.taskId = task.id;
+  chip.dataset.goalId = goalId;
+  chip.innerHTML = '<span style="color:var(--dim);font-size:.8em;cursor:grab;margin-right:.1rem">⠿</span>' + dot +
+    '<span style="color:var(--muted);flex-shrink:0">' + statusIcon + '</span>' +
+    '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(task.name) + pri + '</span>' +
+    (task.dueDate ? '<span style="color:var(--dim);font-size:.85em;flex-shrink:0">📅 ' + esc(task.dueDate) + '</span>' : '');
   chip.onclick = () => openEditModal(task.subId, task.id);
+
+  // Drag events
+  chip.addEventListener('dragstart', e => {
+    draggedTaskId = task.id;
+    draggedTaskGoalId = goalId;
+    setTimeout(() => chip.classList.add('dragging'), 0);
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  chip.addEventListener('dragend', () => {
+    chip.classList.remove('dragging');
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+  });
+  chip.addEventListener('dragover', e => {
+    if (draggedTaskId && draggedTaskId !== task.id) {
+      e.preventDefault();
+      chip.classList.add('drag-over');
+    }
+  });
+  chip.addEventListener('dragleave', () => chip.classList.remove('drag-over'));
+  chip.addEventListener('drop', async e => {
+    e.preventDefault();
+    chip.classList.remove('drag-over');
+    if (!draggedTaskId || draggedTaskId === task.id) return;
+    // Set dragged task to depend on this task
+    await setTaskDependency(goalId, draggedTaskId, task.id);
+  });
 
   const removeBtn = document.createElement('button');
   removeBtn.title = 'Remove from goal';
@@ -1304,6 +1340,56 @@ function renderTreeNode(node, goalId, depth = 0) {
     wrap.appendChild(childWrap);
   }
   return wrap;
+}
+
+async function setTaskDependency(goalId, taskId, dependsOnId) {
+  // Find the task across all subsystems
+  const allTasks = getAllTasks();
+  const task = allTasks.find(t => t.id === taskId);
+  const target = allTasks.find(t => t.id === dependsOnId);
+  if (!task || !target) return;
+
+  // Prevent circular dependency — check if target already depends on task
+  function wouldCreateCycle(checkId, targetId, visited = new Set()) {
+    if (checkId === targetId) return true;
+    if (visited.has(checkId)) return false;
+    visited.add(checkId);
+    const t = allTasks.find(x => x.id === checkId);
+    for (const dep of t?.dependsOn || []) {
+      if (wouldCreateCycle(dep, targetId, visited)) return true;
+    }
+    return false;
+  }
+  if (wouldCreateCycle(dependsOnId, taskId)) {
+    toast('Cannot create circular dependency', 'error');
+    return;
+  }
+
+  // Add dependency to the actual task in the store
+  const storeTask = (store.tasks[task.subId] || []).find(t => t.id === taskId);
+  if (!storeTask) return;
+  if (!storeTask.dependsOn) storeTask.dependsOn = [];
+  if (!storeTask.dependsOn.includes(dependsOnId)) {
+    storeTask.dependsOn.push(dependsOnId);
+  }
+  renderBoard();
+  try { await saveData(); toast(esc(task.name) + ' now depends on ' + esc(target.name), 'success'); }
+  catch { toast('Save failed', 'error'); }
+}
+
+async function clearTaskDependencies(goalId, taskId) {
+  const allTasks = getAllTasks();
+  const task = allTasks.find(t => t.id === taskId);
+  if (!task) return;
+  const goal = (store.goals || []).find(g => g.id === goalId);
+  const goalIds = new Set(goal?.taskIds || []);
+  const storeTask = (store.tasks[task.subId] || []).find(t => t.id === taskId);
+  if (!storeTask) return;
+  // Only remove dependencies that are within this goal
+  storeTask.dependsOn = (storeTask.dependsOn || []).filter(id => !goalIds.has(id));
+  renderBoard();
+  try { await saveData(); toast(esc(task.name) + ' moved to root', 'success'); }
+  catch { toast('Save failed', 'error'); }
 }
 
 function renderGoalsView(area) {
@@ -1386,7 +1472,20 @@ function renderGoalsView(area) {
           treeWrap.appendChild(chip);
         });
       } else {
-        roots.forEach((rootTask, i) => {
+        // Root drop zone — drag a task here to make it a root (remove its goal dependencies)
+      const rootDrop = document.createElement('div');
+      rootDrop.className = 'tree-drop-root';
+      rootDrop.textContent = '⬆ Drop here to make root (no dependency)';
+      rootDrop.addEventListener('dragover', e => { e.preventDefault(); rootDrop.classList.add('drag-over'); });
+      rootDrop.addEventListener('dragleave', () => rootDrop.classList.remove('drag-over'));
+      rootDrop.addEventListener('drop', async e => {
+        e.preventDefault();
+        rootDrop.classList.remove('drag-over');
+        if (draggedTaskId) await clearTaskDependencies(goal.id, draggedTaskId);
+      });
+      treeWrap.appendChild(rootDrop);
+
+      roots.forEach((rootTask, i) => {
           const tree = buildTaskTree(rootTask.id, goalTasks);
           if (tree) {
             const node = renderTreeNode(tree, goal.id);
