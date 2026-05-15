@@ -300,6 +300,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .fc-branch::before{content:'';position:absolute;top:0;right:50%;border-top:1px solid var(--border2);width:calc(50% + 1.5rem);height:0}
 .fc-branch::after{content:'';position:absolute;top:0;left:50%;border-top:1px solid var(--border2);width:calc(50% + 1.5rem);height:0}
 .fc-branch:only-child::before,.fc-branch:only-child::after{display:none}
+.fc-branch-solo{display:flex;flex-direction:column;align-items:center;position:relative}
 .fc-v-stack{display:flex;flex-direction:column;align-items:center;gap:0;padding-top:22px;position:relative}
 .fc-v-stack::before{content:'';position:absolute;top:0;left:50%;width:1px;height:22px;background:var(--border2)}
 .fc-v-item{display:flex;flex-direction:column;align-items:center;position:relative}
@@ -1467,17 +1468,18 @@ function buildFcChildren(nodes,goal,allTasks,canvas,s,isRoot=false) {
   const tasks=nodes.filter(n=>n.type==='task').filter(n=>{ const t=allTasks.find(x=>x.id===n.taskId); return !t || t.status!=='done'; });
   const wrap=document.createElement('div'); wrap.className='fc-col';
 
-  // Subgoals horizontal
+  // Subgoals horizontal — with connectors
   if(subgoals.length) {
     const row=document.createElement('div'); row.className='fc-h-row';
     subgoals.forEach(node=>{
-      const branch=document.createElement('div'); branch.className='fc-branch';
+      const branch=document.createElement('div');
+      branch.className=subgoals.length===1?'fc-branch-solo':'fc-branch';
       branch.appendChild(buildFcSubgoalNode(node,goal,allTasks,canvas,s));
       row.appendChild(branch);
     });
     wrap.appendChild(row);
   }
-  // Tasks vertical
+  // Tasks vertical — no horizontal connectors, just vertical line
   if(tasks.length) {
     const vstack=document.createElement('div'); vstack.className='fc-v-stack';
     tasks.forEach((node,i)=>{
