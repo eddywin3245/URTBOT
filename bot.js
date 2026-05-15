@@ -306,7 +306,38 @@ async function loadData() {
   return store;
 }
 
-const saveData = limiter.wrap(async () => { await jsonbinRequest("PUT", store); });
+// Safe save — fetches latest from JSONBin, merges critical fields, then saves
+// This prevents a stale in-memory store from overwriting newer data
+const saveData = limiter.wrap(async () => {
+  try {
+    const latest = (await jsonbinRequest("GET")).record || {};
+    // Always preserve the most up-to-date version of financial data from JSONBin
+    // unless our in-memory store has MORE expenses (meaning we just added some)
+    if (latest.expenses && latest.expenses.length > store.expenses.length) {
+      console.warn("⚠️ JSONBin has more expenses than in-memory — merging");
+      // Merge: keep all from JSONBin, add any new ones from store not in JSONBin
+      const binIds = new Set(latest.expenses.map(e => e.receiptId));
+      const newOnes = store.expenses.filter(e => !binIds.has(e.receiptId));
+      store.expenses = [...latest.expenses, ...newOnes];
+    }
+    // Same for spent — take the higher value per subsystem
+    if (latest.spent) {
+      for (const key of Object.keys(latest.spent)) {
+        if ((latest.spent[key] || 0) > (store.spent[key] || 0)) {
+          console.warn(`⚠️ JSONBin has higher spent for ${key} — using JSONBin value`);
+          store.spent[key] = latest.spent[key];
+        }
+      }
+    }
+    // Merge tasks — take JSONBin version for any task not modified in memory
+    if (latest.tasks) {
+      for (const subId of Object.keys(latest.tasks)) {
+        if (!store.tasks[subId]) store.tasks[subId] = latest.tasks[subId];
+      }
+    }
+  } catch (e) { console.error("Merge check failed:", e.message); }
+  await jsonbinRequest("PUT", store);
+});
 
 // ─────────────────────────────────────────
 //  LOGS
@@ -1090,25 +1121,65 @@ ${nudge.message}
           }
         }
 
-        // Tasks changed — refresh embeds and DM newly assigned members
+        // Tasks changed — refresh embeds, DM newly assigned, log changes
         if (JSON.stringify(store.tasks) !== prevTasks) {
           console.log("🔄 Task change detected — refreshing embeds");
           const prevTasksObj = JSON.parse(prevTasks);
+          const changeLogs = [];
           for (const sub of SUBSYSTEMS) {
-            for (const task of store.tasks[sub.id] || []) {
-              const prevTask = (prevTasksObj[sub.id] || []).find(t => t.id === task.id);
-              const prevAssignees = prevTask?.assignees || [];
-              const newAssignees = (task.assignees || []).filter(id => !prevAssignees.includes(id));
-              for (const aid of newAssignees) {
-                await dmAssigned(guild, aid, task, sub);
+            const prevList = prevTasksObj[sub.id] || [];
+            const currList = store.tasks[sub.id] || [];
+            // Detect new tasks
+            for (const task of currList) {
+              const prevTask = prevList.find(t => t.id === task.id);
+              if (!prevTask) {
+                changeLogs.push(`➕ **${sub.emoji} ${sub.label}** — New task: **${task.name}** (via Kanban)`);
+              } else {
+                // Detect status changes
+                if (prevTask.status !== task.status) {
+                  changeLogs.push(`🔄 **${sub.emoji} ${sub.label}** — **${task.name}**: ${prevTask.status} → ${task.status} (via Kanban)`);
+                }
+                // Detect new assignees
+                const newAssignees = (task.assignees || []).filter(id => !(prevTask.assignees || []).includes(id));
+                for (const aid of newAssignees) {
+                  await dmAssigned(guild, aid, task, sub);
+                  changeLogs.push(`👤 **${sub.emoji} ${sub.label}** — **${task.name}** assigned to ${memberName(aid)} (via Kanban)`);
+                }
               }
             }
+            // Detect deleted tasks
+            for (const prevTask of prevList) {
+              if (!currList.find(t => t.id === prevTask.id)) {
+                changeLogs.push(`🗑️ **${sub.emoji} ${sub.label}** — Task deleted: **${prevTask.name}** (via Kanban)`);
+              }
+            }
+          }
+          // Post change log
+          if (changeLogs.length) {
+            try {
+              const logCh = await getLogChannel(guild);
+              await logCh.send({ embeds: [new EmbedBuilder().setTitle("📋 Kanban Changes Detected").setColor(0x3498db).setDescription(changeLogs.join("\n")).setTimestamp()] });
+            } catch {}
           }
           try { const ch = await client.channels.fetch(STATUS_CHANNEL_ID); await updateOverview(ch); } catch {}
           for (const sub of SUBSYSTEMS) {
             const chId = store.leadChannelIds[sub.id];
             if (!chId) continue;
             try { const ch = await client.channels.fetch(chId); await updateLeadChannel(ch, sub); } catch {}
+          }
+        }
+
+        // Finance changed — log it too
+        if (JSON.stringify(store.expenses) !== prevExpenses || JSON.stringify(store.spent) !== prevSpent) {
+          const prevExp = JSON.parse(prevExpenses);
+          const currIds = new Set(store.expenses.map(e => e.receiptId));
+          const removedIds = prevExp.filter(e => !currIds.has(e.receiptId));
+          if (removedIds.length) {
+            try {
+              const logCh = await getLogChannel(guild);
+              const lines = removedIds.map(e => `🗑️ Expense removed via Kanban: **${e.receiptId}** — ${e.item} (${e.groupId})`);
+              await logCh.send({ embeds: [new EmbedBuilder().setTitle("💰 Finance Change Detected").setColor(0xe74c3c).setDescription(lines.join("\n")).setTimestamp()] });
+            } catch {}
           }
         }
 
