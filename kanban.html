@@ -317,6 +317,8 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .fc-box.inprogress{border-color:rgba(52,152,219,.4);background:rgba(52,152,219,.07)}
 .fc-box.fc-drag-over{border-color:#f1c40f!important;box-shadow:0 0 0 2px rgba(241,196,15,.3)!important}
 .fc-box.dragging,.fc-subgoal.dragging{opacity:.25}
+.fc-box.fc-linked{border-style:dashed;border-color:rgba(155,89,182,.5);background:rgba(155,89,182,.06)}
+.fc-box.fc-linked-hover{border-color:#9b59b6!important;background:rgba(155,89,182,.15)!important;box-shadow:0 0 0 2px rgba(155,89,182,.25)!important}
 .fc-remove{position:absolute;top:-7px;right:-7px;width:15px;height:15px;border-radius:50%;background:var(--surface3);border:1px solid var(--border2);color:var(--muted);font-size:.55em;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .15s;z-index:2}
 .fc-box:hover .fc-remove,.fc-subgoal:hover .fc-remove{opacity:1}
 .fc-drop-inside{font-size:.58em;color:var(--dim);font-family:'JetBrains Mono',monospace;padding:.2rem .6rem;border:1px dashed rgba(230,126,34,.3);border-radius:5px;margin-top:.35rem;text-align:center;transition:all .2s;cursor:default}
@@ -1495,17 +1497,34 @@ function buildFcTaskNode(node,goal,allTasks,canvas,s) {
   const sc=task.status==='done'?'done':task.status==='inprogress'?'inprogress':'';
   const pri=task.priority==='high'?'🔴':task.priority==='medium'?'🟡':task.priority==='low'?'🟢':'';
   const icon=task.status==='done'?'✅':task.status==='inprogress'?'◑':'–';
+  // Check if this task appears multiple times in the tree
+  const allPlaced=treeTaskIds(goal.tree||[]);
+  const isLinked=allPlaced.filter(id=>id===node.taskId).length>1;
 
   const wrap=document.createElement('div'); wrap.className='fc-col';
-  const box=document.createElement('div'); box.className='fc-box '+sc;
+  const box=document.createElement('div');
+  box.className='fc-box '+sc+(isLinked?' fc-linked':'');
   box.style.borderLeftColor=sub?.color||'var(--border2)';
   box.draggable=true; box.dataset.nodeId=node.nodeId; box.dataset.goalId=goal.id;
+  box.dataset.taskId=node.taskId;
   box.innerHTML='<span style="color:var(--dim);cursor:grab;font-size:.8em">⠿</span>'+
+    (isLinked?'<span title="This task appears in multiple places" style="color:#9b59b6;font-size:.8em;flex-shrink:0">🔗</span>':'')+
     '<span style="color:var(--muted)">'+icon+'</span>'+
     '<span style="overflow:hidden;text-overflow:ellipsis;max-width:120px">'+esc(task.name)+'</span>'+
     (pri?'<span>'+pri+'</span>':'')+
     '<span class="fc-remove" data-gid="'+goal.id+'" data-nid="'+node.nodeId+'" onclick="event.stopPropagation();removeFromTree(this.dataset.gid,this.dataset.nid)">✕</span>';
   box.onclick=()=>openEditModal(task.subId,task.id);
+
+  // Highlight all instances on hover
+  if(isLinked) {
+    box.addEventListener('mouseenter',()=>{
+      document.querySelectorAll('.fc-box[data-task-id="'+node.taskId+'"]').forEach(el=>el.classList.add('fc-linked-hover'));
+    });
+    box.addEventListener('mouseleave',()=>{
+      document.querySelectorAll('.fc-box[data-task-id="'+node.taskId+'"]').forEach(el=>el.classList.remove('fc-linked-hover'));
+    });
+  }
+
   setupFcDrag(box,node.nodeId,goal,canvas,s);
   setupFcDZ(box,node.nodeId,goal,canvas,s);
   wrap.appendChild(box);
