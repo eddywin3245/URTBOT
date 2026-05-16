@@ -449,7 +449,32 @@ async function loadData() {
   document.getElementById('sync-info').textContent = 'SYNCED ' + new Date().toLocaleTimeString();
 }
 async function saveData() {
-  await jbPut(store);
+  // Fetch latest before saving to avoid overwriting bot's channel IDs / financial data
+  try {
+    const latest = await jbGet();
+    // Preserve bot-managed fields that the kanban doesn't touch
+    const merged = {
+      ...store,
+      // Always keep the latest channel IDs from bot
+      messageId:           latest.messageId           ?? store.messageId,
+      leadMessageIds:      latest.leadMessageIds      || store.leadMessageIds,
+      leadChannelIds:      latest.leadChannelIds      || store.leadChannelIds,
+      logChannelId:        latest.logChannelId        ?? store.logChannelId,
+      financeLogChannelId: latest.financeLogChannelId ?? store.financeLogChannelId,
+      approvalChannelId:   latest.approvalChannelId   ?? store.approvalChannelId,
+      adminChannelId:      latest.adminChannelId      ?? store.adminChannelId,
+      budgetChannelId:     latest.budgetChannelId     ?? store.budgetChannelId,
+      budgetMessageId:     latest.budgetMessageId     ?? store.budgetMessageId,
+      receiptCounter:      Math.max(latest.receiptCounter||1, store.receiptCounter||1),
+    };
+    await jbPut(merged);
+    // Update store with merged values
+    store.messageId = merged.messageId;
+    store.receiptCounter = merged.receiptCounter;
+  } catch (e) {
+    // Fallback to direct save if merge fails
+    await jbPut(store);
+  }
   document.getElementById('sync-info').textContent = 'SAVED ' + new Date().toLocaleTimeString();
 }
 function refresh() {
