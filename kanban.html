@@ -1433,6 +1433,7 @@ function renderGoalCard(goal, allTasks, area) {
 
   const slRow = document.createElement('div'); slRow.className = 'sl-row';
 
+  console.log('renderGoalCard lanes:', goal.lanes?.length, 'goal:', goal.name);
   goal.lanes.forEach(migrateLane);
   const allGoalTaskIds = new Set(goal.lanes.flatMap(l => laneNodeTaskIds(l.nodes||[])));
 
@@ -1618,6 +1619,7 @@ function renderGoalCard(goal, allTasks, area) {
   addLaneBtn.onclick=()=>addLane(addLaneBtn.dataset.gid);
   slRow.appendChild(addLaneBtn);
 
+  console.log('appending slRow children:', slRow.children.length);
   canvas.appendChild(slRow);
   vp.appendChild(canvas);
 
