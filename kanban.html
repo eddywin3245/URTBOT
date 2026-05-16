@@ -1398,15 +1398,27 @@ function renderGoalCard(goal, allTasks, area) {
     '<span>Hover task to see dependency arrows</span>';
   card.appendChild(hint);
 
-  // Simple scrollable container instead of infinite canvas
   const vp = document.createElement('div');
-  vp.style.cssText = 'overflow-x:auto;overflow-y:auto;max-height:600px;background:var(--bg);border-top:1px solid var(--border)';
-  const canvas = vp; // canvas = vp for simplicity
+  vp.style.cssText = 'position:relative;height:620px;overflow:hidden;background:var(--bg);cursor:grab;border-top:1px solid var(--border)';
+  const canvas = document.createElement('div');
+  canvas.style.cssText = 'position:absolute;top:0;left:0;transform-origin:top left;padding:1.5rem;display:inline-flex';
+  vp.appendChild(canvas);
   const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;overflow:visible;z-index:6';
+  svg.style.cssText='position:absolute;top:0;left:0;width:0;height:0;overflow:visible;pointer-events:none;z-index:6';
   svg.innerHTML='<defs><marker id="dag-arrow" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto"><polygon points="0 0,7 2.5,0 5" fill="rgba(155,89,182,.6)"/></marker><marker id="dag-arrow-hover" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto"><polygon points="0 0,7 2.5,0 5" fill="rgba(155,89,182,.95)"/></marker></defs>';
-  vp.style.position='relative';
   vp.appendChild(svg);
+  let isPanning=false, panStart={x:0,y:0}, panOffset={x:0,y:0};
+  vp.addEventListener('mousedown', e=>{
+    if(e.target.closest('button,input,select,textarea')) return;
+    isPanning=true; vp.style.cursor='grabbing';
+    panStart={x:e.clientX-panOffset.x, y:e.clientY-panOffset.y};
+  });
+  window.addEventListener('mousemove', e=>{
+    if(!isPanning) return;
+    panOffset.x=e.clientX-panStart.x; panOffset.y=e.clientY-panStart.y;
+    canvas.style.transform='translate('+panOffset.x+'px,'+panOffset.y+'px)';
+  });
+  window.addEventListener('mouseup',()=>{ isPanning=false; vp.style.cursor='grab'; });
 
   const slRow = document.createElement('div'); slRow.className = 'sl-row';
 
@@ -1458,6 +1470,7 @@ function renderGoalCard(goal, allTasks, area) {
     lhdr.appendChild(lhdrTop);
     lhdr.appendChild(lhdrProg);
     lhdr.onclick = (e) => { if(!e.target.closest('button')) editLaneName(goal.id, lane.id); };
+    laneEl.appendChild(lhdr);
     lhdr.addEventListener('dragover', e=>{ e.preventDefault(); lhdr.classList.add('drag-over'); });
     lhdr.addEventListener("drop", async e=>{
       e.preventDefault(); lhdr.classList.remove("drag-over");
@@ -1595,7 +1608,7 @@ function renderGoalCard(goal, allTasks, area) {
   addLaneBtn.onclick=()=>addLane(addLaneBtn.dataset.gid);
   slRow.appendChild(addLaneBtn);
 
-  vp.appendChild(slRow);
+  canvas.appendChild(slRow);
   card.appendChild(vp);
   area.appendChild(card);
 }
