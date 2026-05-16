@@ -286,7 +286,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .goal-progress-nums{display:flex;justify-content:space-between;font-size:.58em;font-family:'JetBrains Mono',monospace;color:var(--muted)}
 .fc-viewport{position:relative;overflow:hidden;background:var(--bg);cursor:grab;height:600px}
 .fc-viewport.panning{cursor:grabbing}
-.fc-canvas{position:absolute;top:0;left:0;transform-origin:0 0;padding:2rem}
+.fc-canvas{position:absolute;top:0;left:0;transform-origin:0 0;padding:1.5rem;min-width:max-content}
 .fc-zoom-controls{position:absolute;bottom:.6rem;right:.6rem;display:flex;gap:.3rem;z-index:10}
 .fc-zoom-btn{width:28px;height:28px;border-radius:6px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-size:.85em;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s}
 .fc-zoom-btn:hover{background:var(--surface2)}
@@ -1345,7 +1345,7 @@ function sgProgress(node, allTasks) {
 
 let dagLinkSource = null, dagDragTask = null;
 const fcState = {};
-function getFcState(id) { if(!fcState[id]) fcState[id]={scale:.85,panX:30,panY:20}; return fcState[id]; }
+function getFcState(id) { if(!fcState[id]) fcState[id]={scale:1,panX:0,panY:0}; return fcState[id]; }
 
 function renderGoalsView(area) {
   area.className = 'goals-area';
@@ -1433,7 +1433,6 @@ function renderGoalCard(goal, allTasks, area) {
 
   const slRow = document.createElement('div'); slRow.className = 'sl-row';
 
-  console.log('renderGoalCard lanes:', goal.lanes?.length, 'goal:', goal.name);
   goal.lanes.forEach(migrateLane);
   const allGoalTaskIds = new Set(goal.lanes.flatMap(l => laneNodeTaskIds(l.nodes||[])));
 
@@ -1619,7 +1618,6 @@ function renderGoalCard(goal, allTasks, area) {
   addLaneBtn.onclick=()=>addLane(addLaneBtn.dataset.gid);
   slRow.appendChild(addLaneBtn);
 
-  console.log('appending slRow children:', slRow.children.length);
   canvas.appendChild(slRow);
   vp.appendChild(canvas);
 
