@@ -291,7 +291,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .fc-zoom-btn{width:28px;height:28px;border-radius:6px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-size:.85em;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s}
 .fc-zoom-btn:hover{background:var(--surface2)}
 .sl-row{display:flex;flex-direction:row;align-items:stretch;gap:0}
-.sl-lane{display:flex;flex-direction:column;min-width:195px;max-width:195px;border-right:1px solid var(--border2);flex-shrink:0;background:var(--surface2)}
+.sl-lane{display:flex;flex-direction:column;min-width:220px;max-width:260px;width:max-content;border-right:1px solid var(--border2);flex-shrink:0;background:var(--surface2)}
 .sl-lane:last-child{border-right:none}
 .sl-lane-hdr{width:100%;padding:.5rem .6rem;background:rgba(230,126,34,.15);border-bottom:2px solid #e67e22;font-size:.72em;font-weight:700;color:#e67e22;cursor:pointer;box-sizing:border-box;min-height:36px}
 .sl-lane-hdr.drag-over{background:rgba(230,126,34,.2)!important}
@@ -301,7 +301,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .sl-add-lane{display:flex;align-items:center;justify-content:center;min-width:70px;border:1px dashed var(--border2);border-radius:8px;margin:0 .5rem;cursor:pointer;color:var(--dim);font-size:.72em;font-family:'JetBrains Mono',monospace;transition:all .2s;padding:0 .4rem;align-self:stretch}
 .sl-add-lane:hover{border-color:var(--border2);color:var(--muted);background:var(--surface2)}
 .lt-label span{color:#e8edf5 !important}
-.dag-task{position:relative;padding:.32rem .55rem;border-radius:7px;border:1px solid var(--border2);border-left-width:3px;background:var(--surface2);font-size:.68em;cursor:grab;transition:all .15s;width:100%;box-sizing:border-box;user-select:none}
+.dag-task{position:relative;padding:.32rem .55rem;border-radius:7px;border:1px solid var(--border2);border-left-width:3px;background:var(--surface2);font-size:.68em;cursor:grab;transition:all .15s;width:100%;box-sizing:border-box;user-select:none;min-width:0}
 .dag-task:hover{border-color:rgba(255,255,255,.2);box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .dag-task.done{opacity:.4;text-decoration:line-through}
 .dag-task.inprogress{box-shadow:inset 0 0 0 1px rgba(52,152,219,.3)}
@@ -1329,6 +1329,45 @@ function goalProgress(goal) {
   const done = linked.filter(t => t.status==='done').length;
   return { done, total: linked.length, pct: linked.length ? Math.round(done/linked.length*100) : 0 };
 }
+function isGoalBlocked(goal) {
+  const deps = goal.dependsOn || [];
+  return deps.some(depId => {
+    const depGoal = (store.goals||[]).find(g => g.id === depId);
+    if (!depGoal) return false;
+    return goalProgress(depGoal).pct < 100;
+  });
+}
+function isSubgoalComplete(node, allTasks) {
+  const ids = laneNodeTaskIds(node.children||[]);
+  if (!ids.length) return false;
+  return ids.every(id => { const t = allTasks.find(x=>x.id===id); return t && t.status==='done'; });
+}
+// Check if a task is blocked by subgoal or task dependencies
+function isTaskBlocked(task, allGoalTaskIds, allNodes, allTasks) {
+  const deps = task.dependsOn || [];
+  return deps.some(depId => {
+    // Task dependency
+    if (allGoalTaskIds.has(depId)) {
+      const dep = allTasks.find(t=>t.id===depId);
+      return dep && dep.status !== 'done';
+    }
+    // Subgoal dependency (depId is a nodeId)
+    const node = findNodeAnywhere(allNodes, depId);
+    if (node && node.type === 'subgoal') return !isSubgoalComplete(node, allTasks);
+    return false;
+  });
+}
+function findNodeAnywhere(nodes, nodeId) {
+  for (const n of nodes||[]) {
+    if (n.nodeId === nodeId) return n;
+    const f = findNodeAnywhere(n.children||[], nodeId);
+    if (f) return f;
+  }
+  return null;
+}
+function getAllGoalNodes(goal) {
+  return (goal.lanes||[]).flatMap(l => l.nodes||[]);
+}
 function laneProgress(lane, allTasks) {
   migrateLane(lane);
   const ids = laneNodeTaskIds(lane.nodes||[]);
@@ -1376,12 +1415,21 @@ function renderGoalCard(goal, allTasks, area) {
 
   const card = document.createElement('div'); card.className = 'goal-card';
 
+  const goalBlocked = isGoalBlocked(goal);
+  const blockingGoals = (goal.dependsOn||[]).map(id=>(store.goals||[]).find(g=>g.id===id)).filter(Boolean);
+
   const chdr = document.createElement('div'); chdr.className = 'goal-card-hdr';
   chdr.innerHTML = '<div class="goal-card-hdr-left">' +
-    '<div class="goal-title">🎯 '+esc(goal.name)+'</div>' +
-    '<div class="goal-meta"><span style="color:'+dlCol+'">📅 '+dlTxt+'</span><span>'+done+'/'+total+' done</span><span style="color:'+fill+'">'+pct+'%</span></div>' +
-    '</div><div style="display:flex;gap:.4rem">' +
-    '<button data-gid="'+goal.id+'" onclick="addLane(this.dataset.gid)" class="admin-nudge-btn" style="color:#e67e22;border-color:rgba(230,126,34,.3)">+ Swimlane</button>' +
+    '<div class="goal-title">'+(goalBlocked?'⏳ ':'🎯 ')+esc(goal.name)+'</div>' +
+    '<div class="goal-meta"><span style="color:'+dlCol+'">📅 '+dlTxt+'</span><span>'+done+'/'+total+' done</span><span style="color:'+fill+'">'+pct+'%</span>' +
+    (goalBlocked ? '<span style="color:#f1c40f">⏳ waiting on: '+blockingGoals.map(g=>esc(g.name)).join(', ')+'</span>' : '') +
+    '</div>' +
+    (blockingGoals.length ? '<div style="font-size:.6em;font-family:JetBrains Mono,monospace;color:var(--muted);margin-top:.2rem;display:flex;gap:.5rem;flex-wrap:wrap">' +
+      blockingGoals.map(g => '<span style="background:rgba(241,196,15,.1);border:1px solid rgba(241,196,15,.2);border-radius:4px;padding:.1rem .4rem;color:#f1c40f">🔗 '+esc(g.name)+'</span>').join('') +
+      '</div>' : '') +
+    '</div><div style="display:flex;gap:.4rem;align-items:flex-start">' +
+    '<button data-gid="'+goal.id+'" onclick="openGoalDepsModal(this.dataset.gid)" class="admin-nudge-btn" style="color:#9b59b6;border-color:rgba(155,89,182,.3)">🔗 Deps</button>' +
+    '<button data-gid="'+goal.id+'" onclick="addLane(this.dataset.gid)" class="admin-nudge-btn" style="color:#e67e22;border-color:rgba(230,126,34,.3)">+ Lane</button>' +
     '<button data-gid="'+goal.id+'" onclick="openEditGoalModal(this.dataset.gid)" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">✎</button>' +
     '</div>';
   card.appendChild(chdr);
@@ -1472,6 +1520,7 @@ function renderGoalCard(goal, allTasks, area) {
     lhdr.onclick = (e) => { if(!e.target.closest('button')) editLaneName(goal.id, lane.id); };
     laneEl.appendChild(lhdr);
     lhdr.addEventListener('dragover', e=>{ e.preventDefault(); lhdr.classList.add('drag-over'); });
+    // Subgoal header also accepts shift+drag to link as subgoal dependency
     lhdr.addEventListener("drop", async e=>{
       e.preventDefault(); lhdr.classList.remove("drag-over");
       if (!dagDragTask || dagDragTask.goalId!==goal.id || dagDragTask.fromLaneId===lane.id) return;
@@ -1567,6 +1616,23 @@ function renderGoalCard(goal, allTasks, area) {
           sgDrop.addEventListener('dragleave',()=>sgDrop.classList.remove('drag-over'));
           sgDrop.addEventListener('drop',async e=>{
             e.preventDefault(); e.stopPropagation(); sgDrop.classList.remove('drag-over');
+            // Shift+drag = link task as depending on this subgoal
+            const linkSrc = e.dataTransfer.getData('depLink');
+            if(linkSrc) {
+              const srcSubId = allTasks.find(t=>t.id===linkSrc)?.subId;
+              const srcTask = srcSubId ? (store.tasks[srcSubId]||[]).find(t=>t.id===linkSrc) : null;
+              if(srcTask) {
+                if(!srcTask.dependsOn) srcTask.dependsOn=[];
+                if(!srcTask.dependsOn.includes(node.nodeId)) {
+                  srcTask.dependsOn.push(node.nodeId);
+                  renderBoard();
+                  try{await saveData();toast('Task now depends on subgoal: '+esc(node.name),'success');}catch{}
+                }
+              }
+              dagLinkSource=null;
+              document.querySelectorAll('.dag-task').forEach(el=>el.classList.remove('dep-target','linking-source'));
+              return;
+            }
             if(dagDragTask&&dagDragTask.goalId===goal.id){
               const srcLane=goal.lanes.find(l=>l.id===dagDragTask.fromLaneId);
               if(srcLane) removeLaneNode(srcLane.nodes||[],dagDragTask.nodeId);
@@ -1809,6 +1875,42 @@ async function confirmAddToLane(goalId, laneId) {
   checked.forEach(tid=>{ if(!placed.has(tid)) lane.nodes.push({nodeId:makeNodeId(),type:'task',taskId:tid,children:[]}); });
   closeModal(); renderBoard();
   try{await saveData();toast(checked.length+' task(s) added','success');}catch{toast('Save failed','error');}
+}
+
+function openGoalDepsModal(goalId) {
+  const goal = (store.goals||[]).find(g=>g.id===goalId);
+  if (!goal) return;
+  const otherGoals = (store.goals||[]).filter(g=>g.id!==goalId);
+  const currentDeps = new Set(goal.dependsOn||[]);
+  showModal(
+    '<div class="modal-title">🔗 Goal Dependencies</div>'+
+    '<div style="font-size:.75em;color:var(--muted);margin-bottom:.75rem">Select goals that must complete before <strong style="color:var(--text)">'+esc(goal.name)+'</strong> can proceed:</div>'+
+    (otherGoals.length ? 
+      '<div style="display:flex;flex-direction:column;gap:.4rem;max-height:250px;overflow-y:auto">'+
+        otherGoals.map(g=>{
+          const {pct} = goalProgress(g);
+          const fill = pct===100?'#2ecc71':pct>50?'#3498db':'#f1c40f';
+          return '<label style="display:grid;grid-template-columns:16px 1fr auto;align-items:center;gap:.5rem;padding:.4rem .5rem;border-radius:6px;background:var(--surface2);cursor:pointer">'+
+            '<input type="checkbox" class="goal-dep-cb" value="'+g.id+'" '+(currentDeps.has(g.id)?'checked':'')+' style="accent-color:#9b59b6;cursor:pointer">'+
+            '<span style="font-size:.78em;color:#e8edf5">🎯 '+esc(g.name)+'</span>'+
+            '<span style="font-size:.65em;font-family:JetBrains Mono,monospace;color:'+fill+'">'+pct+'%</span>'+
+          '</label>';
+        }).join('') +
+      '</div>'
+    : '<div style="font-size:.75em;color:var(--dim);font-family:JetBrains Mono,monospace">No other goals to depend on</div>') +
+    '<div class="modal-footer">'+
+      '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
+      '<button class="mbtn primary" data-gid="'+goalId+'" onclick="saveGoalDeps(this.dataset.gid)">Save</button>'+
+    '</div>'
+  );
+}
+
+async function saveGoalDeps(goalId) {
+  const goal = (store.goals||[]).find(g=>g.id===goalId);
+  if (!goal) return;
+  goal.dependsOn = [...document.querySelectorAll('.goal-dep-cb:checked')].map(cb=>cb.value);
+  closeModal(); renderBoard();
+  try{await saveData();toast('Dependencies saved','success');}catch{toast('Save failed','error');}
 }
 
 function openAddGoalModal(){
