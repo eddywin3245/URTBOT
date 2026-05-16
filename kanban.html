@@ -311,6 +311,15 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .dag-task.linking-source{border-color:#2ecc71!important;box-shadow:0 0 0 2px rgba(46,204,113,.35)!important;cursor:crosshair}
 .dag-remove{position:absolute;top:-6px;right:-6px;width:14px;height:14px;border-radius:50%;background:var(--surface3);border:1px solid var(--border2);color:var(--muted);font-size:.5em;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .15s;z-index:2}
 .dag-task:hover .dag-remove{opacity:1}
+.sg-node{margin:.2rem 0;border-radius:8px;border:1px solid rgba(230,126,34,.35);background:rgba(230,126,34,.06);overflow:hidden}
+.sg-hdr{display:flex;align-items:center;gap:.35rem;padding:.35rem .5rem;cursor:pointer;font-size:.7em;font-weight:700;color:#e67e22;user-select:none}
+.sg-hdr:hover{background:rgba(230,126,34,.1)}
+.sg-hdr-right{margin-left:auto;display:flex;align-items:center;gap:.3rem}
+.sg-prog{height:2px;background:var(--bg);border-radius:1px;overflow:hidden;margin:0 .5rem .3rem}
+.sg-prog-fill{height:100%;border-radius:1px;transition:width .4s}
+.sg-body{display:flex;flex-direction:column;gap:.3rem;padding:.2rem .4rem .4rem}
+.sg-drop{min-height:22px;border:1px dashed rgba(230,126,34,.25);border-radius:5px;font-size:.58em;color:var(--dim);font-family:JetBrains Mono,monospace;display:flex;align-items:center;justify-content:center;transition:all .2s;cursor:default;margin:.1rem 0}
+.sg-drop.drag-over{border-color:#e67e22;color:#e67e22;background:rgba(230,126,34,.05)}
 .dag-svg{position:absolute;top:0;left:0;pointer-events:none;overflow:visible;z-index:6}
 .dag-arrow{fill:none;stroke:rgba(155,89,182,.55);stroke-width:1.5;marker-end:url(#dag-arrow)}
 .dag-arrow.hover{stroke:rgba(155,89,182,.95);stroke-width:2.5;marker-end:url(#dag-arrow-hover)}
@@ -1254,15 +1263,56 @@ function getAllTasks() {
 }
 function makeNodeId() { return 'n'+Math.random().toString(36).slice(2,8); }
 
+// Lane node helpers
+function laneNodeTaskIds(nodes=[]) {
+  const ids=[];
+  for(const n of nodes){
+    if(n.type==='task') ids.push(n.taskId);
+    ids.push(...laneNodeTaskIds(n.children||[]));
+  }
+  return ids;
+}
+function findLaneNode(nodes,nodeId){
+  for(const n of nodes){if(n.nodeId===nodeId)return n;const f=findLaneNode(n.children||[],nodeId);if(f)return f;}return null;
+}
+function removeLaneNode(nodes,nodeId){
+  for(let i=nodes.length-1;i>=0;i--){
+    if(nodes[i].nodeId===nodeId){nodes.splice(i,1);return true;}
+    if(removeLaneNode(nodes[i].children||[],nodeId))return true;
+  }return false;
+}
+function insertLaneNode(nodes,parentId,node){
+  if(!parentId){nodes.push(node);return true;}
+  for(const n of nodes){
+    if(n.nodeId===parentId){if(!n.children)n.children=[];n.children.push(node);return true;}
+    if(insertLaneNode(n.children||[],parentId,node))return true;
+  }return false;
+}
+// Migrate old taskIds[] to nodes[]
+function migrateLane(lane){
+  if(lane.nodes) return;
+  lane.nodes=(lane.taskIds||[]).map(tid=>({nodeId:makeNodeId(),type:'task',taskId:tid,children:[]}));
+  delete lane.taskIds;
+}
+
 function goalProgress(goal) {
   const at = getAllTasks();
-  const ids = new Set((goal.lanes||[]).flatMap(l => l.taskIds||[]));
+  (goal.lanes||[]).forEach(migrateLane);
+  const ids = new Set((goal.lanes||[]).flatMap(l => laneNodeTaskIds(l.nodes||[])));
   const linked = [...ids].map(id => at.find(t => t.id===id)).filter(Boolean);
   const done = linked.filter(t => t.status==='done').length;
   return { done, total: linked.length, pct: linked.length ? Math.round(done/linked.length*100) : 0 };
 }
 function laneProgress(lane, allTasks) {
-  const linked = (lane.taskIds||[]).map(id => allTasks.find(t => t.id===id)).filter(Boolean);
+  migrateLane(lane);
+  const ids = laneNodeTaskIds(lane.nodes||[]);
+  const linked = ids.map(id => allTasks.find(t => t.id===id)).filter(Boolean);
+  const done = linked.filter(t => t.status==='done').length;
+  return { done, total: linked.length, pct: linked.length ? Math.round(done/linked.length*100) : 0 };
+}
+function sgProgress(node, allTasks) {
+  const ids = laneNodeTaskIds(node.children||[]);
+  const linked = ids.map(id => allTasks.find(t => t.id===id)).filter(Boolean);
   const done = linked.filter(t => t.status==='done').length;
   return { done, total: linked.length, pct: linked.length ? Math.round(done/linked.length*100) : 0 };
 }
@@ -1375,111 +1425,132 @@ function renderGoalCard(goal, allTasks, area) {
       '<div class="sl-prog"><div class="sl-prog-fill" style="width:'+lp+'%;background:'+lFill+'"></div></div>';
     lhdr.onclick = () => editLaneName(goal.id, lane.id);
     lhdr.addEventListener('dragover', e=>{ e.preventDefault(); lhdr.classList.add('drag-over'); });
-    lhdr.addEventListener('dragleave', ()=>lhdr.classList.remove('drag-over'));
-    lhdr.addEventListener('drop', async e=>{
-      e.preventDefault(); lhdr.classList.remove('drag-over');
+    lhdr.addEventListener("drop", async e=>{
+      e.preventDefault(); lhdr.classList.remove("drag-over");
       if (!dagDragTask || dagDragTask.goalId!==goal.id || dagDragTask.fromLaneId===lane.id) return;
-      const fl = goal.lanes.find(l=>l.id===dagDragTask.fromLaneId);
-      if (fl) fl.taskIds=(fl.taskIds||[]).filter(id=>id!==dagDragTask.taskId);
-      if (!lane.taskIds) lane.taskIds=[];
-      if (!lane.taskIds.includes(dagDragTask.taskId)) lane.taskIds.push(dagDragTask.taskId);
+      const srcLane = goal.lanes.find(l=>l.id===dagDragTask.fromLaneId);
+      if (srcLane) removeLaneNode(srcLane.nodes||[], dagDragTask.nodeId||"");
+      migrateLane(lane);
+      lane.nodes.push({nodeId:makeNodeId(),type:"task",taskId:dagDragTask.taskId,children:[]});
       dagDragTask=null; renderBoard();
-      try{await saveData();toast('Task moved','success');}catch{toast('Save failed','error');}
+      try{await saveData();toast("Task moved","success");}catch{toast("Save failed","error");}
     });
-    laneEl.appendChild(lhdr);
+
+
 
     const taskList = document.createElement('div'); taskList.className = 'sl-tasks';
+    migrateLane(lane);
 
-    (lane.taskIds||[]).forEach(taskId => {
-      const task = allTasks.find(t=>t.id===taskId);
-      if (!task || task.status==='done') return;
-      const sub = SUBS.find(s=>s.id===task.subId);
-      const pri = task.priority==='high'?'🔴':task.priority==='medium'?'🟡':task.priority==='low'?'🟢':'';
-      const icon = task.status==='inprogress'?'◑':'–';
-      const sc = task.status==='inprogress'?'inprogress':'';
-      const depIds = (task.dependsOn||[]).filter(id=>allGoalTaskIds.has(id));
-      const blocked = depIds.some(depId=>{ const dep=allTasks.find(t=>t.id===depId); return dep&&dep.status!=='done'; });
-
-      const chip = document.createElement('div');
-      chip.className='dag-task '+sc+(blocked?' dep-blocked':'');
-      chip.style.borderLeftColor=sub?.color||'var(--border2)';
-      chip.dataset.taskId=taskId; chip.dataset.laneId=lane.id; chip.dataset.goalId=goal.id;
-      chip.draggable=true;
-      chip.innerHTML =
-        '<div style="display:flex;align-items:center;gap:.3rem;min-width:0">' +
-          '<span style="color:var(--dim);font-size:.8em;flex-shrink:0;cursor:grab">⠿</span>' +
-          '<span style="color:var(--muted);flex-shrink:0">'+icon+'</span>' +
-          '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+esc(task.name)+'</span>' +
-          (pri?'<span style="flex-shrink:0">'+pri+'</span>':'') +
-        '</div>' +
-        (blocked?'<div style="font-size:.56em;color:#f1c40f;font-family:JetBrains Mono,monospace;margin-top:.15rem">⏳ waiting on deps</div>':'') +
-        (depIds.length?'<div style="font-size:.54em;color:rgba(155,89,182,.75);font-family:JetBrains Mono,monospace;margin-top:.1rem">🔗 '+depIds.length+' dep'+(depIds.length>1?'s':'')+'</div>':'') +
-        '<span class="dag-remove" data-gid="'+goal.id+'" data-lid="'+lane.id+'" data-tid="'+taskId+'" onclick="event.stopPropagation();removeTaskFromLane(this.dataset.gid,this.dataset.lid,this.dataset.tid)">✕</span>';
-
-      chip.onclick = () => { if(dagLinkSource) return; openEditModal(task.subId, taskId); };
-
-      chip.addEventListener('dragstart', e=>{
-        if (e.shiftKey) {
-          dagLinkSource=taskId;
-          e.dataTransfer.setData('depLink', taskId);
-          e.dataTransfer.effectAllowed='link';
-          setTimeout(()=>{
-            chip.classList.add('linking-source');
-            document.querySelectorAll('.dag-task').forEach(el=>{ if(el.dataset.taskId!==taskId) el.classList.add('dep-target'); });
-          },0);
-        } else {
-          dagDragTask={taskId, fromLaneId:lane.id, goalId:goal.id};
-          e.dataTransfer.setData('moveTask', taskId);
-          e.dataTransfer.effectAllowed='move';
-          setTimeout(()=>chip.classList.add('dep-dragging'),0);
-        }
-      });
-      chip.addEventListener('dragend', ()=>{
-        chip.classList.remove('dep-dragging','linking-source');
-        document.querySelectorAll('.dag-task').forEach(el=>el.classList.remove('dep-target','linking-source','dep-hover'));
-        dagLinkSource=null; dagDragTask=null;
-      });
-      chip.addEventListener('dragover', e=>{
-        const srcLink=dagLinkSource;
-        if (srcLink && srcLink!==taskId) { e.preventDefault(); chip.classList.add('dep-hover'); }
-        else if (dagDragTask && dagDragTask.taskId!==taskId) e.preventDefault();
-      });
-      chip.addEventListener('dragleave', ()=>chip.classList.remove('dep-hover'));
-      chip.addEventListener('drop', async e=>{
-        e.preventDefault(); e.stopPropagation();
-        chip.classList.remove('dep-hover');
-        const linkSrc = e.dataTransfer.getData('depLink');
-        if (linkSrc && linkSrc!==taskId) {
-          // linkSrc DEPENDS ON taskId (taskId must be done first)
-          const srcSubId = allTasks.find(t=>t.id===linkSrc)?.subId;
-          const srcTask = srcSubId ? (store.tasks[srcSubId]||[]).find(t=>t.id===linkSrc) : null;
-          if (srcTask) {
-            if (!srcTask.dependsOn) srcTask.dependsOn=[];
-            if (!srcTask.dependsOn.includes(taskId)) {
-              srcTask.dependsOn.push(taskId);
-              renderBoard();
-              try{await saveData();toast('Dependency added — '+esc(task.name)+' must complete first','success');}catch{toast('Save failed','error');}
+    function renderLaneNodes(nodes, container) {
+      (nodes||[]).forEach(node => {
+        if (node.type === 'task') {
+          const taskId = node.taskId;
+          const task = allTasks.find(t=>t.id===taskId);
+          if (!task || task.status==='done') return;
+          const sub = SUBS.find(s=>s.id===task.subId);
+          const pri = task.priority==='high'?'🔴':task.priority==='medium'?'🟡':task.priority==='low'?'🟢':'';
+          const icon = task.status==='inprogress'?'◑':'–';
+          const sc = task.status==='inprogress'?'inprogress':'';
+          const depIds = (task.dependsOn||[]).filter(id=>allGoalTaskIds.has(id));
+          const blocked = depIds.some(depId=>{ const dep=allTasks.find(t=>t.id===depId); return dep&&dep.status!=='done'; });
+          const chip = document.createElement('div');
+          chip.className='dag-task '+sc+(blocked?' dep-blocked':'');
+          chip.style.borderLeftColor=sub?.color||'var(--border2)';
+          chip.dataset.taskId=taskId; chip.dataset.laneId=lane.id; chip.dataset.goalId=goal.id; chip.dataset.nodeId=node.nodeId;
+          chip.draggable=true;
+          chip.innerHTML=
+            '<div style="display:flex;align-items:center;gap:.3rem;min-width:0">'+
+              '<span style="color:var(--dim);font-size:.8em;flex-shrink:0;cursor:grab">⠿</span>'+
+              '<span style="color:var(--muted)">'+icon+'</span>'+
+              '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;color:#e8edf5">'+esc(task.name)+'</span>'+
+              (pri?'<span style="flex-shrink:0">'+pri+'</span>':'')+
+            '</div>'+
+            (blocked?'<div style="font-size:.56em;color:#f1c40f;font-family:JetBrains Mono,monospace;margin-top:.15rem">⏳ waiting on deps</div>':'')+
+            (depIds.length?'<div style="font-size:.54em;color:rgba(155,89,182,.75);font-family:JetBrains Mono,monospace;margin-top:.1rem">🔗 '+depIds.length+' dep'+(depIds.length>1?'s':'')+'</div>':'')+
+            '<span class="dag-remove" data-gid="'+goal.id+'" data-lid="'+lane.id+'" data-nid="'+node.nodeId+'" onclick="event.stopPropagation();removeLaneNodeById(this.dataset.gid,this.dataset.lid,this.dataset.nid)">✕</span>';
+          chip.onclick=()=>{ if(dagLinkSource) return; openEditModal(task.subId,taskId); };
+          chip.addEventListener('dragstart',e=>{
+            if(e.shiftKey){
+              dagLinkSource=taskId; e.dataTransfer.setData('depLink',taskId); e.dataTransfer.effectAllowed='link';
+              setTimeout(()=>{ chip.classList.add('linking-source'); document.querySelectorAll('.dag-task').forEach(el=>{ if(el.dataset.taskId!==taskId) el.classList.add('dep-target'); }); },0);
+            } else {
+              dagDragTask={taskId,fromLaneId:lane.id,goalId:goal.id,nodeId:node.nodeId};
+              e.dataTransfer.setData('moveTask',taskId); e.dataTransfer.effectAllowed='move';
+              setTimeout(()=>chip.classList.add('dep-dragging'),0);
             }
-          }
-          dagLinkSource=null;
-          document.querySelectorAll('.dag-task').forEach(el=>el.classList.remove('dep-target','linking-source'));
+          });
+          chip.addEventListener('dragend',()=>{ chip.classList.remove('dep-dragging','linking-source'); document.querySelectorAll('.dag-task').forEach(el=>el.classList.remove('dep-target','linking-source','dep-hover')); dagLinkSource=null; dagDragTask=null; });
+          chip.addEventListener('dragover',e=>{ if(dagLinkSource&&dagLinkSource!==taskId){e.preventDefault();chip.classList.add('dep-hover');} else if(dagDragTask&&dagDragTask.taskId!==taskId) e.preventDefault(); });
+          chip.addEventListener('dragleave',()=>chip.classList.remove('dep-hover'));
+          chip.addEventListener('drop',async e=>{
+            e.preventDefault(); e.stopPropagation(); chip.classList.remove('dep-hover');
+            const linkSrc=e.dataTransfer.getData('depLink');
+            if(linkSrc&&linkSrc!==taskId){
+              const srcSubId=allTasks.find(t=>t.id===linkSrc)?.subId;
+              const srcTask=srcSubId?(store.tasks[srcSubId]||[]).find(t=>t.id===linkSrc):null;
+              if(srcTask){ if(!srcTask.dependsOn) srcTask.dependsOn=[]; if(!srcTask.dependsOn.includes(taskId)){ srcTask.dependsOn.push(taskId); renderBoard(); try{await saveData();toast('Dependency added','success');}catch{} } }
+              dagLinkSource=null; document.querySelectorAll('.dag-task').forEach(el=>el.classList.remove('dep-target','linking-source'));
+            }
+          });
+          chip.addEventListener('mouseenter',()=>drawDepArrows(svg,canvas,vp,goal,taskId,allTasks,true));
+          chip.addEventListener('mouseleave',()=>{ svg.querySelectorAll('.dag-arrow').forEach(a=>a.remove()); });
+          container.appendChild(chip);
+
+        } else if (node.type === 'subgoal') {
+          const {done:sd,total:st,pct:sp}=sgProgress(node,allTasks);
+          const sfill=sp===100?'#2ecc71':sp>50?'#3498db':'#f1c40f';
+          const sgEl=document.createElement('div'); sgEl.className='sg-node';
+          const sgHdr=document.createElement('div'); sgHdr.className='sg-hdr';
+          sgHdr.innerHTML='<span style="font-size:.85em;flex-shrink:0">📌</span>'+
+            '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(node.name)+'</span>'+
+            '<div class="sg-hdr-right">'+
+              '<span style="font-size:.75em;color:var(--muted);font-family:JetBrains Mono,monospace">'+sd+'/'+st+'</span>'+
+              '<button data-gid="'+goal.id+'" data-lid="'+lane.id+'" data-nid="'+node.nodeId+'" onclick="event.stopPropagation();addSubgoalToNode(this.dataset.gid,this.dataset.lid,this.dataset.nid)" style="background:none;border:none;color:rgba(230,126,34,.6);cursor:pointer;font-size:.8em" title="Add subgoal inside">📌</button>'+
+              '<button data-gid="'+goal.id+'" data-lid="'+lane.id+'" data-nid="'+node.nodeId+'" onclick="event.stopPropagation();openAddTaskToNode(this.dataset.gid,this.dataset.lid,this.dataset.nid)" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:.9em" title="Add task inside">＋</button>'+
+              '<button data-gid="'+goal.id+'" data-lid="'+lane.id+'" data-nid="'+node.nodeId+'" onclick="event.stopPropagation();removeLaneNodeById(this.dataset.gid,this.dataset.lid,this.dataset.nid)" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:.8em">✕</button>'+
+            '</div>';
+          sgEl.appendChild(sgHdr);
+          const sgProg=document.createElement('div'); sgProg.className='sg-prog';
+          sgProg.innerHTML='<div class="sg-prog-fill" style="width:'+sp+'%;background:'+sfill+'"></div>';
+          sgEl.appendChild(sgProg);
+          const sgBody=document.createElement('div'); sgBody.className='sg-body';
+          // Drop zone inside
+          const sgDrop=document.createElement('div'); sgDrop.className='sg-drop';
+          sgDrop.textContent='+ drop task here';
+          sgDrop.addEventListener('dragover',e=>{ e.preventDefault(); sgDrop.classList.add('drag-over'); });
+          sgDrop.addEventListener('dragleave',()=>sgDrop.classList.remove('drag-over'));
+          sgDrop.addEventListener('drop',async e=>{
+            e.preventDefault(); e.stopPropagation(); sgDrop.classList.remove('drag-over');
+            if(dagDragTask&&dagDragTask.goalId===goal.id){
+              const srcLane=goal.lanes.find(l=>l.id===dagDragTask.fromLaneId);
+              if(srcLane) removeLaneNode(srcLane.nodes||[],dagDragTask.nodeId);
+              if(!node.children) node.children=[];
+              node.children.push({nodeId:makeNodeId(),type:'task',taskId:dagDragTask.taskId,children:[]});
+              dagDragTask=null; renderBoard();
+              try{await saveData();toast('Moved into subgoal','success');}catch{toast('Save failed','error');}
+            }
+          });
+          sgBody.appendChild(sgDrop);
+          if((node.children||[]).length) renderLaneNodes(node.children,sgBody);
+          sgEl.appendChild(sgBody);
+          container.appendChild(sgEl);
         }
       });
+    }
 
-      // Hover to show arrows
-      chip.addEventListener('mouseenter', ()=>drawDepArrows(svg, canvas, vp, goal, taskId, allTasks, true));
-      chip.addEventListener('mouseleave', ()=>{ svg.querySelectorAll('.dag-arrow').forEach(a=>a.remove()); });
+    renderLaneNodes(lane.nodes, taskList);
 
-      taskList.appendChild(chip);
-    });
-
-    // Add task button
-    const addBtn = document.createElement('button');
-    addBtn.style.cssText='padding:.25rem .5rem;background:transparent;border:1px dashed var(--border2);border-radius:5px;color:var(--dim);font-size:.6em;font-family:JetBrains Mono,monospace;cursor:pointer;width:100%;margin-top:.3rem;transition:all .2s';
-    addBtn.textContent='+ Add task';
-    addBtn.dataset.gid=goal.id; addBtn.dataset.lid=lane.id;
-    addBtn.onclick=()=>openAddTaskToLane(addBtn.dataset.gid, addBtn.dataset.lid);
-    taskList.appendChild(addBtn);
+    const btnRow=document.createElement('div'); btnRow.style.cssText='display:flex;gap:.3rem;margin-top:.3rem';
+    const addTaskBtn=document.createElement('button');
+    addTaskBtn.style.cssText='padding:.22rem .5rem;background:transparent;border:1px dashed var(--border2);border-radius:5px;color:var(--dim);font-size:.6em;font-family:JetBrains Mono,monospace;cursor:pointer;flex:1';
+    addTaskBtn.textContent='+ Task'; addTaskBtn.dataset.gid=goal.id; addTaskBtn.dataset.lid=lane.id;
+    addTaskBtn.onclick=()=>openAddTaskToLane(addTaskBtn.dataset.gid,addTaskBtn.dataset.lid);
+    const addSgBtn=document.createElement('button');
+    addSgBtn.style.cssText='padding:.22rem .5rem;background:transparent;border:1px dashed rgba(230,126,34,.35);border-radius:5px;color:rgba(230,126,34,.7);font-size:.6em;font-family:JetBrains Mono,monospace;cursor:pointer;flex:1';
+    addSgBtn.textContent='📌 Subgoal'; addSgBtn.dataset.gid=goal.id; addSgBtn.dataset.lid=lane.id;
+    addSgBtn.onclick=()=>addSubgoalToLane(addSgBtn.dataset.gid,addSgBtn.dataset.lid);
+    btnRow.appendChild(addTaskBtn); btnRow.appendChild(addSgBtn);
+    taskList.appendChild(btnRow);
 
     laneEl.appendChild(taskList);
     slRow.appendChild(laneEl);
@@ -1535,6 +1606,87 @@ function drawDepArrows(svg, canvas, vp, goal, taskId, allTasks, hover) {
   });
 }
 
+async function removeLaneNodeById(goalId, laneId, nodeId) {
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  if (!goal) return;
+  const lane=(goal.lanes||[]).find(l=>l.id===laneId);
+  if (!lane) return;
+  removeLaneNode(lane.nodes||[], nodeId);
+  renderBoard();
+  try{await saveData();toast('Removed','success');}catch{}
+}
+
+async function addSubgoalToLane(goalId, laneId) {
+  const name=prompt('Subgoal name:');
+  if (!name?.trim()) return;
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  const lane=(goal?.lanes||[]).find(l=>l.id===laneId);
+  if (!lane) return;
+  migrateLane(lane);
+  lane.nodes.push({nodeId:makeNodeId(),type:'subgoal',name:name.trim(),children:[]});
+  renderBoard();
+  try{await saveData();toast('Subgoal added','success');}catch{}
+}
+
+async function addSubgoalToNode(goalId, laneId, nodeId) {
+  const name=prompt('Subgoal name:');
+  if (!name?.trim()) return;
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  const lane=(goal?.lanes||[]).find(l=>l.id===laneId);
+  if (!lane) return;
+  const node=findLaneNode(lane.nodes||[],nodeId);
+  if (!node) return;
+  if (!node.children) node.children=[];
+  node.children.push({nodeId:makeNodeId(),type:'subgoal',name:name.trim(),children:[]});
+  renderBoard();
+  try{await saveData();toast('Subgoal added','success');}catch{}
+}
+
+function openAddTaskToNode(goalId, laneId, nodeId) {
+  // Same as openAddTaskToLane but inserts into a specific node
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  const lane=(goal?.lanes||[]).find(l=>l.id===laneId);
+  if (!lane) return;
+  const allTasks=getAllTasks();
+  const allPlaced=new Set(laneNodeTaskIds(lane.nodes||[]));
+  const avail=allTasks.filter(t=>!allPlaced.has(t.id));
+  showModal(
+    '<div class="modal-title">+ Add tasks to subgoal</div>'+
+    '<div class="mfield"><label>SEARCH</label>'+
+      '<input type="text" id="lt-search" placeholder="Search tasks..." oninput="filterLaneTasks()" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-bottom:none;border-radius:6px 6px 0 0;color:var(--text);font-size:.78em;outline:none">'+
+      '<div id="lt-list" style="max-height:220px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 6px 6px;padding:.25rem">'+
+        avail.map(t=>{
+          const sub=SUBS.find(s=>s.id===t.subId);
+          return '<label class="lt-label" style="display:flex;align-items:center;gap:.5rem;padding:.3rem .5rem;border-radius:5px;cursor:pointer">'+
+            '<input type="checkbox" class="lt-cb" value="'+t.id+'" style="accent-color:#e67e22;cursor:pointer">'+
+            '<span style="width:7px;height:7px;border-radius:50%;background:'+(sub?.color||'#999')+';flex-shrink:0"></span>'+
+            '<span style="font-size:.75em;font-family:JetBrains Mono,monospace;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e8edf5">'+esc(t.name||'')+'</span>'+
+            '<span style="font-size:.65em;color:#6b7a96;flex-shrink:0">'+esc(t.subLabel||'')+'</span>'+
+            '</label>';
+        }).join('')+
+      '</div>'+
+    '</div>'+
+    '<div class="modal-footer">'+
+      '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
+      '<button class="mbtn primary" data-gid="'+goalId+'" data-lid="'+laneId+'" data-nid="'+nodeId+'" onclick="confirmAddToNode(this.dataset.gid,this.dataset.lid,this.dataset.nid)">Add</button>'+
+    '</div>'
+  );
+}
+
+async function confirmAddToNode(goalId, laneId, nodeId) {
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  const lane=(goal?.lanes||[]).find(l=>l.id===laneId);
+  if (!lane) return;
+  const node=findLaneNode(lane.nodes||[],nodeId);
+  if (!node) return;
+  const checked=[...document.querySelectorAll('.lt-cb:checked')].map(cb=>cb.value);
+  if (!checked.length){alert('Select at least one task');return;}
+  if (!node.children) node.children=[];
+  checked.forEach(tid=>node.children.push({nodeId:makeNodeId(),type:'task',taskId:tid,children:[]}));
+  closeModal(); renderBoard();
+  try{await saveData();toast(checked.length+' task(s) added','success');}catch{toast('Save failed','error');}
+}
+
 async function removeTaskFromLane(goalId, laneId, taskId) {
   const goal=(store.goals||[]).find(g=>g.id===goalId);
   if (!goal) return;
@@ -1575,7 +1727,6 @@ async function editLaneName(goalId, laneId) {
 }
 
 function openAddTaskToLane(goalId, laneId) {
-  console.log('getAllTasks sample:', getAllTasks().slice(0,2));
   const goal=(store.goals||[]).find(g=>g.id===goalId);
   const lane=(goal?.lanes||[]).find(l=>l.id===laneId);
   const allTasks=getAllTasks();
@@ -1591,8 +1742,8 @@ function openAddTaskToLane(goalId, laneId) {
           return '<label class="lt-label" style="display:flex;align-items:center;gap:.5rem;padding:.3rem .5rem;border-radius:5px;cursor:pointer">'+
             '<input type="checkbox" class="lt-cb" value="'+t.id+'" style="accent-color:#e67e22;cursor:pointer">'+
             '<span style="width:7px;height:7px;border-radius:50%;background:'+(sub?.color||'#999')+';flex-shrink:0"></span>'+
-            '<span style="font-size:.75em;font-family:JetBrains Mono,monospace;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(t.name||'(unnamed)')+'</span>'+
-            '<span style="font-size:.65em;color:var(--muted);flex-shrink:0">'+esc(t.subLabel||t.subId||'')+'</span>'+
+            '<span style="font-size:.75em;font-family:JetBrains Mono,monospace;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e8edf5">'+esc(t.name||'(unnamed)')+'</span>'+
+            '<span style="font-size:.65em;color:#6b7a96;flex-shrink:0">'+esc(t.subLabel||t.subId||'')+'</span>'+
             '</label>';
         }).join('')+
       '</div>'+
@@ -1615,8 +1766,9 @@ async function confirmAddToLane(goalId, laneId) {
   if (!lane) return;
   const checked=[...document.querySelectorAll('.lt-cb:checked')].map(cb=>cb.value);
   if (!checked.length){alert('Select at least one task');return;}
-  if (!lane.taskIds) lane.taskIds=[];
-  checked.forEach(tid=>{if(!lane.taskIds.includes(tid))lane.taskIds.push(tid);});
+  migrateLane(lane);
+  const placed=new Set(laneNodeTaskIds(lane.nodes||[]));
+  checked.forEach(tid=>{ if(!placed.has(tid)) lane.nodes.push({nodeId:makeNodeId(),type:'task',taskId:tid,children:[]}); });
   closeModal(); renderBoard();
   try{await saveData();toast(checked.length+' task(s) added','success');}catch{toast('Save failed','error');}
 }
