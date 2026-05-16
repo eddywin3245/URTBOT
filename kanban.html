@@ -1657,7 +1657,7 @@ function openAddTaskToNode(goalId, laneId, nodeId) {
       '<div id="lt-list" style="max-height:220px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 6px 6px;padding:.25rem">'+
         avail.map(t=>{
           const sub=SUBS.find(s=>s.id===t.subId);
-          return '<label class="lt-label" style="display:flex;align-items:center;gap:.5rem;padding:.3rem .5rem;border-radius:5px;cursor:pointer">'+
+          return '<label class="lt-label" style="display:flex;align-items:center;gap:.5rem;padding:.3rem .5rem;border-radius:5px;cursor:pointer;background:var(--surface2)">'+
             '<input type="checkbox" class="lt-cb" value="'+t.id+'" style="accent-color:#e67e22;cursor:pointer">'+
             '<span style="width:7px;height:7px;border-radius:50%;background:'+(sub?.color||'#999')+';flex-shrink:0"></span>'+
             '<span style="font-size:.75em;font-family:JetBrains Mono,monospace;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e8edf5">'+esc(t.name||'')+'</span>'+
@@ -1730,7 +1730,8 @@ function openAddTaskToLane(goalId, laneId) {
   const goal=(store.goals||[]).find(g=>g.id===goalId);
   const lane=(goal?.lanes||[]).find(l=>l.id===laneId);
   const allTasks=getAllTasks();
-  const inLane=new Set(lane?.taskIds||[]);
+  migrateLane(lane);
+  const inLane=new Set(laneNodeTaskIds(lane?.nodes||[]));
   const avail=allTasks.filter(t=>!inLane.has(t.id));
   showModal(
     '<div class="modal-title">+ Add tasks to '+esc(lane?.name||'lane')+'</div>'+
@@ -1739,7 +1740,7 @@ function openAddTaskToLane(goalId, laneId) {
       '<div id="lt-list" style="max-height:220px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 6px 6px;padding:.25rem">'+
         avail.map(t=>{
           const sub=SUBS.find(s=>s.id===t.subId);
-          return '<label class="lt-label" style="display:flex;align-items:center;gap:.5rem;padding:.3rem .5rem;border-radius:5px;cursor:pointer">'+
+          return '<label class="lt-label" style="display:flex;align-items:center;gap:.5rem;padding:.3rem .5rem;border-radius:5px;cursor:pointer;background:var(--surface2)">'+
             '<input type="checkbox" class="lt-cb" value="'+t.id+'" style="accent-color:#e67e22;cursor:pointer">'+
             '<span style="width:7px;height:7px;border-radius:50%;background:'+(sub?.color||'#999')+';flex-shrink:0"></span>'+
             '<span style="font-size:.75em;font-family:JetBrains Mono,monospace;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e8edf5">'+esc(t.name||'(unnamed)')+'</span>'+
