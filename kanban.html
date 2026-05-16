@@ -1451,6 +1451,17 @@ function renderGoalCard(goal, allTasks, area) {
       '</div>' +
       '<div class="sl-prog"><div class="sl-prog-fill" style="width:'+lp+'%;background:'+lFill+'"></div></div>';
     lhdr.onclick = () => editLaneName(goal.id, lane.id);
+    // Wire up remove button properly
+    const removeBtn = lhdr.querySelector('button');
+    if (removeBtn) {
+      removeBtn.addEventListener('click', async e => {
+        e.stopPropagation();
+        if (!confirm('Remove swimlane? Tasks stay in the system.')) return;
+        goal.lanes = (goal.lanes||[]).filter(l => l.id !== lane.id);
+        renderBoard();
+        try { await saveData(); toast('Swimlane removed', 'success'); } catch {}
+      });
+    }
     lhdr.addEventListener('dragover', e=>{ e.preventDefault(); lhdr.classList.add('drag-over'); });
     lhdr.addEventListener("drop", async e=>{
       e.preventDefault(); lhdr.classList.remove("drag-over");
