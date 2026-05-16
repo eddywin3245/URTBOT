@@ -1433,7 +1433,8 @@ function renderGoalCard(goal, allTasks, area) {
 
   const slRow = document.createElement('div'); slRow.className = 'sl-row';
 
-  const allGoalTaskIds = new Set(goal.lanes.flatMap(l => l.taskIds||[]));
+  goal.lanes.forEach(migrateLane);
+  const allGoalTaskIds = new Set(goal.lanes.flatMap(l => laneNodeTaskIds(l.nodes||[])));
 
   goal.lanes.forEach(lane => {
     migrateLane(lane);
