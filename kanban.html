@@ -1658,11 +1658,11 @@ function openAddTaskToNode(goalId, laneId, nodeId) {
       '<div id="lt-list" style="max-height:220px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 6px 6px;padding:.25rem">'+
         avail.map(t=>{
           const sub=SUBS.find(s=>s.id===t.subId);
-          return '<label class="lt-label" style="display:flex;align-items:center;gap:.5rem;padding:.3rem .5rem;border-radius:5px;cursor:pointer;background:var(--surface2)">'+
-            '<input type="checkbox" class="lt-cb" value="'+t.id+'" style="accent-color:#e67e22;cursor:pointer">'+
-            '<span style="width:7px;height:7px;border-radius:50%;background:'+(sub?.color||'#999')+';flex-shrink:0"></span>'+
-            '<span style="font-size:.75em;font-family:JetBrains Mono,monospace;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e8edf5">'+esc(t.name||'')+'</span>'+
-            '<span style="font-size:.65em;color:#6b7a96;flex-shrink:0">'+esc(t.subLabel||'')+'</span>'+
+          return '<label class="lt-label" style="display:grid;grid-template-columns:16px 8px 1fr auto;align-items:center;gap:.4rem;padding:.35rem .5rem;border-radius:5px;cursor:pointer;background:var(--surface2)">'+
+            '<input type="checkbox" class="lt-cb" value="'+t.id+'" style="accent-color:#e67e22;cursor:pointer;width:14px;height:14px">'+
+            '<span style="width:7px;height:7px;border-radius:50%;background:'+(sub?.color||'#999')+'"></span>'+
+            '<span style="font-size:.75em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e8edf5;min-width:0">'+esc(t.name||'(unnamed)')+'</span>'+
+            '<span style="font-size:.65em;color:#6b7a96;white-space:nowrap">'+esc(t.subLabel||'')+'</span>'+
             '</label>';
         }).join('')+
       '</div>'+
@@ -1741,11 +1741,11 @@ function openAddTaskToLane(goalId, laneId) {
       '<div id="lt-list" style="max-height:220px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 6px 6px;padding:.25rem">'+
         avail.map(t=>{
           const sub=SUBS.find(s=>s.id===t.subId);
-          return '<label class="lt-label" style="display:flex;align-items:center;gap:.5rem;padding:.3rem .5rem;border-radius:5px;cursor:pointer;background:var(--surface2)">'+
-            '<input type="checkbox" class="lt-cb" value="'+t.id+'" style="accent-color:#e67e22;cursor:pointer">'+
-            '<span style="width:7px;height:7px;border-radius:50%;background:'+(sub?.color||'#999')+';flex-shrink:0"></span>'+
-            '<span style="font-size:.75em;font-family:JetBrains Mono,monospace;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e8edf5">'+esc(t.name||'(unnamed)')+'</span>'+
-            '<span style="font-size:.65em;color:#6b7a96;flex-shrink:0">'+esc(t.subLabel||t.subId||'')+'</span>'+
+          return '<label class="lt-label" style="display:grid;grid-template-columns:16px 8px 1fr auto;align-items:center;gap:.4rem;padding:.35rem .5rem;border-radius:5px;cursor:pointer;background:var(--surface2)">'+
+            '<input type="checkbox" class="lt-cb" value="'+t.id+'" style="accent-color:#e67e22;cursor:pointer;width:14px;height:14px">'+
+            '<span style="width:7px;height:7px;border-radius:50%;background:'+(sub?.color||'#999')+'"></span>'+
+            '<span style="font-size:.75em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e8edf5;min-width:0">'+esc(t.name||'(unnamed)')+'</span>'+
+            '<span style="font-size:.65em;color:#6b7a96;white-space:nowrap">'+esc(t.subLabel||t.subId||'')+'</span>'+
             '</label>';
         }).join('')+
       '</div>'+
