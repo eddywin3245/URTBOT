@@ -291,9 +291,9 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .fc-zoom-btn{width:28px;height:28px;border-radius:6px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-size:.85em;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s}
 .fc-zoom-btn:hover{background:var(--surface2)}
 .sl-row{display:flex;flex-direction:row;align-items:stretch;gap:0}
-.sl-lane{display:flex;flex-direction:column;min-width:195px;max-width:195px;border-right:1px solid var(--border);border:1px solid var(--border2);border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--surface)}
+.sl-lane{display:flex;flex-direction:column;min-width:195px;max-width:195px;border-right:1px solid var(--border2);flex-shrink:0;background:var(--surface2)}
 .sl-lane:last-child{border-right:none}
-.sl-lane-hdr{width:100%;padding:.5rem .6rem;background:rgba(230,126,34,.12);border-bottom:2px solid rgba(230,126,34,.5);border-top:1px solid rgba(230,126,34,.2);font-size:.72em;font-weight:700;color:#e67e22;cursor:pointer;box-sizing:border-box;min-height:36px;display:block}
+.sl-lane-hdr{width:100%;padding:.5rem .6rem;background:rgba(230,126,34,.15);border-bottom:2px solid #e67e22;font-size:.72em;font-weight:700;color:#e67e22;cursor:pointer;box-sizing:border-box;min-height:36px}
 .sl-lane-hdr.drag-over{background:rgba(230,126,34,.2)!important}
 .sl-prog{height:3px;background:var(--bg);border-radius:2px;overflow:hidden;margin-top:.3rem}
 .sl-prog-fill{height:100%;border-radius:2px}
@@ -1450,7 +1450,7 @@ function renderGoalCard(goal, allTasks, area) {
         '<button data-lid="'+lane.id+'" data-gid="'+goal.id+'" onclick="event.stopPropagation();removeLane(this.dataset.gid,this.dataset.lid)" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:.8em">✕</button>' +
       '</div>' +
       '<div class="sl-prog"><div class="sl-prog-fill" style="width:'+lp+'%;background:'+lFill+'"></div></div>';
-    lhdr.onclick = () => editLaneName(goal.id, lane.id);
+    lhdr.onclick = (e) => { if(!e.target.closest('button')) editLaneName(goal.id, lane.id); };
     // Wire up remove button properly
     const removeBtn = lhdr.querySelector('button');
     if (removeBtn) {
