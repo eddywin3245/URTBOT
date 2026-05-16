@@ -314,6 +314,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .dag-svg{position:absolute;top:0;left:0;pointer-events:none;overflow:visible;z-index:6}
 .dag-arrow{fill:none;stroke:rgba(155,89,182,.55);stroke-width:1.5;marker-end:url(#dag-arrow)}
 .dag-arrow.hover{stroke:rgba(155,89,182,.95);stroke-width:2.5;marker-end:url(#dag-arrow-hover)}
+</style>
 </head>
 <body>
 
@@ -425,13 +426,7 @@ async function loadData() {
   if (!store.milestones) store.milestones = [];
   if (!store.meetings)   store.meetings   = [];
   if (!store.goals)     store.goals     = [];
-  // Migrate old tree-based goals to new lanes format
-  store.goals = store.goals.map(g => {
-    if (!g.lanes) g.lanes = [];
-    // Remove old tree property
-    delete g.tree;
-    return g;
-  });
+  store.goals = store.goals.map(g => { if (!g.lanes) g.lanes = []; delete g.tree; return g; });
   SUBS.forEach(s => {
     if (!store.tasks[s.id]) store.tasks[s.id] = [];
     store.tasks[s.id].forEach(t => {
@@ -544,7 +539,7 @@ function renderBoard() {
   const area = document.getElementById('main-area');
   if      (activeTab === 'all')      renderAllView(area);
   else if (activeTab === 'calendar') renderCalendarView(area);
-  else if (activeTab === 'goals')    { try { renderGoalsView(area); } catch(e) { area.innerHTML = '<div style="padding:2rem;color:#e74c3c;font-family:JetBrains Mono,monospace;font-size:.8em">Goals error: '+e.message+'</div>'; console.error('Goals render error:', e); } }
+  else if (activeTab === 'goals')    { try { renderGoalsView(area); } catch(e) { area.innerHTML = '<div style="padding:2rem;color:#e74c3c;font-family:JetBrains Mono,monospace;font-size:.8em">Goals error: '+e.message+'</div>'; console.error(e); } }
   else if (activeTab === 'finance')  renderFinanceView(area);
   else if (activeTab === 'lead-panel')    renderAdminView(area);
   else                               renderSubView(area, activeTab);
@@ -2398,13 +2393,7 @@ async function addMilestone() {
   if (!store.milestones) store.milestones = [];
   if (!store.meetings)   store.meetings   = [];
   if (!store.goals)     store.goals     = [];
-  // Migrate old tree-based goals to new lanes format
-  store.goals = store.goals.map(g => {
-    if (!g.lanes) g.lanes = [];
-    // Remove old tree property
-    delete g.tree;
-    return g;
-  });
+  store.goals = store.goals.map(g => { if (!g.lanes) g.lanes = []; delete g.tree; return g; });
   store.milestones.push({ id: makeId(), name, date, time, description: desc || null });
   closeModal();
   renderMilestoneBar();
