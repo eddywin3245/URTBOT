@@ -291,9 +291,9 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .fc-zoom-btn{width:28px;height:28px;border-radius:6px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-size:.85em;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s}
 .fc-zoom-btn:hover{background:var(--surface2)}
 .sl-row{display:flex;flex-direction:row;align-items:stretch;gap:0}
-.sl-lane{display:flex;flex-direction:column;min-width:195px;max-width:195px;border-right:1px solid var(--border);flex-shrink:0}
+.sl-lane{display:flex;flex-direction:column;min-width:195px;max-width:195px;border-right:1px solid var(--border);border:1px solid var(--border2);border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--surface)}
 .sl-lane:last-child{border-right:none}
-.sl-lane-hdr{width:100%;padding:.5rem .6rem;background:rgba(230,126,34,.08);border-bottom:2px solid rgba(230,126,34,.4);font-size:.72em;font-weight:700;color:#e67e22;cursor:pointer;box-sizing:border-box}
+.sl-lane-hdr{width:100%;padding:.5rem .6rem;background:rgba(230,126,34,.12);border-bottom:2px solid rgba(230,126,34,.5);border-top:1px solid rgba(230,126,34,.2);font-size:.72em;font-weight:700;color:#e67e22;cursor:pointer;box-sizing:border-box;min-height:36px;display:block}
 .sl-lane-hdr.drag-over{background:rgba(230,126,34,.2)!important}
 .sl-prog{height:3px;background:var(--bg);border-radius:2px;overflow:hidden;margin-top:.3rem}
 .sl-prog-fill{height:100%;border-radius:2px}
@@ -1436,6 +1436,7 @@ function renderGoalCard(goal, allTasks, area) {
   const allGoalTaskIds = new Set(goal.lanes.flatMap(l => l.taskIds||[]));
 
   goal.lanes.forEach(lane => {
+    migrateLane(lane);
     const {done:ld,total:lt,pct:lp} = laneProgress(lane, allTasks);
     const lFill = lp===100?'#2ecc71':lp>50?'#3498db':lp>20?'#f1c40f':'#e74c3c';
 
@@ -1465,7 +1466,6 @@ function renderGoalCard(goal, allTasks, area) {
 
 
     const taskList = document.createElement('div'); taskList.className = 'sl-tasks';
-    migrateLane(lane);
 
     function renderLaneNodes(nodes, container) {
       (nodes||[]).forEach(node => {
