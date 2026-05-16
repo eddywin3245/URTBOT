@@ -336,23 +336,12 @@ const saveData = limiter.wrap(async () => {
         if (!store.tasks[subId]) store.tasks[subId] = latest.tasks[subId];
       }
     }
-    // Preserve goals — if JSONBin has more goals than memory, keep JSONBin ones
-    if (latest.goals && latest.goals.length > (store.goals || []).length) {
-      store.goals = latest.goals;
-    }
-    // Preserve meetings
-    if (latest.meetings && latest.meetings.length > (store.meetings || []).length) {
-      store.meetings = latest.meetings;
-    }
-    // Preserve milestones
-    if (latest.milestones && latest.milestones.length > (store.milestones || []).length) {
-      store.milestones = latest.milestones;
-    }
-    // Preserve admin data
-    if (latest.adminNotes) store.adminNotes = { ...(store.adminNotes || {}), ...latest.adminNotes };
-    if (latest.adminReminders && latest.adminReminders.length > (store.adminReminders || []).length) {
-      store.adminReminders = latest.adminReminders;
-    }
+    // Always defer to JSONBin for data the bot never modifies
+    if (latest.goals)         store.goals         = latest.goals;
+    if (latest.meetings)      store.meetings      = latest.meetings;
+    if (latest.milestones)    store.milestones    = latest.milestones;
+    if (latest.adminNotes)    store.adminNotes    = latest.adminNotes;
+    if (latest.adminReminders) store.adminReminders = latest.adminReminders;
   } catch (e) { console.error("Merge check failed:", e.message); }
   await jsonbinRequest("PUT", store);
 });
