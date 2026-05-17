@@ -1638,55 +1638,66 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
   actions.appendChild(editBtn); actions.appendChild(addSgBtn);
   el.appendChild(actions);
 
-  // Output port (right side - start connection from here)
-  const portOut=document.createElement('div');
-  portOut.className='sgn-port sgn-port-out';
-  portOut.title='Click to start linking';
-  portOut.addEventListener('click',e=>{
-    e.stopPropagation();
-    if(sgLinkSrc&&sgLinkSrc.goalId===goal.id){
-      // Cancel if clicking own port again
-      if(sgLinkSrc.nodeId===node.id){
+  // Ports appended directly to cvs so they're never clipped
+  function makePorts(){
+    cvs.querySelectorAll('[data-port-node="'+node.id+'"]').forEach(p=>p.remove());
+    const elR=el.getBoundingClientRect();
+    const cvsR=cvs.getBoundingClientRect();
+    const elH=elR.height/s.scale;
+    const midY=node.y+elH/2;
+
+    const portOut=document.createElement('div');
+    portOut.className='sgn-port sgn-port-out';
+    portOut.dataset.portNode=node.id;
+    portOut.style.cssText='left:'+(node.x+220)+'px;top:'+(midY-8)+'px';
+    portOut.title='Link from here';
+    portOut.addEventListener('click',e=>{
+      e.stopPropagation();
+      if(sgLinkSrc&&sgLinkSrc.nodeId===node.id){
         sgLinkSrc=null;
         cvs.querySelectorAll('.sgn-port').forEach(p=>p.classList.remove('port-active'));
         cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-can-link'));
-        vp.classList.remove('linking');
-        return;
+        vp.classList.remove('linking'); return;
       }
-    }
-    sgLinkSrc={nodeId:node.id,goalId:goal.id};
-    vp.classList.add('linking');
-    cvs.querySelectorAll('.sgn-port').forEach(p=>p.classList.remove('port-active'));
-    portOut.classList.add('port-active');
-    cvs.querySelectorAll('.sgn').forEach(n=>{ if(n!==el) n.classList.add('sg-can-link'); });
-    toast('Now click the input port (left circle) on another subgoal','success');
-  });
-  el.appendChild(portOut);
+      sgLinkSrc={nodeId:node.id,goalId:goal.id};
+      vp.classList.add('linking');
+      cvs.querySelectorAll('.sgn-port').forEach(p=>p.classList.remove('port-active'));
+      portOut.classList.add('port-active');
+      cvs.querySelectorAll('.sgn').forEach(n=>{ if(n!==el) n.classList.add('sg-can-link'); });
+      toast('Click the ◉ left circle on another subgoal to connect','success');
+    });
 
-  // Input port (left side - drop connection here)
-  const portIn=document.createElement('div');
-  portIn.className='sgn-port sgn-port-in';
-  portIn.title='Click to receive connection';
-  portIn.addEventListener('click',async e=>{
-    e.stopPropagation();
-    if(!sgLinkSrc||sgLinkSrc.goalId!==goal.id||sgLinkSrc.nodeId===node.id) return;
-    const srcId=sgLinkSrc.nodeId;
-    if(wouldCycle(goal,srcId,node.id)){
-      toast('Would create a circular dependency','error');
-    } else {
-      if(!goal.dagEdges) goal.dagEdges=[];
-      if(!goal.dagEdges.some(e=>e.from===srcId&&e.to===node.id)){
-        goal.dagEdges.push({id:makeNodeId(),from:srcId,to:node.id});
-        renderBoard();
-        try{await saveData();toast('Linked ✓','success');}catch{}
-      } else toast('Already linked','error');
-    }
-    sgLinkSrc=null;
-    cvs.querySelectorAll('.sgn-port').forEach(p=>p.classList.remove('port-active'));
-    cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-can-link'));
-    vp.classList.remove('linking');
-  });
-  el.appendChild(portIn);
+    const portIn=document.createElement('div');
+    portIn.className='sgn-port sgn-port-in';
+    portIn.dataset.portNode=node.id;
+    portIn.style.cssText='left:'+(node.x-8)+'px;top:'+(midY-8)+'px';
+    portIn.title='Receive link here';
+    portIn.addEventListener('click',async e=>{
+      e.stopPropagation();
+      if(!sgLinkSrc||sgLinkSrc.goalId!==goal.id||sgLinkSrc.nodeId===node.id) return;
+      const srcId=sgLinkSrc.nodeId;
+      if(wouldCycle(goal,srcId,node.id)){
+        toast('Would create a circular dependency','error');
+      } else {
+        if(!goal.dagEdges) goal.dagEdges=[];
+        if(!goal.dagEdges.some(x=>x.from===srcId&&x.to===node.id)){
+          goal.dagEdges.push({id:makeNodeId(),from:srcId,to:node.id});
+          renderBoard();
+          try{await saveData();toast('Linked ✓','success');}catch{}
+          return;
+        } else toast('Already linked','error');
+      }
+      sgLinkSrc=null;
+      cvs.querySelectorAll('.sgn-port').forEach(p=>p.classList.remove('port-active'));
+      cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-can-link'));
+      vp.classList.remove('linking');
+    });
+
+    cvs.appendChild(portOut);
+    cvs.appendChild(portIn);
+  }
+  // Make ports after a short delay so el has rendered height
+  setTimeout(makePorts, 80);
 
   // Remove button
   const rm=document.createElement('div'); rm.className='sgn-rm'; rm.textContent='✕';
@@ -1715,6 +1726,13 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
     node.x=Math.max(0,ns.x+(e.clientX-ds.x)/s.scale);
     node.y=Math.max(0,ns.y+(e.clientY-ds.y)/s.scale);
     el.style.left=node.x+'px'; el.style.top=node.y+'px';
+    // Update port positions
+    const elH=el.offsetHeight||100;
+    const midY=node.y+elH/2;
+    const po=cvs.querySelector('.sgn-port-out[data-port-node="'+node.id+'"]');
+    const pi=cvs.querySelector('.sgn-port-in[data-port-node="'+node.id+'"]');
+    if(po){po.style.left=(node.x+220)+'px';po.style.top=(midY-8)+'px';}
+    if(pi){pi.style.left=(node.x-8)+'px';pi.style.top=(midY-8)+'px';}
     redraw();
   };
   const onUp=async e=>{
