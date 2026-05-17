@@ -289,9 +289,9 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .dag-canvas{position:absolute;top:0;left:0;transform-origin:0 0}
 .dag-svg{position:absolute;top:0;left:0;width:5000px;height:5000px;overflow:visible;pointer-events:none;z-index:1}
 .dag-node{position:absolute;z-index:2;cursor:pointer;user-select:none}
-.dag-node-task{padding:.35rem .55rem;border-radius:7px;border:1px solid var(--border2);border-left-width:3px;background:var(--surface2);font-size:.68em;width:210px;box-sizing:border-box}
+.dag-node-task{padding:.35rem .55rem;border-radius:7px;border:1px solid var(--border2);border-left-width:3px;background:var(--surface2);font-size:.68em;min-width:140px;max-width:220px;width:max-content;box-sizing:border-box}
 .dag-node-task:hover{box-shadow:0 2px 10px rgba(0,0,0,.3)}
-.dag-node-sg{padding:.45rem .75rem;border-radius:10px;border:2px solid rgba(230,126,34,.5);background:rgba(230,126,34,.09);font-size:.72em;font-weight:700;color:#e67e22;width:210px;box-sizing:border-box}
+.dag-node-sg{padding:.45rem .75rem;border-radius:10px;border:2px solid rgba(230,126,34,.5);background:rgba(230,126,34,.09);font-size:.72em;font-weight:700;color:#e67e22;min-width:140px;max-width:240px;width:max-content;box-sizing:border-box;white-space:normal}
 .dag-node-sg:hover{box-shadow:0 3px 14px rgba(230,126,34,.2)}
 .dag-node.linking .dag-node-task,.dag-node.linking .dag-node-sg{outline:2px solid #2ecc71;outline-offset:2px}
 .dag-node.can-link .dag-node-task,.dag-node.can-link .dag-node-sg{outline:2px dashed rgba(46,204,113,.4);outline-offset:2px}
@@ -1714,22 +1714,35 @@ function buildDagNode(node,goal,allTasks,s,svg,cvs,renderNodes,vp){
   return el;
 }
 
+function getNodeW(nodeId, svg){
+  const el=svg?.closest('.dag-viewport')?.querySelector(`[data-node-id="${nodeId}"]`);
+  if(el){const inner=el.querySelector('.dag-node-sg,.dag-node-task');if(inner)return inner.offsetWidth;}
+  return DAG_NODE_W;
+}
+function getNodeH(nodeId, svg){
+  const el=svg?.closest('.dag-viewport')?.querySelector(`[data-node-id="${nodeId}"]`);
+  if(el){const inner=el.querySelector('.dag-node-sg,.dag-node-task');if(inner)return inner.offsetHeight;}
+  return 54;
+}
+
 function drawAllEdges(svg,goal,allTasks){
-  svg.querySelectorAll('.dag-edge,.dag-edge-hit').forEach(e=>e.remove());
+  svg.querySelectorAll('.dag-edge,.dag-edge-hit,.dag-lane-edge').forEach(e=>e.remove());
   const nodes=goal.dagNodes||[];
+  const lanes=goal.lanes||[];
+
+  // Draw node→node dependency edges
   (goal.dagEdges||[]).forEach(edge=>{
     const fn=nodes.find(n=>n.id===edge.from);
     const tn=nodes.find(n=>n.id===edge.to);
     if(!fn||!tn) return;
-    // Skip if either node is hidden (done task)
     const fTask=fn.type==='task'?allTasks.find(t=>t.id===fn.taskId):null;
     const tTask=tn.type==='task'?allTasks.find(t=>t.id===tn.taskId):null;
     if(fTask&&fTask.status==='done') return;
     if(tTask&&tTask.status==='done') return;
-    const fh=fn.type==='subgoal'?68:54;
-    const th=tn.type==='subgoal'?68:54;
-    const x1=fn.x+DAG_NODE_W/2, y1=fn.y+fh;
-    const x2=tn.x+DAG_NODE_W/2, y2=tn.y;
+    const fw=getNodeW(fn.id,svg); const fh=getNodeH(fn.id,svg);
+    const tw=getNodeW(tn.id,svg);
+    const x1=fn.x+fw/2, y1=fn.y+fh;
+    const x2=tn.x+tw/2, y2=tn.y;
     const cy=(y1+y2)/2;
     const d=`M${x1},${y1} C${x1},${cy} ${x2},${cy} ${x2},${y2}`;
     const path=document.createElementNS('http://www.w3.org/2000/svg','path');
@@ -1740,7 +1753,6 @@ function drawAllEdges(svg,goal,allTasks){
     const hit=document.createElementNS('http://www.w3.org/2000/svg','path');
     hit.setAttribute('d',d); hit.setAttribute('class','dag-edge-hit'); hit.setAttribute('data-eid',edge.id||'');
     hit.style.cssText='fill:none;stroke:transparent;stroke-width:14;cursor:pointer;pointer-events:stroke';
-    hit.title='Click to remove dependency';
     hit.addEventListener('click',async e=>{
       if(!confirm('Remove this dependency link?')) return;
       goal.dagEdges=(goal.dagEdges||[]).filter(x=>x.id!==edge.id);
@@ -1748,6 +1760,31 @@ function drawAllEdges(svg,goal,allTasks){
       try{await saveData();toast('Link removed','success');}catch{}
     });
     svg.appendChild(hit);
+  });
+
+  // Draw subgoal→lane header lines for shared subgoals
+  // For each subgoal, find which lanes have nodes that depend on it (incoming edges TO lane nodes FROM subgoal)
+  nodes.filter(n=>n.type==='subgoal').forEach(sg=>{
+    // Find all destination nodes of edges from this subgoal
+    const toNodes=(goal.dagEdges||[]).filter(e=>e.from===sg.id).map(e=>nodes.find(n=>n.id===e.to)).filter(Boolean);
+    const toLaneIds=[...new Set(toNodes.map(n=>n.laneId).filter(Boolean))];
+    if(toLaneIds.length<2) return; // only draw lane lines if truly cross-lane (2+ lanes)
+    const sgW=getNodeW(sg.id,svg)||180;
+    const sgH=getNodeH(sg.id,svg)||54;
+    const sgCx=sg.x+sgW/2, sgTop=sg.y;
+    toLaneIds.forEach(laneId=>{
+      const li=lanes.findIndex(l=>l.id===laneId);
+      if(li<0) return;
+      const laneCx=li*(DAG_LANE_W+10)+DAG_LANE_W/2;
+      const laneHdrY=0; // lane header is at top of canvas
+      const mx=(sgCx+laneCx)/2;
+      const d=`M${sgCx},${sgTop} C${sgCx},${sgTop-40} ${laneCx},${laneHdrY+60} ${laneCx},${laneHdrY+30}`;
+      const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('class','dag-lane-edge');
+      path.style.cssText='fill:none;stroke:rgba(230,126,34,.4);stroke-width:1.5;stroke-dasharray:5,4;marker-end:url(#dga)';
+      svg.appendChild(path);
+      path.setAttribute('d',d);
+    });
   });
 }
 
