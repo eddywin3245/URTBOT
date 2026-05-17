@@ -1289,8 +1289,21 @@ function migrateGoal(goal){
 }
 
 // ─── Progress ───
-function sgNodeProgress(node, allTasks){
-  const tasks=(node.taskIds||[]).map(id=>allTasks.find(t=>t.id===id)).filter(Boolean);
+function sgNodeProgress(node, allTasks, goal){
+  // Recursively collect all task IDs from this node AND all descendant subgoals
+  function collectTaskIds(nodeId, visited=new Set()){
+    if(visited.has(nodeId)) return [];
+    visited.add(nodeId);
+    const n=(goal?.dagNodes||[]).find(x=>x.id===nodeId);
+    const ownIds=n?(n.taskIds||[]):[];
+    // Find all children (nodes this one depends on = outgoing edges)
+    const childIds=(goal?.dagEdges||[]).filter(e=>e.from===nodeId).map(e=>e.to);
+    const childTaskIds=childIds.flatMap(cid=>collectTaskIds(cid,visited));
+    return [...ownIds,...childTaskIds];
+  }
+  const allIds=collectTaskIds(node.id);
+  const unique=[...new Set(allIds)];
+  const tasks=unique.map(id=>allTasks.find(t=>t.id===id)).filter(Boolean);
   const done=tasks.filter(t=>t.status==='done').length;
   return{done,total:tasks.length,pct:tasks.length?Math.round(done/tasks.length*100):0};
 }
@@ -1309,7 +1322,7 @@ function isNodeBlocked(nodeId,goal,allTasks){
   return (goal.dagEdges||[]).filter(e=>e.from===nodeId).some(e=>{
     const dep=(goal.dagNodes||[]).find(n=>n.id===e.to);
     if(!dep) return false;
-    return sgNodeProgress(dep,allTasks).pct<100;
+    return sgNodeProgress(dep,allTasks,goal).pct<100;
   });
 }
 
@@ -1545,7 +1558,7 @@ function renderGoalCard(goal,allTasks,area){
 function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
   const tasks=(node.taskIds||[]).map(id=>allTasks.find(t=>t.id===id)).filter(Boolean);
   const visibleTasks=tasks.filter(t=>t.status!=='done');
-  const{done,total,pct}=sgNodeProgress(node,allTasks);
+  const{done,total,pct}=sgNodeProgress(node,allTasks,goal);
   const blocked=isNodeBlocked(node.id,goal,allTasks);
   const isDone=total>0&&pct===100;
   const isRoot=(goal.dagEdges||[]).filter(e=>e.to===node.id).length===0;
