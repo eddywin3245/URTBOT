@@ -1329,39 +1329,72 @@ function wouldCycle(goal,from,to){
 function autoLayout(goal){
   const nodes=goal.dagNodes||[]; const edges=goal.dagEdges||[];
   if(!nodes.length) return;
-  // Depth = longest path from sources (nodes with no incoming edges = nothing points TO them as a dependency)
-  // Edges: from=parent/dependant → to=child/dependency
-  // So nodes with no outgoing edges (no dependencies) = leaves = deepest
-  // Nodes with no incoming edges (nothing depends on them) = roots = shallowest = TOP
-  const inDeg={}; nodes.forEach(n=>inDeg[n.id]=0);
-  edges.forEach(e=>{if(inDeg[e.to]!==undefined) inDeg[e.to]++;});
-  const depth={}; nodes.forEach(n=>depth[n.id]=0);
-  // Topo sort
-  const inDegCopy={...inDeg};
-  const q=nodes.filter(n=>inDegCopy[n.id]===0).map(n=>n.id);
-  const order=[];
-  while(q.length){
-    const cur=q.shift(); order.push(cur);
-    edges.filter(e=>e.from===cur).forEach(e=>{
-      depth[e.to]=Math.max(depth[e.to]||0,(depth[cur]||0)+1);
-      if(--inDegCopy[e.to]===0) q.push(e.to);
+
+  const H_GAP=50;  // horizontal gap between siblings
+  const V_GAP=110; // vertical gap between levels
+  const TOP=40;
+
+  // Build children map: parent -> [children] (edges go from parent down to dependency)
+  const children={};
+  const parentCount={};
+  nodes.forEach(n=>{children[n.id]=[];parentCount[n.id]=0;});
+  edges.forEach(e=>{
+    if(children[e.from]&&!children[e.from].includes(e.to)) children[e.from].push(e.to);
+    if(parentCount[e.to]!==undefined) parentCount[e.to]++;
+  });
+
+  // Find roots (nodes with no incoming edges - nothing depends on them = tops)
+  const roots=nodes.filter(n=>parentCount[n.id]===0).map(n=>n.id);
+  // Nodes with no parents that aren't in edges at all
+  if(!roots.length) roots.push(nodes[0].id);
+
+  // Reingold-Tilford style: compute subtree width bottom-up, then assign x top-down
+  const subtreeW={}; // minimum width needed for subtree rooted at node
+
+  function computeWidth(id, visited=new Set()){
+    if(visited.has(id)){subtreeW[id]=SG_W;return SG_W;}
+    visited.add(id);
+    const kids=children[id]||[];
+    if(!kids.length){subtreeW[id]=SG_W;return SG_W;}
+    const kidsW=kids.reduce((sum,kid)=>sum+computeWidth(kid,new Set(visited)),0)+(kids.length-1)*H_GAP;
+    subtreeW[id]=Math.max(SG_W,kidsW);
+    return subtreeW[id];
+  }
+  roots.forEach(r=>computeWidth(r));
+
+  // Assign positions top-down
+  function assignPos(id, centerX, depth, visited=new Set()){
+    if(visited.has(id)) return;
+    visited.add(id);
+    const n=nodes.find(x=>x.id===id); if(!n) return;
+    n.x=centerX - SG_W/2;
+    n.y=TOP + depth*V_GAP;
+    const kids=children[id]||[];
+    if(!kids.length) return;
+    const totalKidsW=kids.reduce((s,k)=>s+(subtreeW[k]||SG_W),0)+(kids.length-1)*H_GAP;
+    let curX=centerX - totalKidsW/2;
+    kids.forEach(kid=>{
+      const kw=subtreeW[kid]||SG_W;
+      assignPos(kid, curX+kw/2, depth+1, visited);
+      curX+=kw+H_GAP;
     });
   }
-  nodes.filter(n=>!order.includes(n.id)).forEach(n=>{depth[n.id]=(Math.max(0,...Object.values(depth))||0)+1; order.push(n.id);});
-  // Group by depth
-  const byDepth={};
-  order.forEach(id=>{const d=depth[id]||0;if(!byDepth[d])byDepth[d]=[];byDepth[d].push(id);});
-  const maxRow=Math.max(...Object.keys(byDepth).map(Number));
-  // Assign positions
-  Object.entries(byDepth).forEach(([d,ids])=>{
-    const row=parseInt(d);
-    const totalW=ids.length*SG_W+(ids.length-1)*COL_GAP;
-    const startX=Math.max(20,(800-totalW)/2);
-    ids.forEach((id,i)=>{
-      const n=nodes.find(x=>x.id===id); if(!n) return;
-      n.x=startX+i*(SG_W+COL_GAP);
-      n.y=40+row*(ROW_GAP+80);
-    });
+
+  // Layout all roots side by side
+  const totalRootsW=roots.reduce((s,r)=>s+(subtreeW[r]||SG_W),0)+(roots.length-1)*H_GAP;
+  let rx=totalRootsW/2+40;
+  // Actually start from left with padding
+  let startX=40+SG_W/2;
+  roots.forEach(r=>{
+    assignPos(r, startX+(subtreeW[r]||SG_W)/2, 0);
+    startX+=subtreeW[r]+H_GAP;
+  });
+
+  // Place any disconnected nodes to the right
+  const placed=new Set(nodes.filter(n=>n.x!==undefined&&!isNaN(n.x)).map(n=>n.id));
+  let floatX=startX+H_GAP; let floatY=TOP;
+  nodes.filter(n=>!placed.has(n.id)||isNaN(n.x)).forEach(n=>{
+    n.x=floatX; n.y=floatY; floatY+=V_GAP;
   });
 }
 
