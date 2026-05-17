@@ -1851,8 +1851,8 @@ function openAddTasksToNode(goalId,nodeId){
   const goal=(store.goals||[]).find(g=>g.id===goalId);
   const node=(goal?.dagNodes||[]).find(n=>n.id===nodeId);
   if(!node) return;
-  const inNode=new Set(node.taskIds||[]);
-  const avail=getAllTasks().filter(t=>!inNode.has(t.id));
+  const allPlaced=new Set((goal.dagNodes||[]).flatMap(n=>n.taskIds||[]));
+  const avail=getAllTasks().filter(t=>!allPlaced.has(t.id));
   showModal('<div class="modal-title">+ Add tasks to '+esc(node.name)+'</div>'+
     '<div class="mfield"><label>SEARCH</label>'+
       '<input type="text" id="lt-search" placeholder="Search tasks..." oninput="filterLaneTasks()" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-bottom:none;border-radius:6px 6px 0 0;color:var(--text);font-size:.78em;outline:none">'+
@@ -1867,8 +1867,13 @@ function openAddTasksToNode(goalId,nodeId){
             '</label>';
         }).join('')+
       '</div></div>'+
-    '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
-    '<button class="mbtn primary" data-gid="'+goalId+'" data-nid="'+nodeId+'" onclick="confirmAddTasksToNode(this.dataset.gid,this.dataset.nid)">Add</button></div>');
+    '<div class="modal-footer" style="flex-direction:column;gap:.5rem">'+
+      '<div style="display:flex;gap:.5rem;width:100%">'+
+        '<button class="mbtn secondary" onclick="closeModal()" style="flex:1">Cancel</button>'+
+        '<button class="mbtn primary" data-gid="'+goalId+'" data-nid="'+nodeId+'" onclick="confirmAddTasksToNode(this.dataset.gid,this.dataset.nid)" style="flex:2">Add Selected</button>'+
+      '</div>'+
+      '<button class="mbtn" data-gid="'+goalId+'" data-nid="'+nodeId+'" onclick="openCreateTaskForNode(this.dataset.gid,this.dataset.nid)" style="width:100%;background:rgba(230,126,34,.1);border:1px dashed rgba(230,126,34,.4);color:#e67e22;font-size:.72em">+ Create new task & add to subgoal</button>'+
+    '</div>');
 }
 async function confirmAddTasksToNode(goalId,nodeId){
   const goal=(store.goals||[]).find(g=>g.id===goalId);
@@ -1881,6 +1886,47 @@ async function confirmAddTasksToNode(goalId,nodeId){
   closeModal(); renderBoard();
   try{await saveData();toast(checked.length+' task(s) added','success');}catch{toast('Save failed','error');}
 }
+function openCreateTaskForNode(goalId, nodeId){
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  const node=(goal?.dagNodes||[]).find(n=>n.id===nodeId);
+  if(!node) return;
+  const subOpts=SUBS.map(s=>'<option value="'+s.id+'">'+esc(s.label)+'</option>').join('');
+  showModal('<div class="modal-title">+ Create Task for '+esc(node.name)+'</div>'+
+    '<div class="mfield"><label>TASK NAME</label><input type="text" id="new-task-name" placeholder="e.g. Wire up motor controllers" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"></div>'+
+    '<div class="mfield"><label>SUBSYSTEM</label><select id="new-task-sub" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none">'+subOpts+'</select></div>'+
+    '<div class="mfield" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">'+
+      '<div><label>PRIORITY</label><select id="new-task-pri" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"><option value="">None</option><option value="high">🔴 High</option><option value="medium">🟡 Medium</option><option value="low">🟢 Low</option></select></div>'+
+      '<div><label>DUE DATE</label><input type="date" id="new-task-due" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none;color-scheme:dark"></div>'+
+    '</div>'+
+    '<div class="modal-footer">'+
+      '<button class="mbtn secondary" data-gid="'+goalId+'" data-nid="'+nodeId+'" onclick="openAddTasksToNode(this.dataset.gid,this.dataset.nid)">← Back</button>'+
+      '<button class="mbtn primary" data-gid="'+goalId+'" data-nid="'+nodeId+'" onclick="confirmCreateTaskForNode(this.dataset.gid,this.dataset.nid)">Create & Add</button>'+
+    '</div>');
+  setTimeout(()=>document.getElementById('new-task-name')?.focus(),50);
+}
+
+async function confirmCreateTaskForNode(goalId, nodeId){
+  const name=document.getElementById('new-task-name').value.trim();
+  if(!name){alert('Task name required');return;}
+  const subId=document.getElementById('new-task-sub').value;
+  const pri=document.getElementById('new-task-pri').value;
+  const due=document.getElementById('new-task-due').value;
+  const newTask={
+    id:makeId(), name, status:'todo', done:false,
+    priority:pri||'', assignees:[], checkIns:[], dependsOn:[],
+    dueDate:due?ymdToDmy(due):null, startDate:null, notes:null,
+    addedAt:Date.now()
+  };
+  if(!store.tasks[subId]) store.tasks[subId]=[];
+  store.tasks[subId].push(newTask);
+  // Add to the node
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  const node=(goal?.dagNodes||[]).find(n=>n.id===nodeId);
+  if(node){ if(!node.taskIds) node.taskIds=[]; node.taskIds.push(newTask.id); }
+  closeModal(); renderBoard();
+  try{await saveData();toast('Task created and added to '+esc(node?.name||'subgoal'),'success');}catch{toast('Save failed','error');}
+}
+
 function filterLaneTasks(){
   const q=(document.getElementById('lt-search')?.value||'').toLowerCase();
   document.querySelectorAll('.lt-label').forEach(l=>{l.style.display=l.textContent.toLowerCase().includes(q)?'':'none';});
