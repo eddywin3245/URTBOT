@@ -284,26 +284,37 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .goal-progress-bar{height:4px;background:var(--bg);border-radius:2px;overflow:hidden;margin:.2rem 0}
 .goal-progress-fill{height:100%;border-radius:2px;transition:width .6s}
 .goal-progress-nums{display:flex;justify-content:space-between;font-size:.58em;font-family:'JetBrains Mono',monospace;color:var(--muted)}
-.dag-viewport{position:relative;height:640px;overflow:hidden;background:var(--bg);cursor:grab}
-.dag-viewport.panning{cursor:grabbing}
-.dag-canvas{position:absolute;top:0;left:0;transform-origin:0 0}
-.dag-svg{position:absolute;top:0;left:0;width:5000px;height:5000px;overflow:visible;pointer-events:none;z-index:1}
-.dag-node{position:absolute;z-index:2;cursor:pointer;user-select:none}
-.dag-node-task{padding:.35rem .55rem;border-radius:7px;border:1px solid var(--border2);border-left-width:3px;background:var(--surface2);font-size:.68em;min-width:140px;max-width:220px;width:max-content;box-sizing:border-box}
-.dag-node-task:hover{box-shadow:0 2px 10px rgba(0,0,0,.3)}
-.dag-node-sg{padding:.45rem .75rem;border-radius:10px;border:2px solid rgba(230,126,34,.5);background:rgba(230,126,34,.09);font-size:.72em;font-weight:700;color:#e67e22;min-width:140px;max-width:240px;width:max-content;box-sizing:border-box;white-space:normal}
-.dag-node-sg:hover{box-shadow:0 3px 14px rgba(230,126,34,.2)}
-.dag-node.linking .dag-node-task,.dag-node.linking .dag-node-sg{outline:2px solid #2ecc71;outline-offset:2px}
-.dag-node.can-link .dag-node-task,.dag-node.can-link .dag-node-sg{outline:2px dashed rgba(46,204,113,.4);outline-offset:2px}
-.dag-rm{position:absolute;top:-7px;right:-7px;width:16px;height:16px;border-radius:50%;background:var(--surface3);border:1px solid var(--border2);color:var(--muted);font-size:.5em;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .15s;z-index:3}
-.dag-node:hover .dag-rm{opacity:1}
-.dag-lane-col{position:absolute;top:0;bottom:0;box-sizing:border-box;border-right:1px solid rgba(255,255,255,.05)}
-.dag-lane-hdr{padding:.4rem .6rem;background:#141d2e;border-bottom:2px solid #e67e22;font-size:.72em;font-weight:700;color:#e67e22;display:flex;align-items:center;gap:.3rem;position:relative;z-index:4;box-sizing:border-box;width:100%}
-.dag-zoom{position:absolute;bottom:.6rem;right:.6rem;display:flex;gap:.3rem;z-index:10}
-.dag-zoom button{width:28px;height:28px;border-radius:6px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-size:.85em;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.dag-zoom button:hover{background:var(--surface2)}
+.dag-vp{position:relative;height:680px;overflow:hidden;background:var(--bg);cursor:grab}
+.dag-vp.panning{cursor:grabbing}
+.dag-cvs{position:absolute;top:0;left:0;transform-origin:0 0}
+.dag-overlay{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
 .dag-hint{padding:.25rem 1rem;font-size:.6em;font-family:'JetBrains Mono',monospace;color:var(--dim);background:var(--surface2);border-bottom:1px solid var(--border);display:flex;gap:1.5rem;flex-wrap:wrap}
-
+.sgn{position:absolute;width:220px;background:var(--surface);border:2px solid rgba(230,126,34,.4);border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.3);cursor:default;box-sizing:border-box}
+.sgn:hover{border-color:rgba(230,126,34,.7);box-shadow:0 4px 18px rgba(0,0,0,.4)}
+.sgn.sg-root{border-color:rgba(231,76,60,.5);background:rgba(231,76,60,.04)}
+.sgn.sg-blocked{border-color:rgba(241,196,15,.4);border-style:dashed}
+.sgn.sg-done{border-color:rgba(46,204,113,.4);opacity:.7}
+.sgn.sg-linking{border-color:#2ecc71!important;box-shadow:0 0 0 3px rgba(46,204,113,.3)!important}
+.sgn.sg-can-link{border-color:rgba(46,204,113,.35)!important}
+.sgn-hdr{padding:.4rem .55rem;display:flex;align-items:center;gap:.35rem;cursor:grab;border-bottom:1px solid rgba(255,255,255,.06)}
+.sgn-hdr-root{padding:.5rem .7rem;display:flex;align-items:center;gap:.35rem;cursor:grab}
+.sgn-title{font-size:.75em;font-weight:700;color:#e67e22;flex:1;line-height:1.3;word-break:break-word}
+.sgn-title-root{font-size:.8em;font-weight:800;color:#e74c3c;flex:1;line-height:1.3;word-break:break-word}
+.sgn-prog{height:4px;background:rgba(0,0,0,.3);margin:0 .55rem .4rem;border-radius:2px;overflow:hidden}
+.sgn-prog-fill{height:100%;border-radius:2px;transition:width .5s}
+.sgn-tasks{display:flex;flex-direction:column;gap:.2rem;padding:.2rem .4rem .3rem}
+.sgn-task{display:flex;align-items:center;gap:.35rem;padding:.22rem .4rem;border-radius:5px;font-size:.65em;border-left:2px solid var(--border2);background:var(--surface2);cursor:pointer}
+.sgn-task:hover{background:var(--surface3)}
+.sgn-task.t-done{opacity:.45;text-decoration:line-through}
+.sgn-task.t-inprog{border-left-color:rgba(52,152,219,.6)}
+.sgn-add-task{font-size:.6em;color:var(--dim);font-family:'JetBrains Mono',monospace;padding:.2rem .4rem;cursor:pointer;text-align:center;border:1px dashed var(--border);border-radius:4px;margin:.15rem .4rem .3rem;transition:all .2s}
+.sgn-add-task:hover{border-color:rgba(230,126,34,.4);color:#e67e22}
+.sgn-rm{position:absolute;top:-8px;right:-8px;width:18px;height:18px;border-radius:50%;background:#1a2438;border:1px solid var(--border2);color:var(--muted);font-size:.55em;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .15s;z-index:5}
+.sgn:hover .sgn-rm{opacity:1}
+.sgn-actions{display:flex;gap:.25rem;padding:.15rem .4rem .35rem;flex-wrap:wrap}
+.dag-zoom{position:absolute;bottom:.6rem;right:.6rem;display:flex;gap:.3rem;z-index:10}
+.dag-zoom button{width:30px;height:30px;border-radius:6px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-size:.9em;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.dag-zoom button:hover{background:var(--surface2)}
 </style>
 </head>
 <body>
@@ -363,7 +374,7 @@ const STATUSES = [
 const PRI_ORDER  = { high:0, medium:1, low:2, '':3 };
 const PRI_LABELS = { high:'HIGH', medium:'MED', low:'LOW' };
 
-let store = {}, activeTab = 'all', refreshTimer = null, financeUnlocked = false, adminUnlocked = false;
+let store = {}, activeTab = 'all', refreshTimer = null, financeUnlocked = false, adminUnlocked = false, draggedTaskId = null, draggedTaskGoalId = null;
 let dragData = null;
 let calMonth = new Date().getMonth();
 let calYear  = new Date().getFullYear();
@@ -416,7 +427,6 @@ async function loadData() {
   if (!store.milestones) store.milestones = [];
   if (!store.meetings)   store.meetings   = [];
   if (!store.goals)     store.goals     = [];
-  store.goals = store.goals.map(g => { if (!g.lanes) g.lanes = []; delete g.tree; return g; });
   SUBS.forEach(s => {
     if (!store.tasks[s.id]) store.tasks[s.id] = [];
     store.tasks[s.id].forEach(t => {
@@ -429,32 +439,7 @@ async function loadData() {
   document.getElementById('sync-info').textContent = 'SYNCED ' + new Date().toLocaleTimeString();
 }
 async function saveData() {
-  // Fetch latest before saving to avoid overwriting bot's channel IDs / financial data
-  try {
-    const latest = await jbGet();
-    // Preserve bot-managed fields that the kanban doesn't touch
-    const merged = {
-      ...store,
-      // Always keep the latest channel IDs from bot
-      messageId:           latest.messageId           ?? store.messageId,
-      leadMessageIds:      latest.leadMessageIds      || store.leadMessageIds,
-      leadChannelIds:      latest.leadChannelIds      || store.leadChannelIds,
-      logChannelId:        latest.logChannelId        ?? store.logChannelId,
-      financeLogChannelId: latest.financeLogChannelId ?? store.financeLogChannelId,
-      approvalChannelId:   latest.approvalChannelId   ?? store.approvalChannelId,
-      adminChannelId:      latest.adminChannelId      ?? store.adminChannelId,
-      budgetChannelId:     latest.budgetChannelId     ?? store.budgetChannelId,
-      budgetMessageId:     latest.budgetMessageId     ?? store.budgetMessageId,
-      receiptCounter:      Math.max(latest.receiptCounter||1, store.receiptCounter||1),
-    };
-    await jbPut(merged);
-    // Update store with merged values
-    store.messageId = merged.messageId;
-    store.receiptCounter = merged.receiptCounter;
-  } catch (e) {
-    // Fallback to direct save if merge fails
-    await jbPut(store);
-  }
+  await jbPut(store);
   document.getElementById('sync-info').textContent = 'SAVED ' + new Date().toLocaleTimeString();
 }
 function refresh() {
@@ -554,7 +539,7 @@ function renderBoard() {
   const area = document.getElementById('main-area');
   if      (activeTab === 'all')      renderAllView(area);
   else if (activeTab === 'calendar') renderCalendarView(area);
-  else if (activeTab === 'goals')    { try { renderGoalsView(area); } catch(e) { area.innerHTML = '<div style="padding:2rem;color:#e74c3c;font-family:JetBrains Mono,monospace;font-size:.8em">Goals error: '+e.message+'</div>'; console.error(e); } }
+  else if (activeTab === 'goals')    renderGoalsView(area);
   else if (activeTab === 'finance')  renderFinanceView(area);
   else if (activeTab === 'lead-panel')    renderAdminView(area);
   else                               renderSubView(area, activeTab);
@@ -1262,159 +1247,127 @@ async function removeCheckIn(subId, taskId, index) {
 
 // ── GOALS ──
 
-const DAG_LANE_W = 230;
-const DAG_NODE_W = 190;
-const DAG_ROW_H  = 100;
-let dagLinkSrc = null; // {nodeId, goalId}
+const SG_W = 220;        // subgoal node width
+const SG_HDR_H = 36;     // header height
+const SG_TASK_H = 26;    // per task height
+const SG_PAD = 8;        // bottom padding
+const COL_GAP = 60;      // horizontal gap between columns
+const ROW_GAP = 90;      // vertical gap between rows
+
+let sgLinkSrc = null;    // {nodeId, goalId} shift+drag linking
 const fcState = {};
-function getFcState(id){if(!fcState[id])fcState[id]={scale:.85,panX:40,panY:20};return fcState[id];}
+function getFcState(id){ if(!fcState[id]) fcState[id]={scale:.8,panX:60,panY:40}; return fcState[id]; }
 
 function getAllTasks(){
   const all=[];
   for(const sub of SUBS) for(const t of store.tasks[sub.id]||[]) all.push({...t,subId:sub.id,subLabel:sub.label,subColor:sub.color});
   return all;
 }
-function makeNodeId(){return 'n'+Math.random().toString(36).slice(2,8);}
+function makeNodeId(){ return 'n'+Math.random().toString(36).slice(2,8); }
 
-// ─── Migration from old nested structure ───
-function migrateGoalDAG(goal){
+// ─── Data migration ───
+function migrateGoal(goal){
   if(goal.dagNodes!==undefined) return;
   goal.dagNodes=[];
   goal.dagEdges=[];
-  if(!goal.lanes) goal.lanes=[];
-
-  function flattenNodes(nodes,laneId,li,depth){
-    (nodes||[]).forEach((node,i)=>{
-      const id=node.nodeId||makeNodeId();
-      const laneX=li*(DAG_LANE_W+10);
-      const x=laneX+(DAG_LANE_W-DAG_NODE_W)/2;
-      const y=60+depth*DAG_ROW_H+i*12;
-      if(node.type==='task') goal.dagNodes.push({id,type:'task',taskId:node.taskId,laneId,x,y});
-      else if(node.type==='subgoal') goal.dagNodes.push({id,type:'subgoal',name:node.name,deadline:node.deadline||null,x,y});
-      if(node.children?.length) flattenNodes(node.children,laneId,li,depth+1);
-    });
-  }
-
-  goal.lanes.forEach((lane,li)=>{
-    if(lane.nodes){ flattenNodes(lane.nodes,lane.id,li,0); delete lane.nodes; }
-    else if(lane.taskIds){
-      lane.taskIds.forEach((tid,i)=>{
-        const laneX=li*(DAG_LANE_W+10);
-        goal.dagNodes.push({id:makeNodeId(),type:'task',taskId:tid,laneId:lane.id,x:laneX+(DAG_LANE_W-DAG_NODE_W)/2,y:60+i*DAG_ROW_H});
-      });
-      delete lane.taskIds;
+  // Convert old lanes/nodes structure
+  const lanes=goal.lanes||[];
+  lanes.forEach((lane,li)=>{
+    const nodes=lane.nodes||[];
+    function flatten(nodes){ nodes.forEach(n=>{ 
+      const id=n.nodeId||makeNodeId();
+      goal.dagNodes.push({id,type:'subgoal',name:n.name||lane.name,taskIds:[],x:li*(SG_W+COL_GAP)+40,y:40+goal.dagNodes.length*120});
+      if(n.children?.length) flatten(n.children);
+    });}
+    if(nodes.length) flatten(nodes);
+    else if(lane.taskIds?.length){
+      goal.dagNodes.push({id:makeNodeId(),type:'subgoal',name:lane.name,taskIds:lane.taskIds,x:li*(SG_W+COL_GAP)+40,y:40});
     }
   });
 }
 
 // ─── Progress ───
-function goalProgress(goal){
-  const at=getAllTasks();
-  migrateGoalDAG(goal);
-  const taskNodes=(goal.dagNodes||[]).filter(n=>n.type==='task');
-  const linked=taskNodes.map(n=>at.find(t=>t.id===n.taskId)).filter(Boolean);
-  const done=linked.filter(t=>t.status==='done').length;
-  return{done,total:linked.length,pct:linked.length?Math.round(done/linked.length*100):0};
-}
-
-function sgProgress(nodeId,goal,allTasks){
-  // Walk outgoing edges to find all reachable task nodes
-  const seen=new Set(); const queue=[nodeId];
-  while(queue.length){
-    const cur=queue.shift();
-    (goal.dagEdges||[]).filter(e=>e.from===cur).forEach(e=>{if(!seen.has(e.to)){seen.add(e.to);queue.push(e.to);}});
-  }
-  const tasks=[...seen].map(id=>{
-    const n=(goal.dagNodes||[]).find(x=>x.id===id);
-    return n&&n.type==='task'?allTasks.find(t=>t.id===n.taskId):null;
-  }).filter(Boolean);
+function sgNodeProgress(node, allTasks){
+  const tasks=(node.taskIds||[]).map(id=>allTasks.find(t=>t.id===id)).filter(Boolean);
   const done=tasks.filter(t=>t.status==='done').length;
   return{done,total:tasks.length,pct:tasks.length?Math.round(done/tasks.length*100):0};
 }
 
-function isGoalBlocked(goal){
-  return(goal.dependsOn||[]).some(depId=>{
-    const dg=(store.goals||[]).find(g=>g.id===depId);
-    return dg&&goalProgress(dg).pct<100;
-  });
+function goalProgress(goal){
+  migrateGoal(goal);
+  const at=getAllTasks();
+  const allIds=new Set((goal.dagNodes||[]).flatMap(n=>n.taskIds||[]));
+  const linked=[...allIds].map(id=>at.find(t=>t.id===id)).filter(Boolean);
+  const done=linked.filter(t=>t.status==='done').length;
+  return{done,total:linked.length,pct:linked.length?Math.round(done/linked.length*100):0};
 }
 
 function isNodeBlocked(nodeId,goal,allTasks){
-  return(goal.dagEdges||[]).filter(e=>e.to===nodeId).some(e=>{
-    const src=(goal.dagNodes||[]).find(n=>n.id===e.from);
-    if(!src) return false;
-    if(src.type==='task'){const t=allTasks.find(x=>x.id===src.taskId);return t&&t.status!=='done';}
-    if(src.type==='subgoal') return sgProgress(src.id,goal,allTasks).pct<100;
-    return false;
+  // Node is blocked if any node it depends ON (outgoing edge target) is incomplete
+  return (goal.dagEdges||[]).filter(e=>e.from===nodeId).some(e=>{
+    const dep=(goal.dagNodes||[]).find(n=>n.id===e.to);
+    if(!dep) return false;
+    return sgNodeProgress(dep,allTasks).pct<100;
   });
 }
 
-function wouldCreateCycle(goal,fromId,toId){
-  const seen=new Set(); const q=[toId];
-  while(q.length){const cur=q.shift();if(cur===fromId)return true;if(seen.has(cur))continue;seen.add(cur);(goal.dagEdges||[]).filter(e=>e.from===cur).forEach(e=>q.push(e.to));}
+function isGoalBlocked(goal){
+  return(goal.dependsOn||[]).some(id=>{
+    const g=(store.goals||[]).find(x=>x.id===id);
+    return g&&goalProgress(g).pct<100;
+  });
+}
+
+function wouldCycle(goal,from,to){
+  const seen=new Set(); const q=[to];
+  while(q.length){const c=q.shift();if(c===from)return true;if(seen.has(c))continue;seen.add(c);(goal.dagEdges||[]).filter(e=>e.from===c).forEach(e=>q.push(e.to));}
   return false;
 }
 
-// ─── Auto layout ───
-function autoLayoutGoal(goal){
+// ─── Auto layout (top-down, goal as root at top) ───
+function autoLayout(goal){
   const nodes=goal.dagNodes||[]; const edges=goal.dagEdges||[];
   if(!nodes.length) return;
-  const lanes=goal.lanes||[];
-  const laneIdx=Object.fromEntries(lanes.map((l,i)=>[l.id,i]));
-  const HGAP=30; const VGAP=90; const TOP=50;
-
-  // Compute depth via longest path from sources
-  const depth={};
-  nodes.forEach(n=>depth[n.id]=0);
-  // Topological sort
+  // Depth = longest path from sources (nodes with no incoming edges = nothing points TO them as a dependency)
+  // Edges: from=parent/dependant → to=child/dependency
+  // So nodes with no outgoing edges (no dependencies) = leaves = deepest
+  // Nodes with no incoming edges (nothing depends on them) = roots = shallowest = TOP
   const inDeg={}; nodes.forEach(n=>inDeg[n.id]=0);
-  edges.forEach(e=>{if(e.to in inDeg)inDeg[e.to]++;});
-  const q=[...nodes.filter(n=>inDeg[n.id]===0).map(n=>n.id)];
+  edges.forEach(e=>{if(inDeg[e.to]!==undefined) inDeg[e.to]++;});
+  const depth={}; nodes.forEach(n=>depth[n.id]=0);
+  // Topo sort
+  const inDegCopy={...inDeg};
+  const q=nodes.filter(n=>inDegCopy[n.id]===0).map(n=>n.id);
   const order=[];
   while(q.length){
     const cur=q.shift(); order.push(cur);
     edges.filter(e=>e.from===cur).forEach(e=>{
-      depth[e.to]=Math.max(depth[e.to],(depth[cur]||0)+1);
-      if(--inDeg[e.to]===0) q.push(e.to);
+      depth[e.to]=Math.max(depth[e.to]||0,(depth[cur]||0)+1);
+      if(--inDegCopy[e.to]===0) q.push(e.to);
     });
   }
-  // Nodes not in topo sort (cycles) go at bottom
-  nodes.filter(n=>!order.includes(n.id)).forEach(n=>{ depth[n.id]=(Math.max(...Object.values(depth))||0)+1; order.push(n.id); });
-
-  // Group by {lane, depth} and assign x/y
-  const maxDepth=Math.max(0,...Object.values(depth));
-  // For each lane+depth, collect nodes and space them
-  const grid={}; // key: `${laneIdx}-${depth}` => [nodeIds]
-  order.forEach(nid=>{
-    const n=nodes.find(x=>x.id===nid); if(!n) return;
-    let li;
-    if(n.laneId&&laneIdx[n.laneId]!==undefined) li=laneIdx[n.laneId];
-    else {
-      // Subgoals without lane: put in middle, or between their connected lanes
-      const connectedLanes=[
-        ...edges.filter(e=>e.from===nid).map(e=>{ const t=nodes.find(x=>x.id===e.to); return t?.laneId?laneIdx[t.laneId]:null; }),
-        ...edges.filter(e=>e.to===nid).map(e=>{ const f=nodes.find(x=>x.id===e.from); return f?.laneId?laneIdx[f.laneId]:null; }),
-      ].filter(x=>x!=null);
-      li=connectedLanes.length?Math.round(connectedLanes.reduce((a,b)=>a+b,0)/connectedLanes.length):Math.floor(lanes.length/2);
-    }
-    const key=`${li}-${depth[nid]}`;
-    if(!grid[key]) grid[key]=[];
-    grid[key].push(nid);
-  });
-
+  nodes.filter(n=>!order.includes(n.id)).forEach(n=>{depth[n.id]=(Math.max(0,...Object.values(depth))||0)+1; order.push(n.id);});
+  // Group by depth
+  const byDepth={};
+  order.forEach(id=>{const d=depth[id]||0;if(!byDepth[d])byDepth[d]=[];byDepth[d].push(id);});
+  const maxRow=Math.max(...Object.keys(byDepth).map(Number));
   // Assign positions
-  Object.entries(grid).forEach(([key,nids])=>{
-    const [li,d]=key.split('-').map(Number);
-    const laneX=li*(DAG_LANE_W+HGAP);
-    const nodeW=getNodeW({type:'task'});
-    const totalW=nids.length*nodeW+(nids.length-1)*8;
-    const startX=laneX+(DAG_LANE_W-totalW)/2;
-    nids.forEach((nid,i)=>{
-      const n=nodes.find(x=>x.id===nid); if(!n) return;
-      n.x=startX+i*(nodeW+8);
-      n.y=TOP+d*VGAP;
+  Object.entries(byDepth).forEach(([d,ids])=>{
+    const row=parseInt(d);
+    const totalW=ids.length*SG_W+(ids.length-1)*COL_GAP;
+    const startX=Math.max(20,(800-totalW)/2);
+    ids.forEach((id,i)=>{
+      const n=nodes.find(x=>x.id===id); if(!n) return;
+      n.x=startX+i*(SG_W+COL_GAP);
+      n.y=40+row*(ROW_GAP+80);
     });
   });
+}
+
+// ─── Subgoal node height ───
+function sgHeight(node,allTasks){
+  const tasks=(node.taskIds||[]).filter(id=>{const t=allTasks.find(x=>x.id===id);return !t||t.status!=='done';});
+  return SG_HDR_H+4+(tasks.length*SG_TASK_H)+SG_PAD+28+28; // hdr+prog+tasks+addBtn+actionRow
 }
 
 // ─── Main render ───
@@ -1423,7 +1376,8 @@ function renderGoalsView(area){
   if(!store.goals) store.goals=[];
   const hdr=document.createElement('div');
   hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem';
-  hdr.innerHTML='<div style="font-size:.85em;font-weight:700;color:var(--text)">🎯 Goals</div><button onclick="openAddGoalModal()" class="mbtn primary" style="font-size:.72em">+ New Goal</button>';
+  hdr.innerHTML='<div style="font-size:.85em;font-weight:700;color:var(--text)">🎯 Goals</div>'+
+    '<button onclick="openAddGoalModal()" class="mbtn primary" style="font-size:.72em">+ New Goal</button>';
   area.appendChild(hdr);
   if(!store.goals.length){
     const e=document.createElement('div');
@@ -1432,20 +1386,11 @@ function renderGoalsView(area){
     area.appendChild(e); return;
   }
   const allTasks=getAllTasks();
-  store.goals.forEach(goal=>{
-    try{ renderGoalCard(goal,allTasks,area); }
-    catch(e){
-      console.error('Goal render error:',e);
-      const d=document.createElement('div');
-      d.style.cssText='padding:1rem;color:#e74c3c;font-size:.75em;background:#1a0808;border-radius:8px';
-      d.textContent='Goal render error: '+e.message;
-      area.appendChild(d);
-    }
-  });
+  store.goals.forEach(goal=>{ try{ renderGoalCard(goal,allTasks,area); } catch(e){ console.error(e); } });
 }
 
 function renderGoalCard(goal,allTasks,area){
-  migrateGoalDAG(goal);
+  migrateGoal(goal);
   const{done,total,pct}=goalProgress(goal);
   const dl=goal.deadline?Math.round((parseDmy(goal.deadline)-Date.now())/86400000):null;
   const dlCol=dl===null?'var(--muted)':dl<0?'#e74c3c':dl<=14?'#f1c40f':'#2ecc71';
@@ -1463,193 +1408,175 @@ function renderGoalCard(goal,allTasks,area){
     '<div class="goal-title">'+(blocked?'⏳ ':'🎯 ')+esc(goal.name)+'</div>'+
     '<div class="goal-meta">'+
       '<span style="color:'+dlCol+'">📅 '+dlTxt+'</span>'+
-      '<span>'+done+'/'+total+' done</span>'+
+      '<span>'+done+'/'+total+' tasks done</span>'+
       '<span style="color:'+fill+'">'+pct+'%</span>'+
-      (blockingGoals.length?'<span style="color:#f1c40f">⏳ blocked by: '+blockingGoals.map(g=>esc(g.name)).join(', ')+'</span>':'') +
+      (blockingGoals.length?'<span style="color:#f1c40f">⏳ blocked by: '+blockingGoals.map(g=>esc(g.name)).join(', ')+'</span>':'')+
     '</div></div>'+
-    '<div style="display:flex;gap:.4rem;align-items:center">'+
-      '<button data-gid="'+goal.id+'" onclick="openGoalDepsModal(this.dataset.gid)" class="admin-nudge-btn" style="color:#9b59b6;border-color:rgba(155,89,182,.3)">🔗 Deps</button>'+
-      '<button data-gid="'+goal.id+'" onclick="addLane(this.dataset.gid)" class="admin-nudge-btn" style="color:#e67e22;border-color:rgba(230,126,34,.3)">+ Lane</button>'+
-      '<button data-gid="'+goal.id+'" onclick="addDagSubgoal(this.dataset.gid)" class="admin-nudge-btn" style="color:#2ecc71;border-color:rgba(46,204,113,.3)">📌 Subgoal</button>'+
-      '<button data-gid="'+goal.id+'" onclick="autoLayoutGoal((store.goals||[]).find(g=>g.id===this.dataset.gid));renderBoard();" class="admin-nudge-btn" style="color:var(--muted);border-color:var(--border2)">⟳ Layout</button>'+
+    '<div style="display:flex;gap:.35rem;align-items:center">'+
+      '<button data-gid="'+goal.id+'" onclick="openGoalDepsModal(this.dataset.gid)" class="admin-nudge-btn" style="color:#9b59b6;border-color:rgba(155,89,182,.3)">🔗 Goal Deps</button>'+
+      '<button data-gid="'+goal.id+'" onclick="addSgNode(this.dataset.gid)" class="admin-nudge-btn" style="color:#e67e22;border-color:rgba(230,126,34,.3)">+ Subgoal</button>'+
+      '<button data-gid="'+goal.id+'" onclick="doLayout(this.dataset.gid)" class="admin-nudge-btn" style="color:var(--muted);border-color:var(--border2)">⟳ Layout</button>'+
       '<button data-gid="'+goal.id+'" onclick="openEditGoalModal(this.dataset.gid)" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.65em;cursor:pointer">✎</button>'+
     '</div>';
   card.appendChild(chdr);
 
-  // Progress
+  // Progress bar
   const pw=document.createElement('div'); pw.className='goal-progress-wrap';
   pw.innerHTML='<div class="goal-progress-bar"><div class="goal-progress-fill" style="width:'+pct+'%;background:'+fill+'"></div></div>'+
-    '<div class="goal-progress-nums"><span>'+pct+'% complete</span><span>'+done+'/'+total+'</span></div>';
+    '<div class="goal-progress-nums"><span>'+pct+'% overall</span><span>'+done+'/'+total+' tasks</span></div>';
   card.appendChild(pw);
 
-  // Hint bar
+  // Hint
   const hint=document.createElement('div'); hint.className='dag-hint';
-  hint.innerHTML='<span>🖱 Drag canvas to pan · scroll to zoom</span>'+
-    '<span><kbd style="background:var(--surface3);padding:.05rem .3rem;border-radius:3px;border:1px solid var(--border2)">Shift</kbd>+drag node → node to link dependency</span>'+
-    '<span>Click edge to remove · ⟳ to auto-layout</span>';
+  hint.innerHTML='<span>🖱 Drag background to pan · scroll to zoom</span>'+
+    '<span><kbd style="background:var(--surface3);padding:.05rem .3rem;border-radius:3px;border:1px solid var(--border2)">Shift</kbd>+drag subgoal → subgoal to link (flows downward)</span>'+
+    '<span>Click arrow to remove dependency</span>';
   card.appendChild(hint);
 
   // Viewport
-  const vp=document.createElement('div'); vp.className='dag-viewport';
-  const cvs=document.createElement('div'); cvs.className='dag-canvas';
+  const vp=document.createElement('div'); vp.className='dag-vp';
+  const cvs=document.createElement('div'); cvs.className='dag-cvs';
   cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
 
-  // SVG overlay
+  // SVG for edges
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.className='dag-svg';
+  svg.className='dag-overlay'; svg.style.cssText='position:absolute;top:0;left:0;width:5000px;height:5000px;overflow:visible;pointer-events:none;z-index:1';
   svg.innerHTML='<defs>'+
-    '<marker id="dga" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="rgba(155,89,182,.65)"/></marker>'+
-    '<marker id="dgah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#9b59b6"/></marker>'+
+    '<marker id="sg-arr" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">'+
+      '<polygon points="0 0,10 4,0 8" fill="rgba(230,126,34,.8)"/>'+
+    '</marker>'+
+    '<marker id="sg-arr-h" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">'+
+      '<polygon points="0 0,10 4,0 8" fill="#e67e22"/>'+
+    '</marker>'+
     '</defs>';
   cvs.appendChild(svg);
 
-  // Lane column backgrounds
-  (goal.lanes||[]).forEach((lane,li)=>{
-    const laneX=li*(DAG_LANE_W+10);
-    const col=document.createElement('div'); col.className='dag-lane-col';
-    col.style.cssText=`left:${laneX}px;width:${DAG_LANE_W}px;height:4000px;background:rgba(255,255,255,.012)`;
-
-    const lhdr=document.createElement('div'); lhdr.className='dag-lane-hdr';
-    const nameEl=document.createElement('span');
-    nameEl.style.cssText='flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e67e22';
-    nameEl.textContent='📌 '+(lane.name||'Lane');
-
-    const addBtn=document.createElement('button');
-    addBtn.style.cssText='background:rgba(230,126,34,.2);border:1px solid rgba(230,126,34,.4);border-radius:3px;color:#e67e22;cursor:pointer;font-size:.7em;padding:.1rem .35rem;flex-shrink:0';
-    addBtn.textContent='+ Task'; addBtn.title='Add tasks';
-    addBtn.addEventListener('click',e=>{e.stopPropagation();openAddTaskToDAGLane(goal.id,lane.id);});
-    const addSgBtn=document.createElement('button');
-    addSgBtn.style.cssText='background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.3);border-radius:3px;color:#2ecc71;cursor:pointer;font-size:.7em;padding:.1rem .35rem;flex-shrink:0';
-    addSgBtn.textContent='📌'; addSgBtn.title='Add subgoal to this lane';
-    addSgBtn.addEventListener('click',async e=>{
-      e.stopPropagation();
-      const name=prompt('Subgoal name:'); if(!name?.trim()) return;
-      migrateGoalDAG(goal);
-      const li=(goal.lanes||[]).findIndex(l=>l.id===lane.id);
-      const lx=li*(DAG_LANE_W+10)+(DAG_LANE_W-DAG_NODE_W)/2;
-      const existingInLane=(goal.dagNodes||[]).filter(n=>n.laneId===lane.id);
-      const maxY=existingInLane.reduce((mx,n)=>Math.max(mx,n.y+DAG_ROW_H),60);
-      goal.dagNodes.push({id:makeNodeId(),type:'subgoal',name:name.trim(),deadline:null,laneId:lane.id,x:lx,y:maxY});
-      renderBoard();
-      try{await saveData();toast('Subgoal added to '+lane.name,'success');}catch{}
-    });
-
-    const delBtn=document.createElement('button');
-    delBtn.style.cssText='background:rgba(231,76,60,.15);border:1px solid rgba(231,76,60,.3);border-radius:3px;color:#e74c3c;cursor:pointer;font-size:.7em;padding:.1rem .35rem;flex-shrink:0';
-    delBtn.textContent='✕';
-    delBtn.addEventListener('click',async e=>{
-      e.stopPropagation();
-      if(!confirm('Remove lane "'+lane.name+'"?')) return;
-      goal.lanes=(goal.lanes||[]).filter(l=>l.id!==lane.id);
-      goal.dagNodes=(goal.dagNodes||[]).filter(n=>n.laneId!==lane.id);
-      renderBoard();
-      try{await saveData();toast('Lane removed','success');}catch{}
-    });
-
-    lhdr.appendChild(nameEl); lhdr.appendChild(addSgBtn); lhdr.appendChild(addBtn); lhdr.appendChild(delBtn);
-    col.appendChild(lhdr);
-    cvs.appendChild(col);
-  });
-
-  // Lane column drag-over highlight
-  cvs.addEventListener('dragover', e=>e.preventDefault());
-  
   // Pan
-  let isPanning=false, panStart={x:0,y:0};
+  let isPanning=false,ps={x:0,y:0};
   vp.addEventListener('mousedown',e=>{
-    if(e.target.closest('.dag-node,button,input')) return;
-    if(dagLinkSrc) return;
+    if(e.target.closest('.sgn,button,input,select')||sgLinkSrc) return;
     isPanning=true; vp.classList.add('panning');
-    panStart={x:e.clientX-s.panX,y:e.clientY-s.panY};
-    e.preventDefault();
+    ps={x:e.clientX-s.panX,y:e.clientY-s.panY}; e.preventDefault();
   });
   window.addEventListener('mousemove',e=>{
     if(!isPanning) return;
-    s.panX=e.clientX-panStart.x; s.panY=e.clientY-panStart.y;
+    s.panX=e.clientX-ps.x; s.panY=e.clientY-ps.y;
     cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
   });
-  window.addEventListener('mouseup',()=>{isPanning=false; vp.classList.remove('panning');});
+  window.addEventListener('mouseup',()=>{isPanning=false;vp.classList.remove('panning');});
   vp.addEventListener('wheel',e=>{
     e.preventDefault();
     s.scale=Math.min(3,Math.max(.1,s.scale*(e.deltaY>0?.9:1.1)));
     cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
   },{passive:false});
 
-  // Render nodes function (called after DOM attached)
-  function renderNodes(){
-    cvs.querySelectorAll('.dag-node').forEach(el=>el.remove());
-    svg.querySelectorAll('.dag-edge,.dag-edge-hit').forEach(el=>el.remove());
-    (goal.dagNodes||[]).forEach(node=>{
-      const el=buildDagNode(node,goal,allTasks,s,svg,cvs,renderNodes,vp);
-      cvs.appendChild(el);
-    });
-    drawAllEdges(svg,goal,allTasks);
-  }
+  function redraw(){ drawEdges(svg,goal,allTasks); }
+
+  // Render all nodes
+  (goal.dagNodes||[]).forEach(node=>{
+    const el=buildSgNode(node,goal,allTasks,s,cvs,svg,redraw);
+    cvs.appendChild(el);
+  });
+  redraw();
 
   // Zoom controls
   const zc=document.createElement('div'); zc.className='dag-zoom';
   const mkZ=(t,fn)=>{const b=document.createElement('button');b.textContent=t;b.onclick=fn;return b;};
-  zc.appendChild(mkZ('＋',()=>{s.scale=Math.min(3,s.scale*1.2);cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;} ));
-  zc.appendChild(mkZ('－',()=>{s.scale=Math.max(.1,s.scale*.8);cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;} ));
-  zc.appendChild(mkZ('⌂',()=>{s.scale=.85;s.panX=40;s.panY=20;cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;} ));
-
+  zc.appendChild(mkZ('＋',()=>{s.scale=Math.min(3,s.scale*1.15);cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;} ));
+  zc.appendChild(mkZ('－',()=>{s.scale=Math.max(.1,s.scale*.85);cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;} ));
+  zc.appendChild(mkZ('⌂',()=>{s.scale=.8;s.panX=60;s.panY=40;cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;} ));
   vp.appendChild(cvs); vp.appendChild(zc);
   card.appendChild(vp); area.appendChild(card);
-  setTimeout(renderNodes,0);
 }
 
-function buildDagNode(node,goal,allTasks,s,svg,cvs,renderNodes,vp){
-  const el=document.createElement('div'); el.className='dag-node';
+function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
+  const tasks=(node.taskIds||[]).map(id=>allTasks.find(t=>t.id===id)).filter(Boolean);
+  const visibleTasks=tasks.filter(t=>t.status!=='done');
+  const{done,total,pct}=sgNodeProgress(node,allTasks);
+  const blocked=isNodeBlocked(node.id,goal,allTasks);
+  const isDone=total>0&&pct===100;
+  const isRoot=(goal.dagEdges||[]).filter(e=>e.to===node.id).length===0;
+  const fill=isDone?'#2ecc71':pct>50?'#3498db':pct>0?'#f1c40f':'rgba(230,126,34,.4)';
+
+  const el=document.createElement('div'); el.className='sgn'+(isRoot?' sg-root':'')+(blocked?' sg-blocked':'')+(isDone?' sg-done':'');
   el.dataset.nodeId=node.id;
   el.style.left=node.x+'px'; el.style.top=node.y+'px';
 
-  if(node.type==='task'){
-    const task=allTasks.find(t=>t.id===node.taskId);
-    if(!task){el.style.display='none';return el;}
-    if(task.status==='done'){el.style.display='none';return el;}
-    const sub=SUBS.find(ss=>ss.id===task.subId);
-    const pri=task.priority==='high'?'🔴':task.priority==='medium'?'🟡':task.priority==='low'?'🟢':'';
-    const icon=task.status==='inprogress'?'◑':'–';
-    const taskBlocked=isNodeBlocked(node.id,goal,allTasks);
-    const inner=document.createElement('div'); inner.className='dag-node-task';
-    inner.style.borderLeftColor=sub?.color||'var(--border2)';
-    if(taskBlocked) inner.style.borderColor='rgba(241,196,15,.5)';
-    inner.innerHTML='<div style="display:flex;align-items:center;gap:.3rem;min-width:0">'+
-      '<span style="color:var(--dim);font-size:.8em;flex-shrink:0">⠿</span>'+
-      '<span style="color:var(--muted);flex-shrink:0">'+icon+'</span>'+
-      '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;color:#e8edf5">'+esc(task.name)+'</span>'+
-      (pri?'<span style="flex-shrink:0">'+pri+'</span>':'')+
-      '</div>'+
-      (taskBlocked?'<div style="font-size:.56em;color:#f1c40f;font-family:JetBrains Mono,monospace;margin-top:.1rem">⏳ blocked</div>':'');
-    el.appendChild(inner);
-    el.onclick=e=>{if(dagLinkSrc||e.defaultPrevented)return;openEditModal(task.subId,task.id);};
+  // Header
+  const hdr=document.createElement('div'); hdr.className=isRoot?'sgn-hdr-root':'sgn-hdr';
+  const titleEl=document.createElement('div'); titleEl.className=isRoot?'sgn-title-root':'sgn-title';
+  titleEl.textContent=(isRoot?'🎯 ':'📌 ')+node.name;
+  const countEl=document.createElement('span');
+  countEl.style.cssText='font-size:.65em;color:var(--muted);font-family:JetBrains Mono,monospace;flex-shrink:0';
+  countEl.textContent=done+'/'+total;
+  const dragHandle=document.createElement('span');
+  dragHandle.style.cssText='color:rgba(230,126,34,.4);font-size:.85em;flex-shrink:0;cursor:grab';
+  dragHandle.textContent='⠿';
+  hdr.appendChild(dragHandle); hdr.appendChild(titleEl); hdr.appendChild(countEl);
+  el.appendChild(hdr);
 
-  } else if(node.type==='subgoal'){
-    const{done:sd,total:st,pct:sp}=sgProgress(node.id,goal,allTasks);
-    const sfill=sp===100?'#2ecc71':sp>50?'#3498db':'#f1c40f';
-    const sgBlocked=isNodeBlocked(node.id,goal,allTasks);
-    const inner=document.createElement('div'); inner.className='dag-node-sg';
-    if(sgBlocked) inner.style.borderColor='rgba(241,196,15,.6)';
-    const sgLane=node.laneId?(goal.lanes||[]).find(l=>l.id===node.laneId):null;
-    inner.innerHTML='<div style="display:flex;align-items:center;gap:.35rem">'+
-      '<span style="cursor:grab;color:rgba(230,126,34,.5);flex-shrink:0">⠿</span>'+
-      '<span style="flex:1;word-break:break-word;line-height:1.3">📌 '+esc(node.name)+'</span>'+
-      (sgLane?'<span style="font-size:.55em;background:rgba(230,126,34,.2);border-radius:3px;padding:.05rem .3rem;color:#e67e22;flex-shrink:0;white-space:nowrap">'+esc(sgLane.name)+'</span>':'')+
-      '<span style="font-size:.7em;color:var(--muted);font-family:JetBrains Mono,monospace;flex-shrink:0">'+sd+'/'+st+'</span>'+
-      '</div>'+
-      '<div style="height:3px;background:rgba(0,0,0,.3);border-radius:2px;overflow:hidden;margin-top:.3rem">'+
-        '<div style="height:100%;width:'+sp+'%;background:'+sfill+';border-radius:2px"></div>'+
-      '</div>'+
-      (node.deadline?'<div style="font-size:.58em;font-family:JetBrains Mono,monospace;color:var(--muted);margin-top:.2rem">📅 '+esc(node.deadline)+'</div>':'');
-    el.appendChild(inner);
-    el.ondblclick=e=>{e.preventDefault();openEditDagSubgoal(node,goal.id);};
-  }
+  // Progress bar
+  const prog=document.createElement('div'); prog.className='sgn-prog';
+  const progFill=document.createElement('div'); progFill.className='sgn-prog-fill';
+  progFill.style.cssText=`width:${pct}%;background:${fill}`;
+  prog.appendChild(progFill); el.appendChild(prog);
+
+  // Tasks
+  const taskList=document.createElement('div'); taskList.className='sgn-tasks';
+  visibleTasks.forEach(task=>{
+    const sub=SUBS.find(s=>s.id===task.subId);
+    const pri=task.priority==='high'?'🔴':task.priority==='medium'?'🟡':task.priority==='low'?'🟢':'';
+    const tc=document.createElement('div');
+    tc.className='sgn-task'+(task.status==='done'?' t-done':task.status==='inprogress'?' t-inprog':'');
+    tc.style.borderLeftColor=sub?.color||'var(--border2)';
+    tc.innerHTML='<span style="color:var(--muted);flex-shrink:0">'+(task.status==='inprogress'?'◑':'–')+'</span>'+
+      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e8edf5">'+esc(task.name)+'</span>'+
+      (pri?'<span style="flex-shrink:0">'+pri+'</span>':'');
+    tc.onclick=e=>{e.stopPropagation();if(!sgLinkSrc)openEditModal(task.subId,task.id);};
+    taskList.appendChild(tc);
+  });
+  el.appendChild(taskList);
+
+  // Add task button
+  const addT=document.createElement('div'); addT.className='sgn-add-task';
+  addT.textContent='+ Add tasks';
+  addT.dataset.gid=goal.id; addT.dataset.nid=node.id;
+  addT.onclick=e=>{e.stopPropagation();openAddTasksToNode(addT.dataset.gid,addT.dataset.nid);};
+  el.appendChild(addT);
+
+  // Action row
+  const actions=document.createElement('div'); actions.className='sgn-actions';
+  const editBtn=document.createElement('div'); editBtn.className='sgn-btn';
+  editBtn.style.cssText='color:var(--muted);border-color:var(--border2);background:transparent;font-size:.58em;padding:.15rem .4rem;border-radius:4px;cursor:pointer;font-family:JetBrains Mono,monospace';
+  editBtn.textContent='✎ Edit';
+  editBtn.dataset.gid=goal.id; editBtn.dataset.nid=node.id;
+  editBtn.onclick=e=>{e.stopPropagation();openEditSgNode(editBtn.dataset.gid,editBtn.dataset.nid);};
+
+  const addSgBtn=document.createElement('div'); addSgBtn.className='sgn-btn';
+  addSgBtn.style.cssText='color:rgba(230,126,34,.8);border-color:rgba(230,126,34,.3);background:transparent;font-size:.58em;padding:.15rem .4rem;border-radius:4px;cursor:pointer;font-family:JetBrains Mono,monospace';
+  addSgBtn.textContent='+ Sub-subgoal';
+  addSgBtn.dataset.gid=goal.id; addSgBtn.dataset.nid=node.id;
+  addSgBtn.onclick=async e=>{
+    e.stopPropagation();
+    const name=prompt('Sub-subgoal name:'); if(!name?.trim()) return;
+    const g=(store.goals||[]).find(x=>x.id===addSgBtn.dataset.gid); if(!g) return;
+    const parent=(g.dagNodes||[]).find(n=>n.id===addSgBtn.dataset.nid); if(!parent) return;
+    const newNode={id:makeNodeId(),type:'subgoal',name:name.trim(),taskIds:[],x:parent.x,y:parent.y+140};
+    g.dagNodes.push(newNode);
+    if(!g.dagEdges) g.dagEdges=[];
+    g.dagEdges.push({id:makeNodeId(),from:parent.id,to:newNode.id});
+    renderBoard();
+    try{await saveData();toast('Sub-subgoal added','success');}catch{}
+  };
+
+  actions.appendChild(editBtn); actions.appendChild(addSgBtn);
+  el.appendChild(actions);
 
   // Remove button
-  const rm=document.createElement('div'); rm.className='dag-rm'; rm.textContent='✕';
+  const rm=document.createElement('div'); rm.className='sgn-rm'; rm.textContent='✕';
   rm.addEventListener('click',async e=>{
     e.stopPropagation();
-    if(!confirm('Remove this node? Links will also be removed.')) return;
+    if(!confirm('Remove this subgoal? Tasks stay in the system.')) return;
     goal.dagNodes=(goal.dagNodes||[]).filter(n=>n.id!==node.id);
     goal.dagEdges=(goal.dagEdges||[]).filter(e=>e.from!==node.id&&e.to!==node.id);
     renderBoard();
@@ -1658,125 +1585,80 @@ function buildDagNode(node,goal,allTasks,s,svg,cvs,renderNodes,vp){
   el.appendChild(rm);
 
   // Drag to move
-  let isDragging=false,ds={x:0,y:0},ns={x:0,y:0};
-  el.addEventListener('mousedown',e=>{
-    if(e.target===rm||rm.contains(e.target)) return;
+  let dragging=false,ds={x:0,y:0},ns={x:0,y:0};
+  hdr.addEventListener('mousedown',e=>{
+    if(e.target.closest('button')||sgLinkSrc) return;
     if(e.shiftKey){
-      // Link mode
-      dagLinkSrc={nodeId:node.id,goalId:goal.id};
-      el.classList.add('linking');
-      document.querySelectorAll('.dag-node').forEach(n=>{if(n!==el)n.classList.add('can-link');});
-      e.preventDefault(); e.stopPropagation(); return;
+      sgLinkSrc={nodeId:node.id,goalId:goal.id};
+      el.classList.add('sg-linking');
+      cvs.querySelectorAll('.sgn').forEach(n=>{ if(n!==el) n.classList.add('sg-can-link'); });
+      e.stopPropagation(); e.preventDefault(); return;
     }
-    isDragging=true;
-    ds={x:e.clientX,y:e.clientY}; ns={x:node.x,y:node.y};
-    e.preventDefault(); e.stopPropagation();
+    dragging=true; ds={x:e.clientX,y:e.clientY}; ns={x:node.x,y:node.y};
+    e.stopPropagation(); e.preventDefault();
   });
 
-  const mmHandler=e=>{
-    if(!isDragging) return;
+  const onMove=e=>{
+    if(!dragging) return;
     node.x=Math.max(0,ns.x+(e.clientX-ds.x)/s.scale);
-    node.y=Math.max(36,ns.y+(e.clientY-ds.y)/s.scale);
+    node.y=Math.max(0,ns.y+(e.clientY-ds.y)/s.scale);
     el.style.left=node.x+'px'; el.style.top=node.y+'px';
-    // Highlight which lane the node is hovering over
-    const lanes=goal.lanes||[];
-    cvs.querySelectorAll('.dag-lane-col').forEach((laneCol,li)=>{
-      const lx=li*(DAG_LANE_W+10);
-      const inLane=node.x>=lx && node.x<lx+DAG_LANE_W;
-      laneCol.style.background=inLane?'rgba(230,126,34,.08)':'rgba(255,255,255,.012)';
-    });
-    drawAllEdges(svg,goal,allTasks);
+    redraw();
   };
-  const muHandler=async e=>{
-    if(isDragging){
-      isDragging=false;
-      // Snap to lane - find which lane column the node is in
-      const lanes=goal.lanes||[];
-      let matched=null;
-      lanes.forEach((lane,li)=>{
-        const lx=li*(DAG_LANE_W+10);
-        if(node.x>=lx && node.x<lx+DAG_LANE_W) matched=lane.id;
-      });
-      node.laneId=matched||null;
-      // Re-tint the node based on lane
-      const laneEl=cvs.querySelector(`.dag-node[data-node-id="${node.id}"]`);
-      if(laneEl){
-        const inner=laneEl.querySelector('.dag-node-sg,.dag-node-task');
-        if(inner&&node.type==='subgoal'){
-          const li=lanes.findIndex(l=>l.id===matched);
-          inner.style.background=matched?`rgba(230,126,34,.12)`:'rgba(230,126,34,.09)';
-        }
-      }
-      // Reset lane highlights
-      cvs.querySelectorAll('.dag-lane-col').forEach(c=>c.style.background='rgba(255,255,255,.012)');
-      // Show lane assignment on node
-      const inner2=el.querySelector('.dag-node-sg,.dag-node-task');
-      if(inner2&&node.laneId) inner2.style.outline='1px solid rgba(230,126,34,.3)';
-      try{await saveData();}catch{}
-    }
-    // Link drop
-    if(dagLinkSrc&&dagLinkSrc.goalId===goal.id&&dagLinkSrc.nodeId!==node.id){
-      if(!wouldCreateCycle(goal,dagLinkSrc.nodeId,node.id)){
+  const onUp=async e=>{
+    if(dragging){ dragging=false; try{await saveData();}catch{} }
+    // Handle link drop
+    if(sgLinkSrc&&sgLinkSrc.goalId===goal.id&&sgLinkSrc.nodeId!==node.id){
+      const srcId=sgLinkSrc.nodeId;
+      if(!wouldCycle(goal,srcId,node.id)){
         if(!goal.dagEdges) goal.dagEdges=[];
-        if(!goal.dagEdges.some(e=>e.from===dagLinkSrc.nodeId&&e.to===node.id)){
-          goal.dagEdges.push({id:makeNodeId(),from:dagLinkSrc.nodeId,to:node.id});
-          try{await saveData();toast('Dependency linked ✓','success');}catch{}
+        if(!goal.dagEdges.some(e=>e.from===srcId&&e.to===node.id)){
+          goal.dagEdges.push({id:makeNodeId(),from:srcId,to:node.id});
+          renderBoard();
+          try{await saveData();toast('Linked — arrow flows down to dependency','success');}catch{}
         }
-      } else toast('Would create circular dependency','error');
-      dagLinkSrc=null;
-      document.querySelectorAll('.dag-node').forEach(n=>n.classList.remove('linking','can-link'));
-      renderBoard();
+      } else toast('Would create a cycle','error');
+      sgLinkSrc=null;
+      cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-linking','sg-can-link'));
     }
   };
-  window.addEventListener('mousemove',mmHandler);
-  window.addEventListener('mouseup',muHandler);
+  window.addEventListener('mousemove',onMove);
+  window.addEventListener('mouseup',onUp);
+  window.addEventListener('keydown',e=>{ if(e.key==='Escape'&&sgLinkSrc){ sgLinkSrc=null; cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-linking','sg-can-link')); } });
 
-  // Cancel link on escape
-  window.addEventListener('keydown',e=>{
-    if(e.key==='Escape'&&dagLinkSrc){
-      dagLinkSrc=null;
-      document.querySelectorAll('.dag-node').forEach(n=>n.classList.remove('linking','can-link'));
-    }
-  },{once:true});
-
-  // Hover highlight edges
-  el.addEventListener('mouseenter',()=>{if(!dagLinkSrc)highlightEdges(svg,node.id,true);});
-  el.addEventListener('mouseleave',()=>{if(!dagLinkSrc)highlightEdges(svg,node.id,false);});
+  // Hover highlight
+  el.addEventListener('mouseenter',()=>highlightEdges(svg,node.id,true));
+  el.addEventListener('mouseleave',()=>highlightEdges(svg,node.id,false));
 
   return el;
 }
 
-function getNodeW(node){ return node.type==='subgoal'?190:175; }
-function getNodeH(node){ return node.type==='subgoal'?62:50; }
-
-function drawAllEdges(svg,goal,allTasks){
-  svg.querySelectorAll('.dag-edge,.dag-edge-hit,.dag-lane-edge').forEach(e=>e.remove());
-  const nodes=goal.dagNodes||[];
-  const lanes=goal.lanes||[];
-
-  // Draw node→node dependency edges
+function drawEdges(svg,goal,allTasks){
+  svg.querySelectorAll('.dag-e,.dag-e-hit').forEach(e=>e.remove());
   (goal.dagEdges||[]).forEach(edge=>{
-    const fn=nodes.find(n=>n.id===edge.from);
-    const tn=nodes.find(n=>n.id===edge.to);
+    const fn=(goal.dagNodes||[]).find(n=>n.id===edge.from);
+    const tn=(goal.dagNodes||[]).find(n=>n.id===edge.to);
     if(!fn||!tn) return;
-    const fTask=fn.type==='task'?allTasks.find(t=>t.id===fn.taskId):null;
-    const tTask=tn.type==='task'?allTasks.find(t=>t.id===tn.taskId):null;
-    if(fTask&&fTask.status==='done') return;
-    if(tTask&&tTask.status==='done') return;
-    const fw=getNodeW(fn); const fh=getNodeH(fn);
-    const tw=getNodeW(tn);
-    const x1=fn.x+fw/2, y1=fn.y+fh;
-    const x2=tn.x+tw/2, y2=tn.y;
-    const cy=(y1+y2)/2;
-    const d=`M${x1},${y1} C${x1},${cy} ${x2},${cy} ${x2},${y2}`;
+
+    // From-node bottom center → to-node top center
+    const fx=fn.x+SG_W/2, fy=fn.y+estimateH(fn,allTasks);
+    const tx=tn.x+SG_W/2, ty=tn.y;
+
+    // Cubic bezier with vertical handles for clean S-curve
+    const dy=Math.abs(ty-fy);
+    const cp=Math.max(dy*0.5,40);
+    const d=`M${fx},${fy} C${fx},${fy+cp} ${tx},${ty-cp} ${tx},${ty}`;
+
     const path=document.createElementNS('http://www.w3.org/2000/svg','path');
-    path.setAttribute('d',d); path.setAttribute('class','dag-edge');
-    path.setAttribute('data-from',edge.from); path.setAttribute('data-to',edge.to); path.setAttribute('data-eid',edge.id||'');
-    path.style.cssText='fill:none;stroke:rgba(155,89,182,.45);stroke-width:1.5;marker-end:url(#dga)';
+    path.setAttribute('d',d); path.setAttribute('class','dag-e');
+    path.setAttribute('data-from',edge.from); path.setAttribute('data-to',edge.to); path.setAttribute('data-eid',edge.id);
+    path.style.cssText='fill:none;stroke:rgba(230,126,34,.55);stroke-width:2.5;marker-end:url(#sg-arr)';
     svg.appendChild(path);
+
+    // Hit area for clicking to remove
     const hit=document.createElementNS('http://www.w3.org/2000/svg','path');
-    hit.setAttribute('d',d); hit.setAttribute('class','dag-edge-hit'); hit.setAttribute('data-eid',edge.id||'');
-    hit.style.cssText='fill:none;stroke:transparent;stroke-width:14;cursor:pointer;pointer-events:stroke';
+    hit.setAttribute('d',d); hit.setAttribute('class','dag-e-hit');
+    hit.style.cssText='fill:none;stroke:transparent;stroke-width:18;cursor:pointer;pointer-events:stroke';
     hit.addEventListener('click',async e=>{
       if(!confirm('Remove this dependency link?')) return;
       goal.dagEdges=(goal.dagEdges||[]).filter(x=>x.id!==edge.id);
@@ -1785,117 +1667,70 @@ function drawAllEdges(svg,goal,allTasks){
     });
     svg.appendChild(hit);
   });
+}
 
-  // Draw subgoal→lane dependency lines
-  // A subgoal is "feeding" a lane if it has outgoing edges to nodes in that lane
-  nodes.filter(n=>n.type==='subgoal').forEach(sg=>{
-    const outEdgeNodes=(goal.dagEdges||[]).filter(e=>e.from===sg.id).map(e=>nodes.find(n=>n.id===e.to)).filter(Boolean);
-    const toLaneIds=[...new Set(outEdgeNodes.map(n=>n.laneId).filter(Boolean))];
-    // Show lane lines if feeding 1+ lanes AND the subgoal isn't in that lane itself
-    const externalLanes=toLaneIds.filter(lid=>lid!==sg.laneId);
-    if(!externalLanes.length) return;
-    const sgW=getNodeW(sg); const sgH=getNodeH(sg);
-    const sgCx=sg.x+sgW/2;
-    const sgBottom=sg.y+sgH;
-    externalLanes.forEach(laneId=>{
-      const li=lanes.findIndex(l=>l.id===laneId);
-      if(li<0) return;
-      // Find the topmost node in this lane that the subgoal feeds into
-      const laneNodes=outEdgeNodes.filter(n=>n.laneId===laneId);
-      const topNode=laneNodes.reduce((best,n)=>(!best||n.y<best.y)?n:best,null);
-      if(!topNode) return;
-      const tnW=getNodeW(topNode);
-      const tx=topNode.x+tnW/2, ty=topNode.y;
-      const cy1=sgBottom+(ty-sgBottom)*0.4;
-      const cy2=sgBottom+(ty-sgBottom)*0.7;
-      const d=`M${sgCx},${sgBottom} C${sgCx},${cy1} ${tx},${cy2} ${tx},${ty}`;
-      const path=document.createElementNS('http://www.w3.org/2000/svg','path');
-      path.setAttribute('class','dag-lane-edge');
-      path.style.cssText='fill:none;stroke:rgba(230,126,34,.55);stroke-width:2;stroke-dasharray:6,4;marker-end:url(#dga)';
-      svg.appendChild(path);
-      path.setAttribute('d',d);
-    });
-  });
+function estimateH(node,allTasks){
+  const visible=(node.taskIds||[]).filter(id=>{ const t=allTasks.find(x=>x.id===id); return !t||t.status!=='done'; }).length;
+  return SG_HDR_H+6+visible*SG_TASK_H+SG_PAD+28+28;
 }
 
 function highlightEdges(svg,nodeId,on){
-  svg.querySelectorAll('.dag-edge').forEach(el=>{
+  svg.querySelectorAll('.dag-e').forEach(el=>{
     if(el.dataset.from===nodeId||el.dataset.to===nodeId){
-      el.style.stroke=on?'rgba(155,89,182,.95)':'rgba(155,89,182,.45)';
-      el.style.strokeWidth=on?'2.5':'1.5';
-      el.setAttribute('marker-end',on?'url(#dgah)':'url(#dga)');
+      el.style.stroke=on?'#e67e22':'rgba(230,126,34,.55)';
+      el.style.strokeWidth=on?'3.5':'2.5';
+      el.setAttribute('marker-end',on?'url(#sg-arr-h)':'url(#sg-arr)');
     }
   });
 }
 
 // ─── CRUD ───
-async function addLane(goalId){
-  const name=prompt('Lane name:'); if(!name?.trim()) return;
+async function doLayout(goalId){
   const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
-  if(!goal.lanes) goal.lanes=[];
-  goal.lanes.push({id:makeNodeId(),name:name.trim()});
+  autoLayout(goal);
   renderBoard();
-  try{await saveData();toast('Lane added','success');}catch{}
+  try{await saveData();toast('Layout applied & saved','success');}catch{}
 }
 
-async function addDagSubgoal(goalId){
+async function addSgNode(goalId){
   const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
-  migrateGoalDAG(goal);
-  const lanes=goal.lanes||[];
-  const laneOpts=lanes.map((l,i)=>`<option value="${i}">${esc(l.name)}</option>`).join('');
-  showModal('<div class="modal-title">📌 New Subgoal</div>'+
-    '<div class="mfield"><label>NAME</label><input type="text" id="sg-name" placeholder="e.g. Get it moving" maxlength="80"></div>'+
-    '<div class="mfield"><label>DEADLINE (optional)</label><input type="date" id="sg-deadline" style="color-scheme:dark"></div>'+
-    (lanes.length?'<div class="mfield"><label>PLACE IN LANE (optional)</label><select id="sg-lane" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em"><option value="">— Float freely —</option>'+laneOpts+'</select></div>':'') +
-    '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
-    '<button class="mbtn primary" data-gid="'+goalId+'" onclick="confirmAddDagSubgoal(this.dataset.gid)">Add</button></div>');
-  setTimeout(()=>document.getElementById('sg-name')?.focus(),50);
+  migrateGoal(goal);
+  const name=prompt('Subgoal name (e.g. "Get Drivetrain Complete"):');
+  if(!name?.trim()) return;
+  const maxY=Math.max(40,...(goal.dagNodes||[]).map(n=>n.y+160));
+  goal.dagNodes.push({id:makeNodeId(),type:'subgoal',name:name.trim(),taskIds:[],x:40,y:maxY});
+  renderBoard();
+  try{await saveData();toast('Subgoal added — drag to position, Shift+drag to link','success');}catch{}
 }
 
-async function confirmAddDagSubgoal(goalId){
-  const name=document.getElementById('sg-name').value.trim();
-  if(!name){alert('Name required');return;}
-  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
-  const dr=document.getElementById('sg-deadline')?.value;
-  const laneIdxEl=document.getElementById('sg-lane');
-  const li=laneIdxEl&&laneIdxEl.value!==''?parseInt(laneIdxEl.value):null;
-  const lanes=goal.lanes||[];
-  const laneId=li!==null&&lanes[li]?lanes[li].id:null;
-  const laneX=laneId&&li!==null?li*(DAG_LANE_W+10)+(DAG_LANE_W-DAG_NODE_W)/2:
-    lanes.length?Math.floor(lanes.length/2)*(DAG_LANE_W+10)+(DAG_LANE_W-DAG_NODE_W)/2:60;
-  const maxY=Math.max(100,...(goal.dagNodes||[]).filter(n=>!laneId||n.laneId===laneId).map(n=>n.y+DAG_ROW_H),60);
-  goal.dagNodes.push({id:makeNodeId(),type:'subgoal',name:name.trim(),deadline:dr?ymdToDmy(dr):null,laneId,x:laneX,y:maxY});
-  closeModal(); renderBoard();
-  try{await saveData();toast('Subgoal added','success');}catch{}
-}
-
-function openEditDagSubgoal(node,goalId){
+function openEditSgNode(goalId,nodeId){
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  const node=(goal?.dagNodes||[]).find(n=>n.id===nodeId);
+  if(!node) return;
   showModal('<div class="modal-title">✎ Edit Subgoal</div>'+
     '<div class="mfield"><label>NAME</label><input type="text" id="sg-name" value="'+esc(node.name)+'" maxlength="80"></div>'+
-    '<div class="mfield"><label>DEADLINE</label><input type="date" id="sg-deadline" value="'+esc(node.deadline?dmyToYmd(node.deadline):'')+'" style="color-scheme:dark"></div>'+
     '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
-    '<button class="mbtn primary" data-nid="'+node.id+'" data-gid="'+goalId+'" onclick="saveDagSubgoal(this.dataset.nid,this.dataset.gid)">Save</button></div>');
+    '<button class="mbtn primary" data-gid="'+goalId+'" data-nid="'+nodeId+'" onclick="saveSgNode(this.dataset.gid,this.dataset.nid)">Save</button></div>');
 }
-
-async function saveDagSubgoal(nodeId,goalId){
-  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
-  const node=(goal.dagNodes||[]).find(n=>n.id===nodeId); if(!node) return;
+async function saveSgNode(goalId,nodeId){
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  const node=(goal?.dagNodes||[]).find(n=>n.id===nodeId);
+  if(!node) return;
   node.name=document.getElementById('sg-name').value.trim()||node.name;
-  const dr=document.getElementById('sg-deadline').value;
-  node.deadline=dr?ymdToDmy(dr):null;
   closeModal(); renderBoard();
   try{await saveData();toast('Saved','success');}catch{}
 }
 
-function openAddTaskToDAGLane(goalId,laneId){
-  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
-  migrateGoalDAG(goal);
-  const inDag=new Set((goal.dagNodes||[]).filter(n=>n.type==='task').map(n=>n.taskId));
-  const avail=getAllTasks().filter(t=>!inDag.has(t.id));
-  showModal('<div class="modal-title">+ Add tasks</div>'+
+function openAddTasksToNode(goalId,nodeId){
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  const node=(goal?.dagNodes||[]).find(n=>n.id===nodeId);
+  if(!node) return;
+  const inNode=new Set(node.taskIds||[]);
+  const avail=getAllTasks().filter(t=>!inNode.has(t.id));
+  showModal('<div class="modal-title">+ Add tasks to '+esc(node.name)+'</div>'+
     '<div class="mfield"><label>SEARCH</label>'+
-      '<input type="text" id="lt-search" placeholder="Search..." oninput="filterLaneTasks()" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-bottom:none;border-radius:6px 6px 0 0;color:var(--text);font-size:.78em;outline:none">'+
-      '<div id="lt-list" style="max-height:220px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 6px 6px;padding:.25rem">'+
+      '<input type="text" id="lt-search" placeholder="Search tasks..." oninput="filterLaneTasks()" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-bottom:none;border-radius:6px 6px 0 0;color:var(--text);font-size:.78em;outline:none">'+
+      '<div id="lt-list" style="max-height:250px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 6px 6px;padding:.25rem">'+
         avail.map(t=>{
           const sub=SUBS.find(s=>s.id===t.subId);
           return '<label class="lt-label" style="display:grid;grid-template-columns:16px 8px 1fr auto;align-items:center;gap:.4rem;padding:.35rem .5rem;border-radius:5px;cursor:pointer;background:var(--surface2)">'+
@@ -1907,25 +1742,19 @@ function openAddTaskToDAGLane(goalId,laneId){
         }).join('')+
       '</div></div>'+
     '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
-    '<button class="mbtn primary" data-gid="'+goalId+'" data-lid="'+laneId+'" onclick="confirmAddDagTasks(this.dataset.gid,this.dataset.lid)">Add</button></div>');
+    '<button class="mbtn primary" data-gid="'+goalId+'" data-nid="'+nodeId+'" onclick="confirmAddTasksToNode(this.dataset.gid,this.dataset.nid)">Add</button></div>');
 }
-
-async function confirmAddDagTasks(goalId,laneId){
-  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
-  migrateGoalDAG(goal);
+async function confirmAddTasksToNode(goalId,nodeId){
+  const goal=(store.goals||[]).find(g=>g.id===goalId);
+  const node=(goal?.dagNodes||[]).find(n=>n.id===nodeId);
+  if(!node) return;
   const checked=[...document.querySelectorAll('.lt-cb:checked')].map(cb=>cb.value);
   if(!checked.length){alert('Select at least one task');return;}
-  const lanes=goal.lanes||[];
-  const li=lanes.findIndex(l=>l.id===laneId);
-  const laneX=li*(DAG_LANE_W+10)+(DAG_LANE_W-DAG_NODE_W)/2;
-  const existingY=(goal.dagNodes||[]).filter(n=>n.laneId===laneId).reduce((mx,n)=>Math.max(mx,n.y+DAG_ROW_H),60);
-  checked.forEach((tid,i)=>{
-    goal.dagNodes.push({id:makeNodeId(),type:'task',taskId:tid,laneId,x:laneX,y:existingY+i*DAG_ROW_H});
-  });
+  if(!node.taskIds) node.taskIds=[];
+  checked.forEach(tid=>{if(!node.taskIds.includes(tid))node.taskIds.push(tid);});
   closeModal(); renderBoard();
   try{await saveData();toast(checked.length+' task(s) added','success');}catch{toast('Save failed','error');}
 }
-
 function filterLaneTasks(){
   const q=(document.getElementById('lt-search')?.value||'').toLowerCase();
   document.querySelectorAll('.lt-label').forEach(l=>{l.style.display=l.textContent.toLowerCase().includes(q)?'':'none';});
@@ -1939,11 +1768,11 @@ function openGoalDepsModal(goalId){
     '<div style="font-size:.75em;color:var(--muted);margin-bottom:.75rem">Goals that must complete before <strong style="color:var(--text)">'+esc(goal.name)+'</strong>:</div>'+
     (others.length?
       '<div style="display:flex;flex-direction:column;gap:.4rem;max-height:260px;overflow-y:auto">'+
-        others.map(g=>{const{pct}=goalProgress(g);const fill=pct===100?'#2ecc71':pct>50?'#3498db':'#f1c40f';
+        others.map(g=>{const{pct}=goalProgress(g);const f=pct===100?'#2ecc71':pct>50?'#3498db':'#f1c40f';
           return '<label style="display:grid;grid-template-columns:16px 1fr auto;align-items:center;gap:.5rem;padding:.4rem .5rem;border-radius:6px;background:var(--surface2);cursor:pointer">'+
             '<input type="checkbox" class="goal-dep-cb" value="'+g.id+'" '+(cur.has(g.id)?'checked':'')+' style="accent-color:#9b59b6">'+
             '<span style="font-size:.78em;color:#e8edf5">🎯 '+esc(g.name)+'</span>'+
-            '<span style="font-size:.65em;font-family:JetBrains Mono,monospace;color:'+fill+'">'+pct+'%</span>'+
+            '<span style="font-size:.65em;font-family:JetBrains Mono,monospace;color:'+f+'">'+pct+'%</span>'+
             '</label>';
         }).join('')+'</div>'
     :'<div style="font-size:.75em;color:var(--dim)">No other goals</div>')+
@@ -1959,27 +1788,27 @@ async function saveGoalDeps(goalId){
 
 function openAddGoalModal(){
   showModal('<div class="modal-title">🎯 New Goal</div>'+
-    '<div class="mfield"><label>NAME</label><input type="text" id="goal-name" placeholder="e.g. Complete rover for ARCh 2027" maxlength="100"></div>'+
+    '<div class="mfield"><label>NAME</label><input type="text" id="goal-name" placeholder="e.g. Post Landing Challenge" maxlength="100"></div>'+
     '<div class="mfield"><label>DEADLINE (optional)</label><input type="date" id="goal-deadline" style="color-scheme:dark"></div>'+
-    '<div class="mfield"><label>DESCRIPTION (optional)</label><textarea id="goal-desc" rows="2"></textarea></div>'+
-    '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Cancel</button><button class="mbtn primary" onclick="addGoal()">Create</button></div>');
+    '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
+    '<button class="mbtn primary" onclick="addGoal()">Create</button></div>');
   setTimeout(()=>document.getElementById('goal-name')?.focus(),50);
 }
 async function addGoal(){
   const name=document.getElementById('goal-name').value.trim();
-  const dr=document.getElementById('goal-deadline').value;
   if(!name){alert('Name required');return;}
+  const dr=document.getElementById('goal-deadline').value;
   if(!store.goals) store.goals=[];
-  store.goals.push({id:makeId(),name,deadline:dr?ymdToDmy(dr):null,description:document.getElementById('goal-desc').value.trim()||null,lanes:[],dagNodes:[],dagEdges:[],addedAt:Date.now()});
+  const rootNode={id:makeNodeId(),type:'subgoal',name,taskIds:[],x:300,y:40};
+  store.goals.push({id:makeId(),name,deadline:dr?ymdToDmy(dr):null,dagNodes:[rootNode],dagEdges:[],addedAt:Date.now()});
   closeModal(); renderBoard();
-  try{await saveData();toast('Goal created!','success');}catch{toast('Save failed','error');}
+  try{await saveData();toast('Goal created! Add subgoals below the root node.','success');}catch{toast('Save failed','error');}
 }
 function openEditGoalModal(goalId){
   const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
   showModal('<div class="modal-title">✎ Edit Goal</div>'+
     '<div class="mfield"><label>NAME</label><input type="text" id="goal-name" value="'+esc(goal.name)+'" maxlength="100"></div>'+
     '<div class="mfield"><label>DEADLINE</label><input type="date" id="goal-deadline" value="'+esc(goal.deadline?dmyToYmd(goal.deadline):'')+'" style="color-scheme:dark"></div>'+
-    '<div class="mfield"><label>DESCRIPTION</label><textarea id="goal-desc" rows="2">'+esc(goal.description||'')+'</textarea></div>'+
     '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
     '<button class="mbtn danger" data-gid="'+goal.id+'" onclick="deleteGoal(this.dataset.gid)">Delete</button>'+
     '<button class="mbtn primary" data-gid="'+goal.id+'" onclick="saveGoal(this.dataset.gid)">Save</button></div>');
@@ -1989,15 +1818,14 @@ async function saveGoal(goalId){
   goal.name=document.getElementById('goal-name').value.trim();
   const dr=document.getElementById('goal-deadline').value;
   goal.deadline=dr?ymdToDmy(dr):null;
-  goal.description=document.getElementById('goal-desc').value.trim()||null;
   closeModal(); renderBoard();
-  try{await saveData();toast('Saved','success');}catch{toast('Save failed','error');}
+  try{await saveData();toast('Saved','success');}catch{}
 }
 async function deleteGoal(goalId){
   if(!confirm('Delete this goal?')) return;
   store.goals=(store.goals||[]).filter(g=>g.id!==goalId);
   closeModal(); renderBoard();
-  try{await saveData();toast('Goal deleted','success');}catch{toast('Save failed','error');}
+  try{await saveData();toast('Deleted','success');}catch{}
 }
 
 
@@ -2729,7 +2557,6 @@ async function addMilestone() {
   if (!store.milestones) store.milestones = [];
   if (!store.meetings)   store.meetings   = [];
   if (!store.goals)     store.goals     = [];
-  store.goals = store.goals.map(g => { if (!g.lanes) g.lanes = []; delete g.tree; return g; });
   store.milestones.push({ id: makeId(), name, date, time, description: desc || null });
   closeModal();
   renderMilestoneBar();
