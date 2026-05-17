@@ -1484,8 +1484,23 @@ function renderGoalCard(goal,allTasks,area){
 
     const addBtn=document.createElement('button');
     addBtn.style.cssText='background:rgba(230,126,34,.2);border:1px solid rgba(230,126,34,.4);border-radius:3px;color:#e67e22;cursor:pointer;font-size:.7em;padding:.1rem .35rem;flex-shrink:0';
-    addBtn.textContent='+'; addBtn.title='Add tasks';
+    addBtn.textContent='+ Task'; addBtn.title='Add tasks';
     addBtn.addEventListener('click',e=>{e.stopPropagation();openAddTaskToDAGLane(goal.id,lane.id);});
+    const addSgBtn=document.createElement('button');
+    addSgBtn.style.cssText='background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.3);border-radius:3px;color:#2ecc71;cursor:pointer;font-size:.7em;padding:.1rem .35rem;flex-shrink:0';
+    addSgBtn.textContent='📌'; addSgBtn.title='Add subgoal to this lane';
+    addSgBtn.addEventListener('click',async e=>{
+      e.stopPropagation();
+      const name=prompt('Subgoal name:'); if(!name?.trim()) return;
+      migrateGoalDAG(goal);
+      const li=(goal.lanes||[]).findIndex(l=>l.id===lane.id);
+      const lx=li*(DAG_LANE_W+10)+(DAG_LANE_W-DAG_NODE_W)/2;
+      const existingInLane=(goal.dagNodes||[]).filter(n=>n.laneId===lane.id);
+      const maxY=existingInLane.reduce((mx,n)=>Math.max(mx,n.y+DAG_ROW_H),60);
+      goal.dagNodes.push({id:makeNodeId(),type:'subgoal',name:name.trim(),deadline:null,laneId:lane.id,x:lx,y:maxY});
+      renderBoard();
+      try{await saveData();toast('Subgoal added to '+lane.name,'success');}catch{}
+    });
 
     const delBtn=document.createElement('button');
     delBtn.style.cssText='background:rgba(231,76,60,.15);border:1px solid rgba(231,76,60,.3);border-radius:3px;color:#e74c3c;cursor:pointer;font-size:.7em;padding:.1rem .35rem;flex-shrink:0';
@@ -1499,11 +1514,14 @@ function renderGoalCard(goal,allTasks,area){
       try{await saveData();toast('Lane removed','success');}catch{}
     });
 
-    lhdr.appendChild(nameEl); lhdr.appendChild(addBtn); lhdr.appendChild(delBtn);
+    lhdr.appendChild(nameEl); lhdr.appendChild(addSgBtn); lhdr.appendChild(addBtn); lhdr.appendChild(delBtn);
     col.appendChild(lhdr);
     cvs.appendChild(col);
   });
 
+  // Lane column drag-over highlight
+  cvs.addEventListener('dragover', e=>e.preventDefault());
+  
   // Pan
   let isPanning=false, panStart={x:0,y:0};
   vp.addEventListener('mousedown',e=>{
@@ -1580,9 +1598,11 @@ function buildDagNode(node,goal,allTasks,s,svg,cvs,renderNodes,vp){
     const sgBlocked=isNodeBlocked(node.id,goal,allTasks);
     const inner=document.createElement('div'); inner.className='dag-node-sg';
     if(sgBlocked) inner.style.borderColor='rgba(241,196,15,.6)';
+    const sgLane=node.laneId?(goal.lanes||[]).find(l=>l.id===node.laneId):null;
     inner.innerHTML='<div style="display:flex;align-items:center;gap:.35rem">'+
       '<span style="cursor:grab;color:rgba(230,126,34,.5);flex-shrink:0">⠿</span>'+
       '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📌 '+esc(node.name)+'</span>'+
+      (sgLane?'<span style="font-size:.55em;background:rgba(230,126,34,.2);border-radius:3px;padding:.05rem .3rem;color:#e67e22;flex-shrink:0;white-space:nowrap">'+esc(sgLane.name)+'</span>':'')+
       '<span style="font-size:.7em;color:var(--muted);font-family:JetBrains Mono,monospace;flex-shrink:0">'+sd+'/'+st+'</span>'+
       '</div>'+
       '<div style="height:3px;background:rgba(0,0,0,.3);border-radius:2px;overflow:hidden;margin-top:.3rem">'+
@@ -1626,10 +1646,42 @@ function buildDagNode(node,goal,allTasks,s,svg,cvs,renderNodes,vp){
     node.x=Math.max(0,ns.x+(e.clientX-ds.x)/s.scale);
     node.y=Math.max(36,ns.y+(e.clientY-ds.y)/s.scale);
     el.style.left=node.x+'px'; el.style.top=node.y+'px';
+    // Highlight which lane the node is hovering over
+    const lanes=goal.lanes||[];
+    cvs.querySelectorAll('.dag-lane-col').forEach((laneCol,li)=>{
+      const lx=li*(DAG_LANE_W+10);
+      const inLane=node.x>=lx && node.x<lx+DAG_LANE_W;
+      laneCol.style.background=inLane?'rgba(230,126,34,.08)':'rgba(255,255,255,.012)';
+    });
     drawAllEdges(svg,goal,allTasks);
   };
   const muHandler=async e=>{
-    if(isDragging){isDragging=false;try{await saveData();}catch{}}
+    if(isDragging){
+      isDragging=false;
+      // Snap to lane - find which lane column the node is in
+      const lanes=goal.lanes||[];
+      let matched=null;
+      lanes.forEach((lane,li)=>{
+        const lx=li*(DAG_LANE_W+10);
+        if(node.x>=lx && node.x<lx+DAG_LANE_W) matched=lane.id;
+      });
+      node.laneId=matched||null;
+      // Re-tint the node based on lane
+      const laneEl=cvs.querySelector(`.dag-node[data-node-id="${node.id}"]`);
+      if(laneEl){
+        const inner=laneEl.querySelector('.dag-node-sg,.dag-node-task');
+        if(inner&&node.type==='subgoal'){
+          const li=lanes.findIndex(l=>l.id===matched);
+          inner.style.background=matched?`rgba(230,126,34,.12)`:'rgba(230,126,34,.09)';
+        }
+      }
+      // Reset lane highlights
+      cvs.querySelectorAll('.dag-lane-col').forEach(c=>c.style.background='rgba(255,255,255,.012)');
+      // Show lane assignment on node
+      const inner2=el.querySelector('.dag-node-sg,.dag-node-task');
+      if(inner2&&node.laneId) inner2.style.outline='1px solid rgba(230,126,34,.3)';
+      try{await saveData();}catch{}
+    }
     // Link drop
     if(dagLinkSrc&&dagLinkSrc.goalId===goal.id&&dagLinkSrc.nodeId!==node.id){
       if(!wouldCreateCycle(goal,dagLinkSrc.nodeId,node.id)){
@@ -1720,14 +1772,33 @@ async function addLane(goalId){
 }
 
 async function addDagSubgoal(goalId){
-  const name=prompt('Subgoal name:'); if(!name?.trim()) return;
   const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
   migrateGoalDAG(goal);
   const lanes=goal.lanes||[];
-  const cx=lanes.length?Math.floor(lanes.length/2)*(DAG_LANE_W+10)+(DAG_LANE_W-DAG_NODE_W)/2:60;
-  const maxY=Math.max(100,...(goal.dagNodes||[]).map(n=>n.y+120));
-  goal.dagNodes.push({id:makeNodeId(),type:'subgoal',name:name.trim(),deadline:null,x:cx,y:maxY});
-  renderBoard();
+  const laneOpts=lanes.map((l,i)=>`<option value="${i}">${esc(l.name)}</option>`).join('');
+  showModal('<div class="modal-title">📌 New Subgoal</div>'+
+    '<div class="mfield"><label>NAME</label><input type="text" id="sg-name" placeholder="e.g. Get it moving" maxlength="80"></div>'+
+    '<div class="mfield"><label>DEADLINE (optional)</label><input type="date" id="sg-deadline" style="color-scheme:dark"></div>'+
+    (lanes.length?'<div class="mfield"><label>PLACE IN LANE (optional)</label><select id="sg-lane" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em"><option value="">— Float freely —</option>'+laneOpts+'</select></div>':'') +
+    '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
+    '<button class="mbtn primary" data-gid="'+goalId+'" onclick="confirmAddDagSubgoal(this.dataset.gid)">Add</button></div>');
+  setTimeout(()=>document.getElementById('sg-name')?.focus(),50);
+}
+
+async function confirmAddDagSubgoal(goalId){
+  const name=document.getElementById('sg-name').value.trim();
+  if(!name){alert('Name required');return;}
+  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
+  const dr=document.getElementById('sg-deadline')?.value;
+  const laneIdxEl=document.getElementById('sg-lane');
+  const li=laneIdxEl&&laneIdxEl.value!==''?parseInt(laneIdxEl.value):null;
+  const lanes=goal.lanes||[];
+  const laneId=li!==null&&lanes[li]?lanes[li].id:null;
+  const laneX=laneId&&li!==null?li*(DAG_LANE_W+10)+(DAG_LANE_W-DAG_NODE_W)/2:
+    lanes.length?Math.floor(lanes.length/2)*(DAG_LANE_W+10)+(DAG_LANE_W-DAG_NODE_W)/2:60;
+  const maxY=Math.max(100,...(goal.dagNodes||[]).filter(n=>!laneId||n.laneId===laneId).map(n=>n.y+DAG_ROW_H),60);
+  goal.dagNodes.push({id:makeNodeId(),type:'subgoal',name:name.trim(),deadline:dr?ymdToDmy(dr):null,laneId,x:laneX,y:maxY});
+  closeModal(); renderBoard();
   try{await saveData();toast('Subgoal added','success');}catch{}
 }
 
