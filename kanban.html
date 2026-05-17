@@ -1464,7 +1464,7 @@ function renderGoalCard(goal,allTasks,area){
   // Hint
   const hint=document.createElement('div'); hint.className='dag-hint';
   hint.innerHTML='<span>🖱 Drag background to pan · scroll to zoom</span>'+
-    '<span><kbd style="background:var(--surface3);padding:.05rem .3rem;border-radius:3px;border:1px solid var(--border2)">Shift</kbd>+drag subgoal → subgoal to link (flows downward)</span>'+
+    '<span>🔴 Click right circle on a node, then left circle on another to link</span>'+
     '<span>Click arrow to remove dependency</span>';
   card.appendChild(hint);
 
@@ -1489,6 +1489,13 @@ function renderGoalCard(goal,allTasks,area){
   // Pan
   let isPanning=false,ps={x:0,y:0};
   vp.addEventListener('mousedown',e=>{
+    if(sgLinkSrc&&!e.target.closest('.sgn-port-in')){
+      // Cancel linking
+      sgLinkSrc=null;
+      cvs.querySelectorAll('.sgn-port').forEach(p=>p.classList.remove('port-active'));
+      cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-can-link'));
+      vp.classList.remove('linking');
+    }
     if(e.target.closest('.sgn,button,input,select')||sgLinkSrc) return;
     isPanning=true; vp.classList.add('panning');
     ps={x:e.clientX-s.panX,y:e.clientY-s.panY}; e.preventDefault();
@@ -1618,6 +1625,56 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
   actions.appendChild(editBtn); actions.appendChild(addSgBtn);
   el.appendChild(actions);
 
+  // Output port (right side - start connection from here)
+  const portOut=document.createElement('div');
+  portOut.className='sgn-port sgn-port-out';
+  portOut.title='Click to start linking';
+  portOut.addEventListener('click',e=>{
+    e.stopPropagation();
+    if(sgLinkSrc&&sgLinkSrc.goalId===goal.id){
+      // Cancel if clicking own port again
+      if(sgLinkSrc.nodeId===node.id){
+        sgLinkSrc=null;
+        cvs.querySelectorAll('.sgn-port').forEach(p=>p.classList.remove('port-active'));
+        cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-can-link'));
+        vp.classList.remove('linking');
+        return;
+      }
+    }
+    sgLinkSrc={nodeId:node.id,goalId:goal.id};
+    vp.classList.add('linking');
+    cvs.querySelectorAll('.sgn-port').forEach(p=>p.classList.remove('port-active'));
+    portOut.classList.add('port-active');
+    cvs.querySelectorAll('.sgn').forEach(n=>{ if(n!==el) n.classList.add('sg-can-link'); });
+    toast('Now click the input port (left circle) on another subgoal','success');
+  });
+  el.appendChild(portOut);
+
+  // Input port (left side - drop connection here)
+  const portIn=document.createElement('div');
+  portIn.className='sgn-port sgn-port-in';
+  portIn.title='Click to receive connection';
+  portIn.addEventListener('click',async e=>{
+    e.stopPropagation();
+    if(!sgLinkSrc||sgLinkSrc.goalId!==goal.id||sgLinkSrc.nodeId===node.id) return;
+    const srcId=sgLinkSrc.nodeId;
+    if(wouldCycle(goal,srcId,node.id)){
+      toast('Would create a circular dependency','error');
+    } else {
+      if(!goal.dagEdges) goal.dagEdges=[];
+      if(!goal.dagEdges.some(e=>e.from===srcId&&e.to===node.id)){
+        goal.dagEdges.push({id:makeNodeId(),from:srcId,to:node.id});
+        renderBoard();
+        try{await saveData();toast('Linked ✓','success');}catch{}
+      } else toast('Already linked','error');
+    }
+    sgLinkSrc=null;
+    cvs.querySelectorAll('.sgn-port').forEach(p=>p.classList.remove('port-active'));
+    cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-can-link'));
+    vp.classList.remove('linking');
+  });
+  el.appendChild(portIn);
+
   // Remove button
   const rm=document.createElement('div'); rm.className='sgn-rm'; rm.textContent='✕';
   rm.addEventListener('click',async e=>{
@@ -1632,21 +1689,10 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
 
   // Drag to move
   let dragging=false,ds={x:0,y:0},ns={x:0,y:0};
-  // Shift+drag from anywhere on node to link
-  el.addEventListener('mousedown',e=>{
-    if(e.shiftKey&&!e.target.closest('button,input,select')){
-      e.preventDefault();  // prevent text selection
-      e.stopPropagation();
-      sgLinkSrc={nodeId:node.id,goalId:goal.id};
-      el.classList.add('sg-linking');
-      vp.classList.add('linking');
-      cvs.querySelectorAll('.sgn').forEach(n=>{ if(n!==el) n.classList.add('sg-can-link'); });
-      return;
-    }
-  });
+
   hdr.addEventListener('mousedown',e=>{
     if(e.target.closest('button')||sgLinkSrc) return;
-    if(e.shiftKey){ e.stopPropagation(); return; } // handled by el listener
+
     dragging=true; ds={x:e.clientX,y:e.clientY}; ns={x:node.x,y:node.y};
     e.stopPropagation(); e.preventDefault();
   });
