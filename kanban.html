@@ -279,51 +279,31 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .goal-card-hdr{padding:.75rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem}
 .goal-card-hdr-left{flex:1;min-width:0}
 .goal-title{font-size:.85em;font-weight:700;color:var(--text)}
-.goal-meta{font-size:.6em;font-family:'JetBrains Mono',monospace;color:var(--muted);margin-top:.2rem;display:flex;gap:.75rem}
+.goal-meta{font-size:.6em;font-family:'JetBrains Mono',monospace;color:var(--muted);margin-top:.2rem;display:flex;gap:.75rem;flex-wrap:wrap}
 .goal-progress-wrap{padding:.4rem 1rem;border-bottom:1px solid var(--border);background:var(--surface2)}
 .goal-progress-bar{height:4px;background:var(--bg);border-radius:2px;overflow:hidden;margin:.2rem 0}
 .goal-progress-fill{height:100%;border-radius:2px;transition:width .6s}
 .goal-progress-nums{display:flex;justify-content:space-between;font-size:.58em;font-family:'JetBrains Mono',monospace;color:var(--muted)}
-.fc-viewport{position:relative;overflow:hidden;background:var(--bg);cursor:grab;height:600px}
-.fc-viewport.panning{cursor:grabbing}
-.fc-canvas{position:absolute;top:0;left:0;transform-origin:0 0;padding:1.5rem;min-width:max-content}
-.fc-zoom-controls{position:absolute;bottom:.6rem;right:.6rem;display:flex;gap:.3rem;z-index:10}
-.fc-zoom-btn{width:28px;height:28px;border-radius:6px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-size:.85em;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s}
-.fc-zoom-btn:hover{background:var(--surface2)}
-.sl-row{display:flex;flex-direction:row;align-items:stretch;gap:0}
-.sl-lane{display:flex;flex-direction:column;min-width:220px;max-width:260px;width:max-content;border-right:1px solid var(--border2);flex-shrink:0;background:var(--surface2)}
-.sl-lane:last-child{border-right:none}
-.sl-lane-hdr{width:100%;padding:.5rem .6rem;background:rgba(230,126,34,.15);border-bottom:2px solid #e67e22;font-size:.72em;font-weight:700;color:#e67e22;cursor:pointer;box-sizing:border-box;min-height:36px}
-.sl-lane-hdr.drag-over{background:rgba(230,126,34,.2)!important}
-.sl-prog{height:3px;background:var(--bg);border-radius:2px;overflow:hidden;margin-top:.3rem}
-.sl-prog-fill{height:100%;border-radius:2px}
-.sl-tasks{display:flex;flex-direction:column;gap:.4rem;padding:.5rem .4rem;width:100%;box-sizing:border-box;flex:1}
-.sl-add-lane{display:flex;align-items:center;justify-content:center;min-width:70px;border:1px dashed var(--border2);border-radius:8px;margin:0 .5rem;cursor:pointer;color:var(--dim);font-size:.72em;font-family:'JetBrains Mono',monospace;transition:all .2s;padding:0 .4rem;align-self:stretch}
-.sl-add-lane:hover{border-color:var(--border2);color:var(--muted);background:var(--surface2)}
-.lt-label span{color:#e8edf5 !important}
-.dag-task{position:relative;padding:.32rem .55rem;border-radius:7px;border:1px solid var(--border2);border-left-width:3px;background:var(--surface2);font-size:.68em;cursor:grab;transition:all .15s;width:100%;box-sizing:border-box;user-select:none;min-width:0}
-.dag-task:hover{border-color:rgba(255,255,255,.2);box-shadow:0 2px 8px rgba(0,0,0,.2)}
-.dag-task.done{opacity:.4;text-decoration:line-through}
-.dag-task.inprogress{box-shadow:inset 0 0 0 1px rgba(52,152,219,.3)}
-.dag-task.dep-dragging{opacity:.3;cursor:grabbing}
-.dag-task.dep-target{border-color:#2ecc71!important;box-shadow:0 0 0 2px rgba(46,204,113,.25)!important}
-.dag-task.dep-blocked{border-style:dashed;opacity:.75}
-.dag-task.dep-hover{border-color:#9b59b6!important;background:rgba(155,89,182,.1)!important}
-.dag-task.linking-source{border-color:#2ecc71!important;box-shadow:0 0 0 2px rgba(46,204,113,.35)!important;cursor:crosshair}
-.dag-remove{position:absolute;top:-6px;right:-6px;width:14px;height:14px;border-radius:50%;background:var(--surface3);border:1px solid var(--border2);color:var(--muted);font-size:.5em;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .15s;z-index:2}
-.dag-task:hover .dag-remove{opacity:1}
-.sg-node{margin:.2rem 0;border-radius:8px;border:1px solid rgba(230,126,34,.35);background:rgba(230,126,34,.06);overflow:hidden}
-.sg-hdr{display:flex;align-items:center;gap:.35rem;padding:.35rem .5rem;cursor:pointer;font-size:.7em;font-weight:700;color:#e67e22;user-select:none}
-.sg-hdr:hover{background:rgba(230,126,34,.1)}
-.sg-hdr-right{margin-left:auto;display:flex;align-items:center;gap:.3rem}
-.sg-prog{height:2px;background:var(--bg);border-radius:1px;overflow:hidden;margin:0 .5rem .3rem}
-.sg-prog-fill{height:100%;border-radius:1px;transition:width .4s}
-.sg-body{display:flex;flex-direction:column;gap:.3rem;padding:.2rem .4rem .4rem}
-.sg-drop{min-height:22px;border:1px dashed rgba(230,126,34,.25);border-radius:5px;font-size:.58em;color:var(--dim);font-family:JetBrains Mono,monospace;display:flex;align-items:center;justify-content:center;transition:all .2s;cursor:default;margin:.1rem 0}
-.sg-drop.drag-over{border-color:#e67e22;color:#e67e22;background:rgba(230,126,34,.05)}
-.dag-svg{position:absolute;top:0;left:0;pointer-events:none;overflow:visible;z-index:6}
-.dag-arrow{fill:none;stroke:rgba(155,89,182,.55);stroke-width:1.5;marker-end:url(#dag-arrow)}
-.dag-arrow.hover{stroke:rgba(155,89,182,.95);stroke-width:2.5;marker-end:url(#dag-arrow-hover)}
+.dag-viewport{position:relative;height:640px;overflow:hidden;background:var(--bg);cursor:grab}
+.dag-viewport.panning{cursor:grabbing}
+.dag-canvas{position:absolute;top:0;left:0;transform-origin:0 0}
+.dag-svg{position:absolute;top:0;left:0;width:5000px;height:5000px;overflow:visible;pointer-events:none;z-index:1}
+.dag-node{position:absolute;z-index:2;cursor:pointer;user-select:none}
+.dag-node-task{padding:.35rem .55rem;border-radius:7px;border:1px solid var(--border2);border-left-width:3px;background:var(--surface2);font-size:.68em;width:190px;box-sizing:border-box}
+.dag-node-task:hover{box-shadow:0 2px 10px rgba(0,0,0,.3)}
+.dag-node-sg{padding:.45rem .75rem;border-radius:10px;border:2px solid rgba(230,126,34,.5);background:rgba(230,126,34,.09);font-size:.72em;font-weight:700;color:#e67e22;width:190px;box-sizing:border-box}
+.dag-node-sg:hover{box-shadow:0 3px 14px rgba(230,126,34,.2)}
+.dag-node.linking .dag-node-task,.dag-node.linking .dag-node-sg{outline:2px solid #2ecc71;outline-offset:2px}
+.dag-node.can-link .dag-node-task,.dag-node.can-link .dag-node-sg{outline:2px dashed rgba(46,204,113,.4);outline-offset:2px}
+.dag-rm{position:absolute;top:-7px;right:-7px;width:16px;height:16px;border-radius:50%;background:var(--surface3);border:1px solid var(--border2);color:var(--muted);font-size:.5em;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .15s;z-index:3}
+.dag-node:hover .dag-rm{opacity:1}
+.dag-lane-col{position:absolute;top:0;bottom:0;box-sizing:border-box;border-right:1px solid rgba(255,255,255,.05)}
+.dag-lane-hdr{padding:.4rem .6rem;background:#141d2e;border-bottom:2px solid #e67e22;font-size:.72em;font-weight:700;color:#e67e22;display:flex;align-items:center;gap:.3rem;position:relative;z-index:4;box-sizing:border-box;width:100%}
+.dag-zoom{position:absolute;bottom:.6rem;right:.6rem;display:flex;gap:.3rem;z-index:10}
+.dag-zoom button{width:28px;height:28px;border-radius:6px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-size:.85em;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.dag-zoom button:hover{background:var(--surface2)}
+.dag-hint{padding:.25rem 1rem;font-size:.6em;font-family:'JetBrains Mono',monospace;color:var(--dim);background:var(--surface2);border-bottom:1px solid var(--border);display:flex;gap:1.5rem;flex-wrap:wrap}
+
 </style>
 </head>
 <body>
@@ -1282,635 +1262,561 @@ async function removeCheckIn(subId, taskId, index) {
 
 // ── GOALS ──
 
-function getAllTasks() {
-  const all = [];
-  for (const sub of SUBS) for (const t of store.tasks[sub.id]||[]) all.push({...t,subId:sub.id,subLabel:sub.label,subColor:sub.color});
+const DAG_LANE_W = 230;
+const DAG_NODE_W = 190;
+const DAG_ROW_H  = 100;
+let dagLinkSrc = null; // {nodeId, goalId}
+const fcState = {};
+function getFcState(id){if(!fcState[id])fcState[id]={scale:.85,panX:40,panY:20};return fcState[id];}
+
+function getAllTasks(){
+  const all=[];
+  for(const sub of SUBS) for(const t of store.tasks[sub.id]||[]) all.push({...t,subId:sub.id,subLabel:sub.label,subColor:sub.color});
   return all;
 }
-function makeNodeId() { return 'n'+Math.random().toString(36).slice(2,8); }
+function makeNodeId(){return 'n'+Math.random().toString(36).slice(2,8);}
 
-// Lane node helpers
-function laneNodeTaskIds(nodes=[]) {
-  const ids=[];
-  for(const n of nodes){
-    if(n.type==='task') ids.push(n.taskId);
-    ids.push(...laneNodeTaskIds(n.children||[]));
+// ─── Migration from old nested structure ───
+function migrateGoalDAG(goal){
+  if(goal.dagNodes!==undefined) return;
+  goal.dagNodes=[];
+  goal.dagEdges=[];
+  if(!goal.lanes) goal.lanes=[];
+
+  function flattenNodes(nodes,laneId,li,depth){
+    (nodes||[]).forEach((node,i)=>{
+      const id=node.nodeId||makeNodeId();
+      const laneX=li*(DAG_LANE_W+10);
+      const x=laneX+(DAG_LANE_W-DAG_NODE_W)/2;
+      const y=60+depth*DAG_ROW_H+i*12;
+      if(node.type==='task') goal.dagNodes.push({id,type:'task',taskId:node.taskId,laneId,x,y});
+      else if(node.type==='subgoal') goal.dagNodes.push({id,type:'subgoal',name:node.name,deadline:node.deadline||null,x,y});
+      if(node.children?.length) flattenNodes(node.children,laneId,li,depth+1);
+    });
   }
-  return ids;
-}
-function findLaneNode(nodes,nodeId){
-  for(const n of nodes){if(n.nodeId===nodeId)return n;const f=findLaneNode(n.children||[],nodeId);if(f)return f;}return null;
-}
-function removeLaneNode(nodes,nodeId){
-  for(let i=nodes.length-1;i>=0;i--){
-    if(nodes[i].nodeId===nodeId){nodes.splice(i,1);return true;}
-    if(removeLaneNode(nodes[i].children||[],nodeId))return true;
-  }return false;
-}
-function insertLaneNode(nodes,parentId,node){
-  if(!parentId){nodes.push(node);return true;}
-  for(const n of nodes){
-    if(n.nodeId===parentId){if(!n.children)n.children=[];n.children.push(node);return true;}
-    if(insertLaneNode(n.children||[],parentId,node))return true;
-  }return false;
-}
-// Migrate old taskIds[] to nodes[]
-function migrateLane(lane){
-  if(lane.nodes) return;
-  lane.nodes=(lane.taskIds||[]).map(tid=>({nodeId:makeNodeId(),type:'task',taskId:tid,children:[]}));
-  delete lane.taskIds;
-}
 
-function goalProgress(goal) {
-  const at = getAllTasks();
-  (goal.lanes||[]).forEach(migrateLane);
-  const ids = new Set((goal.lanes||[]).flatMap(l => laneNodeTaskIds(l.nodes||[])));
-  const linked = [...ids].map(id => at.find(t => t.id===id)).filter(Boolean);
-  const done = linked.filter(t => t.status==='done').length;
-  return { done, total: linked.length, pct: linked.length ? Math.round(done/linked.length*100) : 0 };
-}
-function isGoalBlocked(goal) {
-  const deps = goal.dependsOn || [];
-  return deps.some(depId => {
-    const depGoal = (store.goals||[]).find(g => g.id === depId);
-    if (!depGoal) return false;
-    return goalProgress(depGoal).pct < 100;
+  goal.lanes.forEach((lane,li)=>{
+    if(lane.nodes){ flattenNodes(lane.nodes,lane.id,li,0); delete lane.nodes; }
+    else if(lane.taskIds){
+      lane.taskIds.forEach((tid,i)=>{
+        const laneX=li*(DAG_LANE_W+10);
+        goal.dagNodes.push({id:makeNodeId(),type:'task',taskId:tid,laneId:lane.id,x:laneX+(DAG_LANE_W-DAG_NODE_W)/2,y:60+i*DAG_ROW_H});
+      });
+      delete lane.taskIds;
+    }
   });
 }
-function isSubgoalComplete(node, allTasks) {
-  const ids = laneNodeTaskIds(node.children||[]);
-  if (!ids.length) return false;
-  return ids.every(id => { const t = allTasks.find(x=>x.id===id); return t && t.status==='done'; });
+
+// ─── Progress ───
+function goalProgress(goal){
+  const at=getAllTasks();
+  migrateGoalDAG(goal);
+  const taskNodes=(goal.dagNodes||[]).filter(n=>n.type==='task');
+  const linked=taskNodes.map(n=>at.find(t=>t.id===n.taskId)).filter(Boolean);
+  const done=linked.filter(t=>t.status==='done').length;
+  return{done,total:linked.length,pct:linked.length?Math.round(done/linked.length*100):0};
 }
-// Check if a task is blocked by subgoal or task dependencies
-function isTaskBlocked(task, allGoalTaskIds, allNodes, allTasks) {
-  const deps = task.dependsOn || [];
-  return deps.some(depId => {
-    // Task dependency
-    if (allGoalTaskIds.has(depId)) {
-      const dep = allTasks.find(t=>t.id===depId);
-      return dep && dep.status !== 'done';
-    }
-    // Subgoal dependency (depId is a nodeId)
-    const node = findNodeAnywhere(allNodes, depId);
-    if (node && node.type === 'subgoal') return !isSubgoalComplete(node, allTasks);
+
+function sgProgress(nodeId,goal,allTasks){
+  // Walk outgoing edges to find all reachable task nodes
+  const seen=new Set(); const queue=[nodeId];
+  while(queue.length){
+    const cur=queue.shift();
+    (goal.dagEdges||[]).filter(e=>e.from===cur).forEach(e=>{if(!seen.has(e.to)){seen.add(e.to);queue.push(e.to);}});
+  }
+  const tasks=[...seen].map(id=>{
+    const n=(goal.dagNodes||[]).find(x=>x.id===id);
+    return n&&n.type==='task'?allTasks.find(t=>t.id===n.taskId):null;
+  }).filter(Boolean);
+  const done=tasks.filter(t=>t.status==='done').length;
+  return{done,total:tasks.length,pct:tasks.length?Math.round(done/tasks.length*100):0};
+}
+
+function isGoalBlocked(goal){
+  return(goal.dependsOn||[]).some(depId=>{
+    const dg=(store.goals||[]).find(g=>g.id===depId);
+    return dg&&goalProgress(dg).pct<100;
+  });
+}
+
+function isNodeBlocked(nodeId,goal,allTasks){
+  return(goal.dagEdges||[]).filter(e=>e.to===nodeId).some(e=>{
+    const src=(goal.dagNodes||[]).find(n=>n.id===e.from);
+    if(!src) return false;
+    if(src.type==='task'){const t=allTasks.find(x=>x.id===src.taskId);return t&&t.status!=='done';}
+    if(src.type==='subgoal') return sgProgress(src.id,goal,allTasks).pct<100;
     return false;
   });
 }
-function findNodeAnywhere(nodes, nodeId) {
-  for (const n of nodes||[]) {
-    if (n.nodeId === nodeId) return n;
-    const f = findNodeAnywhere(n.children||[], nodeId);
-    if (f) return f;
+
+function wouldCreateCycle(goal,fromId,toId){
+  const seen=new Set(); const q=[toId];
+  while(q.length){const cur=q.shift();if(cur===fromId)return true;if(seen.has(cur))continue;seen.add(cur);(goal.dagEdges||[]).filter(e=>e.from===cur).forEach(e=>q.push(e.to));}
+  return false;
+}
+
+// ─── Auto layout ───
+function autoLayoutGoal(goal){
+  const nodes=goal.dagNodes||[]; const edges=goal.dagEdges||[];
+  if(!nodes.length) return;
+  const depth={}; const inDeg={};
+  nodes.forEach(n=>{depth[n.id]=0;inDeg[n.id]=0;});
+  edges.forEach(e=>{if(e.to in inDeg)inDeg[e.to]++;});
+  const queue=nodes.filter(n=>inDeg[n.id]===0).map(n=>n.id);
+  const order=[];
+  while(queue.length){
+    const cur=queue.shift(); order.push(cur);
+    edges.filter(e=>e.from===cur).forEach(e=>{
+      depth[e.to]=Math.max(depth[e.to]||0,(depth[cur]||0)+1);
+      if(--inDeg[e.to]===0)queue.push(e.to);
+    });
   }
-  return null;
-}
-function getAllGoalNodes(goal) {
-  return (goal.lanes||[]).flatMap(l => l.nodes||[]);
-}
-function laneProgress(lane, allTasks) {
-  migrateLane(lane);
-  const ids = laneNodeTaskIds(lane.nodes||[]);
-  const linked = ids.map(id => allTasks.find(t => t.id===id)).filter(Boolean);
-  const done = linked.filter(t => t.status==='done').length;
-  return { done, total: linked.length, pct: linked.length ? Math.round(done/linked.length*100) : 0 };
-}
-function sgProgress(node, allTasks) {
-  const ids = laneNodeTaskIds(node.children||[]);
-  const linked = ids.map(id => allTasks.find(t => t.id===id)).filter(Boolean);
-  const done = linked.filter(t => t.status==='done').length;
-  return { done, total: linked.length, pct: linked.length ? Math.round(done/linked.length*100) : 0 };
+  const lanes=goal.lanes||[];
+  const laneIdx=Object.fromEntries(lanes.map((l,i)=>[l.id,i]));
+  const slotUsed={};
+  order.forEach(nid=>{
+    const n=nodes.find(x=>x.id===nid); if(!n)return;
+    const li=n.laneId?(laneIdx[n.laneId]??Math.floor(lanes.length/2)):Math.floor(lanes.length/2);
+    const d=depth[nid]||0; const key=`${li}-${d}`;
+    const slot=slotUsed[key]||0; slotUsed[key]=slot+1;
+    n.x=li*(DAG_LANE_W+10)+(DAG_LANE_W-DAG_NODE_W)/2;
+    n.y=60+d*DAG_ROW_H+slot*8;
+  });
+  nodes.filter(n=>!order.includes(n.id)).forEach((n,i)=>{n.x=20;n.y=60+i*DAG_ROW_H;});
 }
 
-let dagLinkSource = null, dagDragTask = null;
-const fcState = {};
-function getFcState(id) { if(!fcState[id]) fcState[id]={scale:1,panX:0,panY:0}; return fcState[id]; }
-
-function renderGoalsView(area) {
-  area.className = 'goals-area';
-  area.innerHTML = '';
-  if (!store.goals) store.goals = [];
-  const hdr = document.createElement('div');
-  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem';
-  hdr.innerHTML = '<div style="font-size:.85em;font-weight:700;color:var(--text)">🎯 Goals</div>' +
-    '<button onclick="openAddGoalModal()" class="mbtn primary" style="font-size:.72em">+ New Goal</button>';
+// ─── Main render ───
+function renderGoalsView(area){
+  area.className='goals-area'; area.innerHTML='';
+  if(!store.goals) store.goals=[];
+  const hdr=document.createElement('div');
+  hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem';
+  hdr.innerHTML='<div style="font-size:.85em;font-weight:700;color:var(--text)">🎯 Goals</div><button onclick="openAddGoalModal()" class="mbtn primary" style="font-size:.72em">+ New Goal</button>';
   area.appendChild(hdr);
-  if (!store.goals.length) {
-    const e = document.createElement('div');
-    e.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:.75rem;color:var(--dim);font-size:.78em;font-family:JetBrains Mono,monospace';
-    e.innerHTML = '<div style="font-size:2.5em">🎯</div><div>No goals yet — click <strong style="color:var(--text)">+ New Goal</strong></div>';
+  if(!store.goals.length){
+    const e=document.createElement('div');
+    e.style.cssText='display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:.75rem;color:var(--dim);font-size:.78em;font-family:JetBrains Mono,monospace';
+    e.innerHTML='<div style="font-size:2.5em">🎯</div><div>No goals yet</div>';
     area.appendChild(e); return;
   }
-  const allTasks = getAllTasks();
-  store.goals.forEach(goal => { if(!goal.lanes) goal.lanes=[]; renderGoalCard(goal, allTasks, area); });
+  const allTasks=getAllTasks();
+  store.goals.forEach(goal=>{
+    try{ renderGoalCard(goal,allTasks,area); }
+    catch(e){
+      console.error('Goal render error:',e);
+      const d=document.createElement('div');
+      d.style.cssText='padding:1rem;color:#e74c3c;font-size:.75em;background:#1a0808;border-radius:8px';
+      d.textContent='Goal render error: '+e.message;
+      area.appendChild(d);
+    }
+  });
 }
 
-function renderGoalCard(goal, allTasks, area) {
-  const {done,total,pct} = goalProgress(goal);
-  const dl = goal.deadline ? Math.round((parseDmy(goal.deadline)-Date.now())/86400000) : null;
-  const dlCol = dl===null?'var(--muted)':dl<0?'#e74c3c':dl<=14?'#f1c40f':'#2ecc71';
-  const dlTxt = dl===null?'No deadline':dl<0?'Overdue '+Math.abs(dl)+'d':dl===0?'Today!':dl+'d left';
-  const fill = pct===100?'#2ecc71':pct>50?'#3498db':pct>20?'#f1c40f':'#e74c3c';
-  const s = getFcState(goal.id);
+function renderGoalCard(goal,allTasks,area){
+  migrateGoalDAG(goal);
+  const{done,total,pct}=goalProgress(goal);
+  const dl=goal.deadline?Math.round((parseDmy(goal.deadline)-Date.now())/86400000):null;
+  const dlCol=dl===null?'var(--muted)':dl<0?'#e74c3c':dl<=14?'#f1c40f':'#2ecc71';
+  const dlTxt=dl===null?'No deadline':dl<0?'Overdue '+Math.abs(dl)+'d':dl===0?'Today!':dl+'d left';
+  const fill=pct===100?'#2ecc71':pct>50?'#3498db':pct>20?'#f1c40f':'#e74c3c';
+  const blocked=isGoalBlocked(goal);
+  const blockingGoals=(goal.dependsOn||[]).map(id=>(store.goals||[]).find(g=>g.id===id)).filter(Boolean);
+  const s=getFcState(goal.id);
 
-  const card = document.createElement('div'); card.className = 'goal-card';
+  const card=document.createElement('div'); card.className='goal-card';
 
-  const goalBlocked = isGoalBlocked(goal);
-  const blockingGoals = (goal.dependsOn||[]).map(id=>(store.goals||[]).find(g=>g.id===id)).filter(Boolean);
-
-  const chdr = document.createElement('div'); chdr.className = 'goal-card-hdr';
-  chdr.innerHTML = '<div class="goal-card-hdr-left">' +
-    '<div class="goal-title">'+(goalBlocked?'⏳ ':'🎯 ')+esc(goal.name)+'</div>' +
-    '<div class="goal-meta"><span style="color:'+dlCol+'">📅 '+dlTxt+'</span><span>'+done+'/'+total+' done</span><span style="color:'+fill+'">'+pct+'%</span>' +
-    (goalBlocked ? '<span style="color:#f1c40f">⏳ waiting on: '+blockingGoals.map(g=>esc(g.name)).join(', ')+'</span>' : '') +
-    '</div>' +
-    (blockingGoals.length ? '<div style="font-size:.6em;font-family:JetBrains Mono,monospace;color:var(--muted);margin-top:.2rem;display:flex;gap:.5rem;flex-wrap:wrap">' +
-      blockingGoals.map(g => '<span style="background:rgba(241,196,15,.1);border:1px solid rgba(241,196,15,.2);border-radius:4px;padding:.1rem .4rem;color:#f1c40f">🔗 '+esc(g.name)+'</span>').join('') +
-      '</div>' : '') +
-    '</div><div style="display:flex;gap:.4rem;align-items:flex-start">' +
-    '<button data-gid="'+goal.id+'" onclick="openGoalDepsModal(this.dataset.gid)" class="admin-nudge-btn" style="color:#9b59b6;border-color:rgba(155,89,182,.3)">🔗 Deps</button>' +
-    '<button data-gid="'+goal.id+'" onclick="addLane(this.dataset.gid)" class="admin-nudge-btn" style="color:#e67e22;border-color:rgba(230,126,34,.3)">+ Lane</button>' +
-    '<button data-gid="'+goal.id+'" onclick="openEditGoalModal(this.dataset.gid)" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">✎</button>' +
+  // Header
+  const chdr=document.createElement('div'); chdr.className='goal-card-hdr';
+  chdr.innerHTML='<div class="goal-card-hdr-left">'+
+    '<div class="goal-title">'+(blocked?'⏳ ':'🎯 ')+esc(goal.name)+'</div>'+
+    '<div class="goal-meta">'+
+      '<span style="color:'+dlCol+'">📅 '+dlTxt+'</span>'+
+      '<span>'+done+'/'+total+' done</span>'+
+      '<span style="color:'+fill+'">'+pct+'%</span>'+
+      (blockingGoals.length?'<span style="color:#f1c40f">⏳ blocked by: '+blockingGoals.map(g=>esc(g.name)).join(', ')+'</span>':'') +
+    '</div></div>'+
+    '<div style="display:flex;gap:.4rem;align-items:center">'+
+      '<button data-gid="'+goal.id+'" onclick="openGoalDepsModal(this.dataset.gid)" class="admin-nudge-btn" style="color:#9b59b6;border-color:rgba(155,89,182,.3)">🔗 Deps</button>'+
+      '<button data-gid="'+goal.id+'" onclick="addLane(this.dataset.gid)" class="admin-nudge-btn" style="color:#e67e22;border-color:rgba(230,126,34,.3)">+ Lane</button>'+
+      '<button data-gid="'+goal.id+'" onclick="addDagSubgoal(this.dataset.gid)" class="admin-nudge-btn" style="color:#2ecc71;border-color:rgba(46,204,113,.3)">📌 Subgoal</button>'+
+      '<button data-gid="'+goal.id+'" onclick="autoLayoutGoal((store.goals||[]).find(g=>g.id===this.dataset.gid));renderBoard();" class="admin-nudge-btn" style="color:var(--muted);border-color:var(--border2)">⟳ Layout</button>'+
+      '<button data-gid="'+goal.id+'" onclick="openEditGoalModal(this.dataset.gid)" style="padding:.2rem .5rem;background:transparent;border:1px solid var(--border2);border-radius:5px;color:var(--muted);font-size:.65em;cursor:pointer">✎</button>'+
     '</div>';
   card.appendChild(chdr);
 
-  const pw = document.createElement('div'); pw.className = 'goal-progress-wrap';
-  pw.innerHTML = '<div class="goal-progress-bar"><div class="goal-progress-fill" style="width:'+pct+'%;background:'+fill+'"></div></div>' +
+  // Progress
+  const pw=document.createElement('div'); pw.className='goal-progress-wrap';
+  pw.innerHTML='<div class="goal-progress-bar"><div class="goal-progress-fill" style="width:'+pct+'%;background:'+fill+'"></div></div>'+
     '<div class="goal-progress-nums"><span>'+pct+'% complete</span><span>'+done+'/'+total+'</span></div>';
   card.appendChild(pw);
 
-  const hint = document.createElement('div');
-  hint.style.cssText = 'padding:.25rem 1rem;font-size:.6em;font-family:JetBrains Mono,monospace;color:var(--dim);background:var(--surface2);border-bottom:1px solid var(--border);display:flex;gap:1.5rem;flex-wrap:wrap';
-  hint.innerHTML = '<span>⠿ Drag task → lane header to move</span>' +
-    '<span><kbd style="background:var(--surface3);padding:.05rem .3rem;border-radius:3px;border:1px solid var(--border2)">Shift</kbd>+drag task → task to link dependency</span>' +
-    '<span>Hover task to see dependency arrows</span>';
+  // Hint bar
+  const hint=document.createElement('div'); hint.className='dag-hint';
+  hint.innerHTML='<span>🖱 Drag canvas to pan · scroll to zoom</span>'+
+    '<span><kbd style="background:var(--surface3);padding:.05rem .3rem;border-radius:3px;border:1px solid var(--border2)">Shift</kbd>+drag node → node to link dependency</span>'+
+    '<span>Click edge to remove · ⟳ to auto-layout</span>';
   card.appendChild(hint);
 
-  const vp = document.createElement('div');
-  vp.style.cssText = 'position:relative;height:620px;overflow:hidden;background:var(--bg);cursor:grab;border-top:1px solid var(--border)';
-  const canvas = document.createElement('div');
-  canvas.style.cssText = 'position:absolute;top:0;left:0;transform-origin:top left;padding:1.5rem;display:inline-flex';
-  vp.appendChild(canvas);
-  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.style.cssText='position:absolute;top:0;left:0;width:0;height:0;overflow:visible;pointer-events:none;z-index:6';
-  svg.innerHTML='<defs><marker id="dag-arrow" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto"><polygon points="0 0,7 2.5,0 5" fill="rgba(155,89,182,.6)"/></marker><marker id="dag-arrow-hover" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto"><polygon points="0 0,7 2.5,0 5" fill="rgba(155,89,182,.95)"/></marker></defs>';
-  vp.appendChild(svg);
-  let isPanning=false, panStart={x:0,y:0}, panOffset={x:0,y:0};
-  vp.addEventListener('mousedown', e=>{
-    if(e.target.closest('button,input,select,textarea')) return;
-    isPanning=true; vp.style.cursor='grabbing';
-    panStart={x:e.clientX-panOffset.x, y:e.clientY-panOffset.y};
-  });
-  window.addEventListener('mousemove', e=>{
-    if(!isPanning) return;
-    panOffset.x=e.clientX-panStart.x; panOffset.y=e.clientY-panStart.y;
-    canvas.style.transform='translate('+panOffset.x+'px,'+panOffset.y+'px)';
-  });
-  window.addEventListener('mouseup',()=>{ isPanning=false; vp.style.cursor='grab'; });
+  // Viewport
+  const vp=document.createElement('div'); vp.className='dag-viewport';
+  const cvs=document.createElement('div'); cvs.className='dag-canvas';
+  cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
 
-  const slRow = document.createElement('div'); slRow.className = 'sl-row';
+  // SVG overlay
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.className='dag-svg';
+  svg.innerHTML='<defs>'+
+    '<marker id="dga" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="rgba(155,89,182,.65)"/></marker>'+
+    '<marker id="dgah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#9b59b6"/></marker>'+
+    '</defs>';
+  cvs.appendChild(svg);
 
-  goal.lanes.forEach(migrateLane);
-  const allGoalTaskIds = new Set(goal.lanes.flatMap(l => laneNodeTaskIds(l.nodes||[])));
+  // Lane column backgrounds
+  (goal.lanes||[]).forEach((lane,li)=>{
+    const laneX=li*(DAG_LANE_W+10);
+    const col=document.createElement('div'); col.className='dag-lane-col';
+    col.style.cssText=`left:${laneX}px;width:${DAG_LANE_W}px;height:4000px;background:rgba(255,255,255,.012)`;
 
-  goal.lanes.forEach(lane => {
-    migrateLane(lane);
-    const {done:ld,total:lt,pct:lp} = laneProgress(lane, allTasks);
-    const lFill = lp===100?'#2ecc71':lp>50?'#3498db':lp>20?'#f1c40f':'#e74c3c';
+    const lhdr=document.createElement('div'); lhdr.className='dag-lane-hdr';
+    const nameEl=document.createElement('span');
+    nameEl.style.cssText='flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e67e22';
+    nameEl.textContent='📌 '+(lane.name||'Lane');
 
-    const laneEl = document.createElement('div'); laneEl.className = 'sl-lane';
+    const addBtn=document.createElement('button');
+    addBtn.style.cssText='background:rgba(230,126,34,.2);border:1px solid rgba(230,126,34,.4);border-radius:3px;color:#e67e22;cursor:pointer;font-size:.7em;padding:.1rem .35rem;flex-shrink:0';
+    addBtn.textContent='+'; addBtn.title='Add tasks';
+    addBtn.addEventListener('click',e=>{e.stopPropagation();openAddTaskToDAGLane(goal.id,lane.id);});
 
-    const lhdr = document.createElement('div');
-    lhdr.style.cssText = 'width:100%;padding:.5rem .6rem;background:#1a1f2e;border-bottom:2px solid #e67e22;font-size:.72em;font-weight:700;color:#e67e22;cursor:pointer;box-sizing:border-box;display:flex;flex-direction:column;gap:.3rem;flex-shrink:0';
-
-    const lhdrTop = document.createElement('div');
-    lhdrTop.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:.3rem;min-height:18px';
-
-    const lhdrName = document.createElement('span');
-    lhdrName.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;color:#e67e22';
-    lhdrName.textContent = '📌 ' + (lane.name || 'Lane');
-
-    const lhdrCount = document.createElement('span');
-    lhdrCount.style.cssText = 'font-size:.8em;color:#6b7a96;flex-shrink:0';
-    lhdrCount.textContent = ld+'/'+lt;
-
-    const lhdrDel = document.createElement('button');
-    lhdrDel.style.cssText = 'background:rgba(231,76,60,.15);border:1px solid rgba(231,76,60,.3);border-radius:4px;color:#e74c3c;cursor:pointer;font-size:.75em;padding:.1rem .35rem;flex-shrink:0';
-    lhdrDel.textContent = '✕ Remove';
-    lhdrDel.addEventListener('click', async e => {
+    const delBtn=document.createElement('button');
+    delBtn.style.cssText='background:rgba(231,76,60,.15);border:1px solid rgba(231,76,60,.3);border-radius:3px;color:#e74c3c;cursor:pointer;font-size:.7em;padding:.1rem .35rem;flex-shrink:0';
+    delBtn.textContent='✕';
+    delBtn.addEventListener('click',async e=>{
       e.stopPropagation();
-      if (!confirm('Remove swimlane "'+lane.name+'"? Tasks stay in the system.')) return;
-      goal.lanes = (goal.lanes||[]).filter(l => l.id !== lane.id);
+      if(!confirm('Remove lane "'+lane.name+'"?')) return;
+      goal.lanes=(goal.lanes||[]).filter(l=>l.id!==lane.id);
+      goal.dagNodes=(goal.dagNodes||[]).filter(n=>n.laneId!==lane.id);
       renderBoard();
-      try { await saveData(); toast('Swimlane removed', 'success'); } catch {}
+      try{await saveData();toast('Lane removed','success');}catch{}
     });
 
-    lhdrTop.appendChild(lhdrName);
-    lhdrTop.appendChild(lhdrCount);
-    lhdrTop.appendChild(lhdrDel);
+    lhdr.appendChild(nameEl); lhdr.appendChild(addBtn); lhdr.appendChild(delBtn);
+    col.appendChild(lhdr);
+    cvs.appendChild(col);
+  });
 
-    const lhdrProg = document.createElement('div');
-    lhdrProg.style.cssText = 'height:3px;background:rgba(0,0,0,.3);border-radius:2px;overflow:hidden';
-    const lhdrProgFill = document.createElement('div');
-    lhdrProgFill.style.cssText = 'height:100%;width:'+lp+'%;background:'+lFill+';border-radius:2px';
-    lhdrProg.appendChild(lhdrProgFill);
+  // Pan
+  let isPanning=false, panStart={x:0,y:0};
+  vp.addEventListener('mousedown',e=>{
+    if(e.target.closest('.dag-node,button,input')) return;
+    if(dagLinkSrc) return;
+    isPanning=true; vp.classList.add('panning');
+    panStart={x:e.clientX-s.panX,y:e.clientY-s.panY};
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove',e=>{
+    if(!isPanning) return;
+    s.panX=e.clientX-panStart.x; s.panY=e.clientY-panStart.y;
+    cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
+  });
+  window.addEventListener('mouseup',()=>{isPanning=false; vp.classList.remove('panning');});
+  vp.addEventListener('wheel',e=>{
+    e.preventDefault();
+    s.scale=Math.min(3,Math.max(.1,s.scale*(e.deltaY>0?.9:1.1)));
+    cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
+  },{passive:false});
 
-    lhdr.appendChild(lhdrTop);
-    lhdr.appendChild(lhdrProg);
-    lhdr.onclick = (e) => { if(!e.target.closest('button')) editLaneName(goal.id, lane.id); };
-    laneEl.appendChild(lhdr);
-    lhdr.addEventListener('dragover', e=>{ e.preventDefault(); lhdr.classList.add('drag-over'); });
-    // Subgoal header also accepts shift+drag to link as subgoal dependency
-    lhdr.addEventListener("drop", async e=>{
-      e.preventDefault(); lhdr.classList.remove("drag-over");
-      if (!dagDragTask || dagDragTask.goalId!==goal.id || dagDragTask.fromLaneId===lane.id) return;
-      const srcLane = goal.lanes.find(l=>l.id===dagDragTask.fromLaneId);
-      if (srcLane) removeLaneNode(srcLane.nodes||[], dagDragTask.nodeId||"");
-      migrateLane(lane);
-      lane.nodes.push({nodeId:makeNodeId(),type:"task",taskId:dagDragTask.taskId,children:[]});
-      dagDragTask=null; renderBoard();
-      try{await saveData();toast("Task moved","success");}catch{toast("Save failed","error");}
+  // Render nodes function (called after DOM attached)
+  function renderNodes(){
+    cvs.querySelectorAll('.dag-node').forEach(el=>el.remove());
+    svg.querySelectorAll('.dag-edge,.dag-edge-hit').forEach(el=>el.remove());
+    (goal.dagNodes||[]).forEach(node=>{
+      const el=buildDagNode(node,goal,allTasks,s,svg,cvs,renderNodes,vp);
+      cvs.appendChild(el);
     });
+    drawAllEdges(svg,goal,allTasks);
+  }
 
+  // Zoom controls
+  const zc=document.createElement('div'); zc.className='dag-zoom';
+  const mkZ=(t,fn)=>{const b=document.createElement('button');b.textContent=t;b.onclick=fn;return b;};
+  zc.appendChild(mkZ('＋',()=>{s.scale=Math.min(3,s.scale*1.2);cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;} ));
+  zc.appendChild(mkZ('－',()=>{s.scale=Math.max(.1,s.scale*.8);cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;} ));
+  zc.appendChild(mkZ('⌂',()=>{s.scale=.85;s.panX=40;s.panY=20;cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;} ));
 
+  vp.appendChild(cvs); vp.appendChild(zc);
+  card.appendChild(vp); area.appendChild(card);
+  setTimeout(renderNodes,0);
+}
 
-    const taskList = document.createElement('div'); taskList.className = 'sl-tasks';
+function buildDagNode(node,goal,allTasks,s,svg,cvs,renderNodes,vp){
+  const el=document.createElement('div'); el.className='dag-node';
+  el.dataset.nodeId=node.id;
+  el.style.left=node.x+'px'; el.style.top=node.y+'px';
 
-    function renderLaneNodes(nodes, container) {
-      (nodes||[]).forEach(node => {
-        if (node.type === 'task') {
-          const taskId = node.taskId;
-          const task = allTasks.find(t=>t.id===taskId);
-          if (!task || task.status==='done') return;
-          const sub = SUBS.find(s=>s.id===task.subId);
-          const pri = task.priority==='high'?'🔴':task.priority==='medium'?'🟡':task.priority==='low'?'🟢':'';
-          const icon = task.status==='inprogress'?'◑':'–';
-          const sc = task.status==='inprogress'?'inprogress':'';
-          const depIds = (task.dependsOn||[]).filter(id=>allGoalTaskIds.has(id));
-          const blocked = depIds.some(depId=>{ const dep=allTasks.find(t=>t.id===depId); return dep&&dep.status!=='done'; });
-          const chip = document.createElement('div');
-          chip.className='dag-task '+sc+(blocked?' dep-blocked':'');
-          chip.style.borderLeftColor=sub?.color||'var(--border2)';
-          chip.dataset.taskId=taskId; chip.dataset.laneId=lane.id; chip.dataset.goalId=goal.id; chip.dataset.nodeId=node.nodeId;
-          chip.draggable=true;
-          chip.innerHTML=
-            '<div style="display:flex;align-items:center;gap:.3rem;min-width:0">'+
-              '<span style="color:var(--dim);font-size:.8em;flex-shrink:0;cursor:grab">⠿</span>'+
-              '<span style="color:var(--muted)">'+icon+'</span>'+
-              '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;color:#e8edf5">'+esc(task.name)+'</span>'+
-              (pri?'<span style="flex-shrink:0">'+pri+'</span>':'')+
-            '</div>'+
-            (blocked?'<div style="font-size:.56em;color:#f1c40f;font-family:JetBrains Mono,monospace;margin-top:.15rem">⏳ waiting on deps</div>':'')+
-            (depIds.length?'<div style="font-size:.54em;color:rgba(155,89,182,.75);font-family:JetBrains Mono,monospace;margin-top:.1rem">🔗 '+depIds.length+' dep'+(depIds.length>1?'s':'')+'</div>':'')+
-            '<span class="dag-remove" data-gid="'+goal.id+'" data-lid="'+lane.id+'" data-nid="'+node.nodeId+'" onclick="event.stopPropagation();removeLaneNodeById(this.dataset.gid,this.dataset.lid,this.dataset.nid)">✕</span>';
-          chip.onclick=()=>{ if(dagLinkSource) return; openEditModal(task.subId,taskId); };
-          chip.addEventListener('dragstart',e=>{
-            if(e.shiftKey){
-              dagLinkSource=taskId; e.dataTransfer.setData('depLink',taskId); e.dataTransfer.effectAllowed='link';
-              setTimeout(()=>{ chip.classList.add('linking-source'); document.querySelectorAll('.dag-task').forEach(el=>{ if(el.dataset.taskId!==taskId) el.classList.add('dep-target'); }); },0);
-            } else {
-              dagDragTask={taskId,fromLaneId:lane.id,goalId:goal.id,nodeId:node.nodeId};
-              e.dataTransfer.setData('moveTask',taskId); e.dataTransfer.effectAllowed='move';
-              setTimeout(()=>chip.classList.add('dep-dragging'),0);
-            }
-          });
-          chip.addEventListener('dragend',()=>{ chip.classList.remove('dep-dragging','linking-source'); document.querySelectorAll('.dag-task').forEach(el=>el.classList.remove('dep-target','linking-source','dep-hover')); dagLinkSource=null; dagDragTask=null; });
-          chip.addEventListener('dragover',e=>{ if(dagLinkSource&&dagLinkSource!==taskId){e.preventDefault();chip.classList.add('dep-hover');} else if(dagDragTask&&dagDragTask.taskId!==taskId) e.preventDefault(); });
-          chip.addEventListener('dragleave',()=>chip.classList.remove('dep-hover'));
-          chip.addEventListener('drop',async e=>{
-            e.preventDefault(); e.stopPropagation(); chip.classList.remove('dep-hover');
-            const linkSrc=e.dataTransfer.getData('depLink');
-            if(linkSrc&&linkSrc!==taskId){
-              const srcSubId=allTasks.find(t=>t.id===linkSrc)?.subId;
-              const srcTask=srcSubId?(store.tasks[srcSubId]||[]).find(t=>t.id===linkSrc):null;
-              if(srcTask){ if(!srcTask.dependsOn) srcTask.dependsOn=[]; if(!srcTask.dependsOn.includes(taskId)){ srcTask.dependsOn.push(taskId); renderBoard(); try{await saveData();toast('Dependency added','success');}catch{} } }
-              dagLinkSource=null; document.querySelectorAll('.dag-task').forEach(el=>el.classList.remove('dep-target','linking-source'));
-            }
-          });
-          chip.addEventListener('mouseenter',()=>drawDepArrows(svg,canvas,vp,goal,taskId,allTasks,true));
-          chip.addEventListener('mouseleave',()=>{ svg.querySelectorAll('.dag-arrow').forEach(a=>a.remove()); });
-          container.appendChild(chip);
+  if(node.type==='task'){
+    const task=allTasks.find(t=>t.id===node.taskId);
+    if(!task){el.style.display='none';return el;}
+    if(task.status==='done'){el.style.display='none';return el;}
+    const sub=SUBS.find(ss=>ss.id===task.subId);
+    const pri=task.priority==='high'?'🔴':task.priority==='medium'?'🟡':task.priority==='low'?'🟢':'';
+    const icon=task.status==='inprogress'?'◑':'–';
+    const taskBlocked=isNodeBlocked(node.id,goal,allTasks);
+    const inner=document.createElement('div'); inner.className='dag-node-task';
+    inner.style.borderLeftColor=sub?.color||'var(--border2)';
+    if(taskBlocked) inner.style.borderColor='rgba(241,196,15,.5)';
+    inner.innerHTML='<div style="display:flex;align-items:center;gap:.3rem;min-width:0">'+
+      '<span style="color:var(--dim);font-size:.8em;flex-shrink:0">⠿</span>'+
+      '<span style="color:var(--muted);flex-shrink:0">'+icon+'</span>'+
+      '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;color:#e8edf5">'+esc(task.name)+'</span>'+
+      (pri?'<span style="flex-shrink:0">'+pri+'</span>':'')+
+      '</div>'+
+      (taskBlocked?'<div style="font-size:.56em;color:#f1c40f;font-family:JetBrains Mono,monospace;margin-top:.1rem">⏳ blocked</div>':'');
+    el.appendChild(inner);
+    el.onclick=e=>{if(dagLinkSrc||e.defaultPrevented)return;openEditModal(task.subId,task.id);};
 
-        } else if (node.type === 'subgoal') {
-          const {done:sd,total:st,pct:sp}=sgProgress(node,allTasks);
-          const sfill=sp===100?'#2ecc71':sp>50?'#3498db':'#f1c40f';
-          const sgEl=document.createElement('div'); sgEl.className='sg-node';
-          const sgHdr=document.createElement('div'); sgHdr.className='sg-hdr';
-          sgHdr.innerHTML='<span style="font-size:.85em;flex-shrink:0">📌</span>'+
-            '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(node.name)+'</span>'+
-            '<div class="sg-hdr-right">'+
-              '<span style="font-size:.75em;color:var(--muted);font-family:JetBrains Mono,monospace">'+sd+'/'+st+'</span>'+
-              '<button data-gid="'+goal.id+'" data-lid="'+lane.id+'" data-nid="'+node.nodeId+'" onclick="event.stopPropagation();addSubgoalToNode(this.dataset.gid,this.dataset.lid,this.dataset.nid)" style="background:none;border:none;color:rgba(230,126,34,.6);cursor:pointer;font-size:.8em" title="Add subgoal inside">📌</button>'+
-              '<button data-gid="'+goal.id+'" data-lid="'+lane.id+'" data-nid="'+node.nodeId+'" onclick="event.stopPropagation();openAddTaskToNode(this.dataset.gid,this.dataset.lid,this.dataset.nid)" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:.9em" title="Add task inside">＋</button>'+
-              '<button data-gid="'+goal.id+'" data-lid="'+lane.id+'" data-nid="'+node.nodeId+'" onclick="event.stopPropagation();removeLaneNodeById(this.dataset.gid,this.dataset.lid,this.dataset.nid)" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:.8em">✕</button>'+
-            '</div>';
-          sgEl.appendChild(sgHdr);
-          const sgProg=document.createElement('div'); sgProg.className='sg-prog';
-          sgProg.innerHTML='<div class="sg-prog-fill" style="width:'+sp+'%;background:'+sfill+'"></div>';
-          sgEl.appendChild(sgProg);
-          const sgBody=document.createElement('div'); sgBody.className='sg-body';
-          // Drop zone inside
-          const sgDrop=document.createElement('div'); sgDrop.className='sg-drop';
-          sgDrop.textContent='+ drop task here';
-          sgDrop.addEventListener('dragover',e=>{ e.preventDefault(); sgDrop.classList.add('drag-over'); });
-          sgDrop.addEventListener('dragleave',()=>sgDrop.classList.remove('drag-over'));
-          sgDrop.addEventListener('drop',async e=>{
-            e.preventDefault(); e.stopPropagation(); sgDrop.classList.remove('drag-over');
-            // Shift+drag = link task as depending on this subgoal
-            const linkSrc = e.dataTransfer.getData('depLink');
-            if(linkSrc) {
-              const srcSubId = allTasks.find(t=>t.id===linkSrc)?.subId;
-              const srcTask = srcSubId ? (store.tasks[srcSubId]||[]).find(t=>t.id===linkSrc) : null;
-              if(srcTask) {
-                if(!srcTask.dependsOn) srcTask.dependsOn=[];
-                if(!srcTask.dependsOn.includes(node.nodeId)) {
-                  srcTask.dependsOn.push(node.nodeId);
-                  renderBoard();
-                  try{await saveData();toast('Task now depends on subgoal: '+esc(node.name),'success');}catch{}
-                }
-              }
-              dagLinkSource=null;
-              document.querySelectorAll('.dag-task').forEach(el=>el.classList.remove('dep-target','linking-source'));
-              return;
-            }
-            if(dagDragTask&&dagDragTask.goalId===goal.id){
-              const srcLane=goal.lanes.find(l=>l.id===dagDragTask.fromLaneId);
-              if(srcLane) removeLaneNode(srcLane.nodes||[],dagDragTask.nodeId);
-              if(!node.children) node.children=[];
-              node.children.push({nodeId:makeNodeId(),type:'task',taskId:dagDragTask.taskId,children:[]});
-              dagDragTask=null; renderBoard();
-              try{await saveData();toast('Moved into subgoal','success');}catch{toast('Save failed','error');}
-            }
-          });
-          sgBody.appendChild(sgDrop);
-          if((node.children||[]).length) renderLaneNodes(node.children,sgBody);
-          sgEl.appendChild(sgBody);
-          container.appendChild(sgEl);
-        }
-      });
+  } else if(node.type==='subgoal'){
+    const{done:sd,total:st,pct:sp}=sgProgress(node.id,goal,allTasks);
+    const sfill=sp===100?'#2ecc71':sp>50?'#3498db':'#f1c40f';
+    const sgBlocked=isNodeBlocked(node.id,goal,allTasks);
+    const inner=document.createElement('div'); inner.className='dag-node-sg';
+    if(sgBlocked) inner.style.borderColor='rgba(241,196,15,.6)';
+    inner.innerHTML='<div style="display:flex;align-items:center;gap:.35rem">'+
+      '<span style="cursor:grab;color:rgba(230,126,34,.5);flex-shrink:0">⠿</span>'+
+      '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📌 '+esc(node.name)+'</span>'+
+      '<span style="font-size:.7em;color:var(--muted);font-family:JetBrains Mono,monospace;flex-shrink:0">'+sd+'/'+st+'</span>'+
+      '</div>'+
+      '<div style="height:3px;background:rgba(0,0,0,.3);border-radius:2px;overflow:hidden;margin-top:.3rem">'+
+        '<div style="height:100%;width:'+sp+'%;background:'+sfill+';border-radius:2px"></div>'+
+      '</div>'+
+      (node.deadline?'<div style="font-size:.58em;font-family:JetBrains Mono,monospace;color:var(--muted);margin-top:.2rem">📅 '+esc(node.deadline)+'</div>':'');
+    el.appendChild(inner);
+    el.ondblclick=e=>{e.preventDefault();openEditDagSubgoal(node,goal.id);};
+  }
+
+  // Remove button
+  const rm=document.createElement('div'); rm.className='dag-rm'; rm.textContent='✕';
+  rm.addEventListener('click',async e=>{
+    e.stopPropagation();
+    if(!confirm('Remove this node? Links will also be removed.')) return;
+    goal.dagNodes=(goal.dagNodes||[]).filter(n=>n.id!==node.id);
+    goal.dagEdges=(goal.dagEdges||[]).filter(e=>e.from!==node.id&&e.to!==node.id);
+    renderBoard();
+    try{await saveData();toast('Removed','success');}catch{}
+  });
+  el.appendChild(rm);
+
+  // Drag to move
+  let isDragging=false,ds={x:0,y:0},ns={x:0,y:0};
+  el.addEventListener('mousedown',e=>{
+    if(e.target===rm||rm.contains(e.target)) return;
+    if(e.shiftKey){
+      // Link mode
+      dagLinkSrc={nodeId:node.id,goalId:goal.id};
+      el.classList.add('linking');
+      document.querySelectorAll('.dag-node').forEach(n=>{if(n!==el)n.classList.add('can-link');});
+      e.preventDefault(); e.stopPropagation(); return;
     }
-
-    renderLaneNodes(lane.nodes, taskList);
-
-    const btnRow=document.createElement('div'); btnRow.style.cssText='display:flex;gap:.3rem;margin-top:.3rem';
-    const addTaskBtn=document.createElement('button');
-    addTaskBtn.style.cssText='padding:.22rem .5rem;background:transparent;border:1px dashed var(--border2);border-radius:5px;color:var(--dim);font-size:.6em;font-family:JetBrains Mono,monospace;cursor:pointer;flex:1';
-    addTaskBtn.textContent='+ Task'; addTaskBtn.dataset.gid=goal.id; addTaskBtn.dataset.lid=lane.id;
-    addTaskBtn.onclick=()=>openAddTaskToLane(addTaskBtn.dataset.gid,addTaskBtn.dataset.lid);
-    const addSgBtn=document.createElement('button');
-    addSgBtn.style.cssText='padding:.22rem .5rem;background:transparent;border:1px dashed rgba(230,126,34,.35);border-radius:5px;color:rgba(230,126,34,.7);font-size:.6em;font-family:JetBrains Mono,monospace;cursor:pointer;flex:1';
-    addSgBtn.textContent='📌 Subgoal'; addSgBtn.dataset.gid=goal.id; addSgBtn.dataset.lid=lane.id;
-    addSgBtn.onclick=()=>addSubgoalToLane(addSgBtn.dataset.gid,addSgBtn.dataset.lid);
-    btnRow.appendChild(addTaskBtn); btnRow.appendChild(addSgBtn);
-    taskList.appendChild(btnRow);
-
-    laneEl.appendChild(taskList);
-    slRow.appendChild(laneEl);
+    isDragging=true;
+    ds={x:e.clientX,y:e.clientY}; ns={x:node.x,y:node.y};
+    e.preventDefault(); e.stopPropagation();
   });
 
-  // Add lane button inline
-  const addLaneBtn = document.createElement('div'); addLaneBtn.className='sl-add-lane';
-  addLaneBtn.textContent='+ lane'; addLaneBtn.dataset.gid=goal.id;
-  addLaneBtn.onclick=()=>addLane(addLaneBtn.dataset.gid);
-  slRow.appendChild(addLaneBtn);
+  const mmHandler=e=>{
+    if(!isDragging) return;
+    node.x=Math.max(0,ns.x+(e.clientX-ds.x)/s.scale);
+    node.y=Math.max(36,ns.y+(e.clientY-ds.y)/s.scale);
+    el.style.left=node.x+'px'; el.style.top=node.y+'px';
+    drawAllEdges(svg,goal,allTasks);
+  };
+  const muHandler=async e=>{
+    if(isDragging){isDragging=false;try{await saveData();}catch{}}
+    // Link drop
+    if(dagLinkSrc&&dagLinkSrc.goalId===goal.id&&dagLinkSrc.nodeId!==node.id){
+      if(!wouldCreateCycle(goal,dagLinkSrc.nodeId,node.id)){
+        if(!goal.dagEdges) goal.dagEdges=[];
+        if(!goal.dagEdges.some(e=>e.from===dagLinkSrc.nodeId&&e.to===node.id)){
+          goal.dagEdges.push({id:makeNodeId(),from:dagLinkSrc.nodeId,to:node.id});
+          try{await saveData();toast('Dependency linked ✓','success');}catch{}
+        }
+      } else toast('Would create circular dependency','error');
+      dagLinkSrc=null;
+      document.querySelectorAll('.dag-node').forEach(n=>n.classList.remove('linking','can-link'));
+      renderBoard();
+    }
+  };
+  window.addEventListener('mousemove',mmHandler);
+  window.addEventListener('mouseup',muHandler);
 
-  canvas.appendChild(slRow);
-  card.appendChild(vp);
-  area.appendChild(card);
+  // Cancel link on escape
+  window.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&dagLinkSrc){
+      dagLinkSrc=null;
+      document.querySelectorAll('.dag-node').forEach(n=>n.classList.remove('linking','can-link'));
+    }
+  },{once:true});
+
+  // Hover highlight edges
+  el.addEventListener('mouseenter',()=>{if(!dagLinkSrc)highlightEdges(svg,node.id,true);});
+  el.addEventListener('mouseleave',()=>{if(!dagLinkSrc)highlightEdges(svg,node.id,false);});
+
+  return el;
 }
 
-function drawDepArrows(svg, canvas, vp, goal, taskId, allTasks, hover) { if(!svg||!vp) return;
-  svg.querySelectorAll('.dag-arrow').forEach(a=>a.remove());
-  const task = allTasks.find(t=>t.id===taskId);
-  if (!task) return;
-  const allGoalTaskIds = new Set(goal.lanes.flatMap(l=>l.taskIds||[]));
-  const deps = (task.dependsOn||[]).filter(id=>allGoalTaskIds.has(id));
-  deps.forEach(depId=>{
-    const fromEl = canvas.querySelector('[data-task-id="'+depId+'"]');
-    const toEl   = canvas.querySelector('[data-task-id="'+taskId+'"]');
-    if (!fromEl||!toEl) return;
-    const vpR = vp.getBoundingClientRect();
-    const fr  = fromEl.getBoundingClientRect();
-    const tr  = toEl.getBoundingClientRect();
-    const sc  = getFcState(goal.id).scale;
-    const panX = getFcState(goal.id).panX;
-    const panY = getFcState(goal.id).panY;
-    // Convert screen coords to canvas coords
-    const x1 = (fr.left - vpR.left - panX) / sc + fr.width/sc/2;
-    const y1 = (fr.top  - vpR.top  - panY) / sc + fr.height/sc;
-    const x2 = (tr.left - vpR.left - panX) / sc + tr.width/sc/2;
-    const y2 = (tr.top  - vpR.top  - panY) / sc;
-    const cy = (y1+y2)/2;
-    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
-    path.setAttribute('d',`M${x1},${y1} C${x1},${cy} ${x2},${cy} ${x2},${y2}`);
-    path.setAttribute('class','dag-arrow'+(hover?' hover':''));
-    path.setAttribute('marker-end',hover?'url(#dag-arrow-hover)':'url(#dag-arrow)');
+function drawAllEdges(svg,goal,allTasks){
+  svg.querySelectorAll('.dag-edge,.dag-edge-hit').forEach(e=>e.remove());
+  const nodes=goal.dagNodes||[];
+  (goal.dagEdges||[]).forEach(edge=>{
+    const fn=nodes.find(n=>n.id===edge.from);
+    const tn=nodes.find(n=>n.id===edge.to);
+    if(!fn||!tn) return;
+    // Skip if either node is hidden (done task)
+    const fTask=fn.type==='task'?allTasks.find(t=>t.id===fn.taskId):null;
+    const tTask=tn.type==='task'?allTasks.find(t=>t.id===tn.taskId):null;
+    if(fTask&&fTask.status==='done') return;
+    if(tTask&&tTask.status==='done') return;
+    const fh=fn.type==='subgoal'?68:54;
+    const th=tn.type==='subgoal'?68:54;
+    const x1=fn.x+DAG_NODE_W/2, y1=fn.y+fh;
+    const x2=tn.x+DAG_NODE_W/2, y2=tn.y;
+    const cy=(y1+y2)/2;
+    const d=`M${x1},${y1} C${x1},${cy} ${x2},${cy} ${x2},${y2}`;
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',d); path.setAttribute('class','dag-edge');
+    path.setAttribute('data-from',edge.from); path.setAttribute('data-to',edge.to); path.setAttribute('data-eid',edge.id||'');
+    path.style.cssText='fill:none;stroke:rgba(155,89,182,.45);stroke-width:1.5;marker-end:url(#dga)';
     svg.appendChild(path);
+    const hit=document.createElementNS('http://www.w3.org/2000/svg','path');
+    hit.setAttribute('d',d); hit.setAttribute('class','dag-edge-hit'); hit.setAttribute('data-eid',edge.id||'');
+    hit.style.cssText='fill:none;stroke:transparent;stroke-width:14;cursor:pointer;pointer-events:stroke';
+    hit.title='Click to remove dependency';
+    hit.addEventListener('click',async e=>{
+      if(!confirm('Remove this dependency link?')) return;
+      goal.dagEdges=(goal.dagEdges||[]).filter(x=>x.id!==edge.id);
+      renderBoard();
+      try{await saveData();toast('Link removed','success');}catch{}
+    });
+    svg.appendChild(hit);
   });
 }
 
-async function removeLaneNodeById(goalId, laneId, nodeId) {
-  const goal=(store.goals||[]).find(g=>g.id===goalId);
-  if (!goal) return;
-  const lane=(goal.lanes||[]).find(l=>l.id===laneId);
-  if (!lane) return;
-  removeLaneNode(lane.nodes||[], nodeId);
-  renderBoard();
-  try{await saveData();toast('Removed','success');}catch{}
+function highlightEdges(svg,nodeId,on){
+  svg.querySelectorAll('.dag-edge').forEach(el=>{
+    if(el.dataset.from===nodeId||el.dataset.to===nodeId){
+      el.style.stroke=on?'rgba(155,89,182,.95)':'rgba(155,89,182,.45)';
+      el.style.strokeWidth=on?'2.5':'1.5';
+      el.setAttribute('marker-end',on?'url(#dgah)':'url(#dga)');
+    }
+  });
 }
 
-async function addSubgoalToLane(goalId, laneId) {
-  const name=prompt('Subgoal name:');
-  if (!name?.trim()) return;
-  const goal=(store.goals||[]).find(g=>g.id===goalId);
-  const lane=(goal?.lanes||[]).find(l=>l.id===laneId);
-  if (!lane) return;
-  migrateLane(lane);
-  lane.nodes.push({nodeId:makeNodeId(),type:'subgoal',name:name.trim(),children:[]});
+// ─── CRUD ───
+async function addLane(goalId){
+  const name=prompt('Lane name:'); if(!name?.trim()) return;
+  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
+  if(!goal.lanes) goal.lanes=[];
+  goal.lanes.push({id:makeNodeId(),name:name.trim()});
   renderBoard();
-  try{await saveData();toast('Subgoal added','success');}catch{}
+  try{await saveData();toast('Lane added','success');}catch{}
 }
 
-async function addSubgoalToNode(goalId, laneId, nodeId) {
-  const name=prompt('Subgoal name:');
-  if (!name?.trim()) return;
-  const goal=(store.goals||[]).find(g=>g.id===goalId);
-  const lane=(goal?.lanes||[]).find(l=>l.id===laneId);
-  if (!lane) return;
-  const node=findLaneNode(lane.nodes||[],nodeId);
-  if (!node) return;
-  if (!node.children) node.children=[];
-  node.children.push({nodeId:makeNodeId(),type:'subgoal',name:name.trim(),children:[]});
+async function addDagSubgoal(goalId){
+  const name=prompt('Subgoal name:'); if(!name?.trim()) return;
+  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
+  migrateGoalDAG(goal);
+  const lanes=goal.lanes||[];
+  const cx=lanes.length?Math.floor(lanes.length/2)*(DAG_LANE_W+10)+(DAG_LANE_W-DAG_NODE_W)/2:60;
+  const maxY=Math.max(100,...(goal.dagNodes||[]).map(n=>n.y+120));
+  goal.dagNodes.push({id:makeNodeId(),type:'subgoal',name:name.trim(),deadline:null,x:cx,y:maxY});
   renderBoard();
   try{await saveData();toast('Subgoal added','success');}catch{}
 }
 
-function openAddTaskToNode(goalId, laneId, nodeId) {
-  // Same as openAddTaskToLane but inserts into a specific node
-  const goal=(store.goals||[]).find(g=>g.id===goalId);
-  const lane=(goal?.lanes||[]).find(l=>l.id===laneId);
-  if (!lane) return;
-  const allTasks=getAllTasks();
-  const allPlaced=new Set(laneNodeTaskIds(lane.nodes||[]));
-  const avail=allTasks.filter(t=>!allPlaced.has(t.id));
-  showModal(
-    '<div class="modal-title">+ Add tasks to subgoal</div>'+
+function openEditDagSubgoal(node,goalId){
+  showModal('<div class="modal-title">✎ Edit Subgoal</div>'+
+    '<div class="mfield"><label>NAME</label><input type="text" id="sg-name" value="'+esc(node.name)+'" maxlength="80"></div>'+
+    '<div class="mfield"><label>DEADLINE</label><input type="date" id="sg-deadline" value="'+esc(node.deadline?dmyToYmd(node.deadline):'')+'" style="color-scheme:dark"></div>'+
+    '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
+    '<button class="mbtn primary" data-nid="'+node.id+'" data-gid="'+goalId+'" onclick="saveDagSubgoal(this.dataset.nid,this.dataset.gid)">Save</button></div>');
+}
+
+async function saveDagSubgoal(nodeId,goalId){
+  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
+  const node=(goal.dagNodes||[]).find(n=>n.id===nodeId); if(!node) return;
+  node.name=document.getElementById('sg-name').value.trim()||node.name;
+  const dr=document.getElementById('sg-deadline').value;
+  node.deadline=dr?ymdToDmy(dr):null;
+  closeModal(); renderBoard();
+  try{await saveData();toast('Saved','success');}catch{}
+}
+
+function openAddTaskToDAGLane(goalId,laneId){
+  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
+  migrateGoalDAG(goal);
+  const inDag=new Set((goal.dagNodes||[]).filter(n=>n.type==='task').map(n=>n.taskId));
+  const avail=getAllTasks().filter(t=>!inDag.has(t.id));
+  showModal('<div class="modal-title">+ Add tasks</div>'+
     '<div class="mfield"><label>SEARCH</label>'+
-      '<input type="text" id="lt-search" placeholder="Search tasks..." oninput="filterLaneTasks()" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-bottom:none;border-radius:6px 6px 0 0;color:var(--text);font-size:.78em;outline:none">'+
+      '<input type="text" id="lt-search" placeholder="Search..." oninput="filterLaneTasks()" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-bottom:none;border-radius:6px 6px 0 0;color:var(--text);font-size:.78em;outline:none">'+
       '<div id="lt-list" style="max-height:220px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 6px 6px;padding:.25rem">'+
         avail.map(t=>{
           const sub=SUBS.find(s=>s.id===t.subId);
           return '<label class="lt-label" style="display:grid;grid-template-columns:16px 8px 1fr auto;align-items:center;gap:.4rem;padding:.35rem .5rem;border-radius:5px;cursor:pointer;background:var(--surface2)">'+
             '<input type="checkbox" class="lt-cb" value="'+t.id+'" style="accent-color:#e67e22;cursor:pointer;width:14px;height:14px">'+
             '<span style="width:7px;height:7px;border-radius:50%;background:'+(sub?.color||'#999')+'"></span>'+
-            '<span style="font-size:.75em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e8edf5;min-width:0">'+esc(t.name||'(unnamed)')+'</span>'+
+            '<span style="font-size:.75em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e8edf5;min-width:0">'+esc(t.name||'')+'</span>'+
             '<span style="font-size:.65em;color:#6b7a96;white-space:nowrap">'+esc(t.subLabel||'')+'</span>'+
             '</label>';
         }).join('')+
-      '</div>'+
-    '</div>'+
-    '<div class="modal-footer">'+
-      '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
-      '<button class="mbtn primary" data-gid="'+goalId+'" data-lid="'+laneId+'" data-nid="'+nodeId+'" onclick="confirmAddToNode(this.dataset.gid,this.dataset.lid,this.dataset.nid)">Add</button>'+
-    '</div>'
-  );
+      '</div></div>'+
+    '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
+    '<button class="mbtn primary" data-gid="'+goalId+'" data-lid="'+laneId+'" onclick="confirmAddDagTasks(this.dataset.gid,this.dataset.lid)">Add</button></div>');
 }
 
-async function confirmAddToNode(goalId, laneId, nodeId) {
-  const goal=(store.goals||[]).find(g=>g.id===goalId);
-  const lane=(goal?.lanes||[]).find(l=>l.id===laneId);
-  if (!lane) return;
-  const node=findLaneNode(lane.nodes||[],nodeId);
-  if (!node) return;
+async function confirmAddDagTasks(goalId,laneId){
+  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
+  migrateGoalDAG(goal);
   const checked=[...document.querySelectorAll('.lt-cb:checked')].map(cb=>cb.value);
-  if (!checked.length){alert('Select at least one task');return;}
-  if (!node.children) node.children=[];
-  checked.forEach(tid=>node.children.push({nodeId:makeNodeId(),type:'task',taskId:tid,children:[]}));
+  if(!checked.length){alert('Select at least one task');return;}
+  const lanes=goal.lanes||[];
+  const li=lanes.findIndex(l=>l.id===laneId);
+  const laneX=li*(DAG_LANE_W+10)+(DAG_LANE_W-DAG_NODE_W)/2;
+  const existingY=(goal.dagNodes||[]).filter(n=>n.laneId===laneId).reduce((mx,n)=>Math.max(mx,n.y+DAG_ROW_H),60);
+  checked.forEach((tid,i)=>{
+    goal.dagNodes.push({id:makeNodeId(),type:'task',taskId:tid,laneId,x:laneX,y:existingY+i*DAG_ROW_H});
+  });
   closeModal(); renderBoard();
   try{await saveData();toast(checked.length+' task(s) added','success');}catch{toast('Save failed','error');}
 }
 
-async function removeTaskFromLane(goalId, laneId, taskId) {
-  const goal=(store.goals||[]).find(g=>g.id===goalId);
-  if (!goal) return;
-  const lane=(goal.lanes||[]).find(l=>l.id===laneId);
-  if (lane) lane.taskIds=(lane.taskIds||[]).filter(id=>id!==taskId);
-  renderBoard();
-  try{await saveData();toast('Removed','success');}catch{}
-}
-
-async function addLane(goalId) {
-  const name=prompt('Swimlane name:');
-  if (!name?.trim()) return;
-  const goal=(store.goals||[]).find(g=>g.id===goalId);
-  if (!goal) return;
-  if (!goal.lanes) goal.lanes=[];
-  goal.lanes.push({id:makeNodeId(),name:name.trim(),taskIds:[]});
-  renderBoard();
-  try{await saveData();toast('Swimlane added','success');}catch{}
-}
-
-async function removeLane(goalId, laneId) {
-  if (!confirm('Remove swimlane? Tasks stay in the system.')) return;
-  const goal=(store.goals||[]).find(g=>g.id===goalId);
-  if (!goal) return;
-  goal.lanes=(goal.lanes||[]).filter(l=>l.id!==laneId);
-  renderBoard();
-  try{await saveData();toast('Removed','success');}catch{}
-}
-
-async function editLaneName(goalId, laneId) {
-  const goal=(store.goals||[]).find(g=>g.id===goalId);
-  const lane=(goal?.lanes||[]).find(l=>l.id===laneId);
-  if (!lane) return;
-  const name=prompt('Rename:',lane.name);
-  if (!name?.trim()||name.trim()===lane.name) return;
-  lane.name=name.trim(); renderBoard();
-  try{await saveData();toast('Renamed','success');}catch{}
-}
-
-function openAddTaskToLane(goalId, laneId) {
-  const goal=(store.goals||[]).find(g=>g.id===goalId);
-  const lane=(goal?.lanes||[]).find(l=>l.id===laneId);
-  const allTasks=getAllTasks();
-  migrateLane(lane);
-  const inLane=new Set(laneNodeTaskIds(lane?.nodes||[]));
-  const avail=allTasks.filter(t=>!inLane.has(t.id));
-  showModal(
-    '<div class="modal-title">+ Add tasks to '+esc(lane?.name||'lane')+'</div>'+
-    '<div class="mfield"><label>SEARCH</label>'+
-      '<input type="text" id="lt-search" placeholder="Search tasks..." oninput="filterLaneTasks()" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-bottom:none;border-radius:6px 6px 0 0;color:var(--text);font-size:.78em;outline:none">'+
-      '<div id="lt-list" style="max-height:220px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 6px 6px;padding:.25rem">'+
-        avail.map(t=>{
-          const sub=SUBS.find(s=>s.id===t.subId);
-          return '<label class="lt-label" style="display:grid;grid-template-columns:16px 8px 1fr auto;align-items:center;gap:.4rem;padding:.35rem .5rem;border-radius:5px;cursor:pointer;background:var(--surface2)">'+
-            '<input type="checkbox" class="lt-cb" value="'+t.id+'" style="accent-color:#e67e22;cursor:pointer;width:14px;height:14px">'+
-            '<span style="width:7px;height:7px;border-radius:50%;background:'+(sub?.color||'#999')+'"></span>'+
-            '<span style="font-size:.75em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e8edf5;min-width:0">'+esc(t.name||'(unnamed)')+'</span>'+
-            '<span style="font-size:.65em;color:#6b7a96;white-space:nowrap">'+esc(t.subLabel||t.subId||'')+'</span>'+
-            '</label>';
-        }).join('')+
-      '</div>'+
-    '</div>'+
-    '<div class="modal-footer">'+
-      '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
-      '<button class="mbtn primary" data-gid="'+goalId+'" data-lid="'+laneId+'" onclick="confirmAddToLane(this.dataset.gid,this.dataset.lid)">Add</button>'+
-    '</div>'
-  );
-}
-
-function filterLaneTasks() {
+function filterLaneTasks(){
   const q=(document.getElementById('lt-search')?.value||'').toLowerCase();
-  document.querySelectorAll('.lt-label').forEach(l=>{ l.style.display=l.textContent.toLowerCase().includes(q)?'':'none'; });
+  document.querySelectorAll('.lt-label').forEach(l=>{l.style.display=l.textContent.toLowerCase().includes(q)?'':'none';});
 }
 
-async function confirmAddToLane(goalId, laneId) {
-  const goal=(store.goals||[]).find(g=>g.id===goalId);
-  const lane=(goal?.lanes||[]).find(l=>l.id===laneId);
-  if (!lane) return;
-  const checked=[...document.querySelectorAll('.lt-cb:checked')].map(cb=>cb.value);
-  if (!checked.length){alert('Select at least one task');return;}
-  migrateLane(lane);
-  const placed=new Set(laneNodeTaskIds(lane.nodes||[]));
-  checked.forEach(tid=>{ if(!placed.has(tid)) lane.nodes.push({nodeId:makeNodeId(),type:'task',taskId:tid,children:[]}); });
-  closeModal(); renderBoard();
-  try{await saveData();toast(checked.length+' task(s) added','success');}catch{toast('Save failed','error');}
-}
-
-function openGoalDepsModal(goalId) {
-  const goal = (store.goals||[]).find(g=>g.id===goalId);
-  if (!goal) return;
-  const otherGoals = (store.goals||[]).filter(g=>g.id!==goalId);
-  const currentDeps = new Set(goal.dependsOn||[]);
-  showModal(
-    '<div class="modal-title">🔗 Goal Dependencies</div>'+
-    '<div style="font-size:.75em;color:var(--muted);margin-bottom:.75rem">Select goals that must complete before <strong style="color:var(--text)">'+esc(goal.name)+'</strong> can proceed:</div>'+
-    (otherGoals.length ? 
-      '<div style="display:flex;flex-direction:column;gap:.4rem;max-height:250px;overflow-y:auto">'+
-        otherGoals.map(g=>{
-          const {pct} = goalProgress(g);
-          const fill = pct===100?'#2ecc71':pct>50?'#3498db':'#f1c40f';
+function openGoalDepsModal(goalId){
+  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
+  const others=(store.goals||[]).filter(g=>g.id!==goalId);
+  const cur=new Set(goal.dependsOn||[]);
+  showModal('<div class="modal-title">🔗 Goal Dependencies</div>'+
+    '<div style="font-size:.75em;color:var(--muted);margin-bottom:.75rem">Goals that must complete before <strong style="color:var(--text)">'+esc(goal.name)+'</strong>:</div>'+
+    (others.length?
+      '<div style="display:flex;flex-direction:column;gap:.4rem;max-height:260px;overflow-y:auto">'+
+        others.map(g=>{const{pct}=goalProgress(g);const fill=pct===100?'#2ecc71':pct>50?'#3498db':'#f1c40f';
           return '<label style="display:grid;grid-template-columns:16px 1fr auto;align-items:center;gap:.5rem;padding:.4rem .5rem;border-radius:6px;background:var(--surface2);cursor:pointer">'+
-            '<input type="checkbox" class="goal-dep-cb" value="'+g.id+'" '+(currentDeps.has(g.id)?'checked':'')+' style="accent-color:#9b59b6;cursor:pointer">'+
+            '<input type="checkbox" class="goal-dep-cb" value="'+g.id+'" '+(cur.has(g.id)?'checked':'')+' style="accent-color:#9b59b6">'+
             '<span style="font-size:.78em;color:#e8edf5">🎯 '+esc(g.name)+'</span>'+
             '<span style="font-size:.65em;font-family:JetBrains Mono,monospace;color:'+fill+'">'+pct+'%</span>'+
-          '</label>';
-        }).join('') +
-      '</div>'
-    : '<div style="font-size:.75em;color:var(--dim);font-family:JetBrains Mono,monospace">No other goals to depend on</div>') +
-    '<div class="modal-footer">'+
-      '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
-      '<button class="mbtn primary" data-gid="'+goalId+'" onclick="saveGoalDeps(this.dataset.gid)">Save</button>'+
-    '</div>'
-  );
+            '</label>';
+        }).join('')+'</div>'
+    :'<div style="font-size:.75em;color:var(--dim)">No other goals</div>')+
+    '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
+    '<button class="mbtn primary" data-gid="'+goalId+'" onclick="saveGoalDeps(this.dataset.gid)">Save</button></div>');
 }
-
-async function saveGoalDeps(goalId) {
-  const goal = (store.goals||[]).find(g=>g.id===goalId);
-  if (!goal) return;
-  goal.dependsOn = [...document.querySelectorAll('.goal-dep-cb:checked')].map(cb=>cb.value);
+async function saveGoalDeps(goalId){
+  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
+  goal.dependsOn=[...document.querySelectorAll('.goal-dep-cb:checked')].map(cb=>cb.value);
   closeModal(); renderBoard();
-  try{await saveData();toast('Dependencies saved','success');}catch{toast('Save failed','error');}
+  try{await saveData();toast('Saved','success');}catch{}
 }
 
 function openAddGoalModal(){
@@ -1925,14 +1831,13 @@ async function addGoal(){
   const name=document.getElementById('goal-name').value.trim();
   const dr=document.getElementById('goal-deadline').value;
   if(!name){alert('Name required');return;}
-  if(!store.goals)store.goals=[];
-  store.goals.push({id:makeId(),name,deadline:dr?ymdToDmy(dr):null,description:document.getElementById('goal-desc').value.trim()||null,lanes:[],addedAt:Date.now()});
-  closeModal();renderBoard();
+  if(!store.goals) store.goals=[];
+  store.goals.push({id:makeId(),name,deadline:dr?ymdToDmy(dr):null,description:document.getElementById('goal-desc').value.trim()||null,lanes:[],dagNodes:[],dagEdges:[],addedAt:Date.now()});
+  closeModal(); renderBoard();
   try{await saveData();toast('Goal created!','success');}catch{toast('Save failed','error');}
 }
 function openEditGoalModal(goalId){
-  const goal=(store.goals||[]).find(g=>g.id===goalId);
-  if(!goal)return;
+  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
   showModal('<div class="modal-title">✎ Edit Goal</div>'+
     '<div class="mfield"><label>NAME</label><input type="text" id="goal-name" value="'+esc(goal.name)+'" maxlength="100"></div>'+
     '<div class="mfield"><label>DEADLINE</label><input type="date" id="goal-deadline" value="'+esc(goal.deadline?dmyToYmd(goal.deadline):'')+'" style="color-scheme:dark"></div>'+
@@ -1942,21 +1847,21 @@ function openEditGoalModal(goalId){
     '<button class="mbtn primary" data-gid="'+goal.id+'" onclick="saveGoal(this.dataset.gid)">Save</button></div>');
 }
 async function saveGoal(goalId){
-  const goal=(store.goals||[]).find(g=>g.id===goalId);
-  if(!goal)return;
+  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
   goal.name=document.getElementById('goal-name').value.trim();
   const dr=document.getElementById('goal-deadline').value;
   goal.deadline=dr?ymdToDmy(dr):null;
   goal.description=document.getElementById('goal-desc').value.trim()||null;
-  closeModal();renderBoard();
+  closeModal(); renderBoard();
   try{await saveData();toast('Saved','success');}catch{toast('Save failed','error');}
 }
 async function deleteGoal(goalId){
-  if(!confirm('Delete this goal?'))return;
+  if(!confirm('Delete this goal?')) return;
   store.goals=(store.goals||[]).filter(g=>g.id!==goalId);
-  closeModal();renderBoard();
+  closeModal(); renderBoard();
   try{await saveData();toast('Goal deleted','success');}catch{toast('Save failed','error');}
 }
+
 
 // ── MEETINGS ──
 function openAddMeetingModal() {
