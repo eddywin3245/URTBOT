@@ -1513,7 +1513,9 @@ function renderGoalCard(goal,allTasks,area){
     const el=buildSgNode(node,goal,allTasks,s,cvs,svg,redraw);
     cvs.appendChild(el);
   });
-  redraw();
+  // Delay edge drawing so DOM layout is complete and heights are measurable
+  setTimeout(()=>redraw(), 50);
+  setTimeout(()=>redraw(), 200);
 
   // Zoom controls
   const zc=document.createElement('div'); zc.className='dag-zoom';
@@ -1720,13 +1722,23 @@ function drawEdges(svg,goal,allTasks,cvs){
 }
 
 function estimateH(node,allTasks,cvs){
-  // Try to measure actual element height first
+  // Measure actual rendered height - getBoundingClientRect works on absolute elements
   if(cvs){
     const el=cvs.querySelector('[data-node-id="'+node.id+'"]');
-    if(el) return el.offsetHeight;
+    if(el){
+      const r=el.getBoundingClientRect();
+      if(r.height>0) return r.height/getFcStateFromCvs(cvs).scale;
+    }
   }
+  // Fallback: calculate from content
   const visible=(node.taskIds||[]).filter(id=>{ const t=allTasks.find(x=>x.id===id); return !t||t.status!=='done'; }).length;
   return SG_HDR_H+6+visible*SG_TASK_H+SG_PAD+28+28;
+}
+function getFcStateFromCvs(cvs){
+  // Extract scale from canvas transform
+  const t=cvs.style.transform||'';
+  const m=t.match(/scale\(([^)]+)\)/);
+  return{scale:m?parseFloat(m[1]):1};
 }
 
 function redrawEdges(goal,allTasks){
