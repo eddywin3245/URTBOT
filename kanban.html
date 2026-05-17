@@ -1359,30 +1359,62 @@ function wouldCreateCycle(goal,fromId,toId){
 function autoLayoutGoal(goal){
   const nodes=goal.dagNodes||[]; const edges=goal.dagEdges||[];
   if(!nodes.length) return;
-  const depth={}; const inDeg={};
-  nodes.forEach(n=>{depth[n.id]=0;inDeg[n.id]=0;});
-  edges.forEach(e=>{if(e.to in inDeg)inDeg[e.to]++;});
-  const queue=nodes.filter(n=>inDeg[n.id]===0).map(n=>n.id);
-  const order=[];
-  while(queue.length){
-    const cur=queue.shift(); order.push(cur);
-    edges.filter(e=>e.from===cur).forEach(e=>{
-      depth[e.to]=Math.max(depth[e.to]||0,(depth[cur]||0)+1);
-      if(--inDeg[e.to]===0)queue.push(e.to);
-    });
-  }
   const lanes=goal.lanes||[];
   const laneIdx=Object.fromEntries(lanes.map((l,i)=>[l.id,i]));
-  const slotUsed={};
+  const HGAP=30; const VGAP=90; const TOP=50;
+
+  // Compute depth via longest path from sources
+  const depth={};
+  nodes.forEach(n=>depth[n.id]=0);
+  // Topological sort
+  const inDeg={}; nodes.forEach(n=>inDeg[n.id]=0);
+  edges.forEach(e=>{if(e.to in inDeg)inDeg[e.to]++;});
+  const q=[...nodes.filter(n=>inDeg[n.id]===0).map(n=>n.id)];
+  const order=[];
+  while(q.length){
+    const cur=q.shift(); order.push(cur);
+    edges.filter(e=>e.from===cur).forEach(e=>{
+      depth[e.to]=Math.max(depth[e.to],(depth[cur]||0)+1);
+      if(--inDeg[e.to]===0) q.push(e.to);
+    });
+  }
+  // Nodes not in topo sort (cycles) go at bottom
+  nodes.filter(n=>!order.includes(n.id)).forEach(n=>{ depth[n.id]=(Math.max(...Object.values(depth))||0)+1; order.push(n.id); });
+
+  // Group by {lane, depth} and assign x/y
+  const maxDepth=Math.max(0,...Object.values(depth));
+  // For each lane+depth, collect nodes and space them
+  const grid={}; // key: `${laneIdx}-${depth}` => [nodeIds]
   order.forEach(nid=>{
-    const n=nodes.find(x=>x.id===nid); if(!n)return;
-    const li=n.laneId?(laneIdx[n.laneId]??Math.floor(lanes.length/2)):Math.floor(lanes.length/2);
-    const d=depth[nid]||0; const key=`${li}-${d}`;
-    const slot=slotUsed[key]||0; slotUsed[key]=slot+1;
-    n.x=li*(DAG_LANE_W+10)+(DAG_LANE_W-DAG_NODE_W)/2;
-    n.y=60+d*DAG_ROW_H+slot*8;
+    const n=nodes.find(x=>x.id===nid); if(!n) return;
+    let li;
+    if(n.laneId&&laneIdx[n.laneId]!==undefined) li=laneIdx[n.laneId];
+    else {
+      // Subgoals without lane: put in middle, or between their connected lanes
+      const connectedLanes=[
+        ...edges.filter(e=>e.from===nid).map(e=>{ const t=nodes.find(x=>x.id===e.to); return t?.laneId?laneIdx[t.laneId]:null; }),
+        ...edges.filter(e=>e.to===nid).map(e=>{ const f=nodes.find(x=>x.id===e.from); return f?.laneId?laneIdx[f.laneId]:null; }),
+      ].filter(x=>x!=null);
+      li=connectedLanes.length?Math.round(connectedLanes.reduce((a,b)=>a+b,0)/connectedLanes.length):Math.floor(lanes.length/2);
+    }
+    const key=`${li}-${depth[nid]}`;
+    if(!grid[key]) grid[key]=[];
+    grid[key].push(nid);
   });
-  nodes.filter(n=>!order.includes(n.id)).forEach((n,i)=>{n.x=20;n.y=60+i*DAG_ROW_H;});
+
+  // Assign positions
+  Object.entries(grid).forEach(([key,nids])=>{
+    const [li,d]=key.split('-').map(Number);
+    const laneX=li*(DAG_LANE_W+HGAP);
+    const nodeW=getNodeW({type:'task'});
+    const totalW=nids.length*nodeW+(nids.length-1)*8;
+    const startX=laneX+(DAG_LANE_W-totalW)/2;
+    nids.forEach((nid,i)=>{
+      const n=nodes.find(x=>x.id===nid); if(!n) return;
+      n.x=startX+i*(nodeW+8);
+      n.y=TOP+d*VGAP;
+    });
+  });
 }
 
 // ─── Main render ───
@@ -1714,16 +1746,8 @@ function buildDagNode(node,goal,allTasks,s,svg,cvs,renderNodes,vp){
   return el;
 }
 
-function getNodeW(nodeId, svg){
-  const el=svg?.closest('.dag-viewport')?.querySelector(`[data-node-id="${nodeId}"]`);
-  if(el){const inner=el.querySelector('.dag-node-sg,.dag-node-task');if(inner)return inner.offsetWidth;}
-  return DAG_NODE_W;
-}
-function getNodeH(nodeId, svg){
-  const el=svg?.closest('.dag-viewport')?.querySelector(`[data-node-id="${nodeId}"]`);
-  if(el){const inner=el.querySelector('.dag-node-sg,.dag-node-task');if(inner)return inner.offsetHeight;}
-  return 54;
-}
+function getNodeW(node){ return node.type==='subgoal'?190:175; }
+function getNodeH(node){ return node.type==='subgoal'?62:50; }
 
 function drawAllEdges(svg,goal,allTasks){
   svg.querySelectorAll('.dag-edge,.dag-edge-hit,.dag-lane-edge').forEach(e=>e.remove());
@@ -1739,8 +1763,8 @@ function drawAllEdges(svg,goal,allTasks){
     const tTask=tn.type==='task'?allTasks.find(t=>t.id===tn.taskId):null;
     if(fTask&&fTask.status==='done') return;
     if(tTask&&tTask.status==='done') return;
-    const fw=getNodeW(fn.id,svg); const fh=getNodeH(fn.id,svg);
-    const tw=getNodeW(tn.id,svg);
+    const fw=getNodeW(fn); const fh=getNodeH(fn);
+    const tw=getNodeW(tn);
     const x1=fn.x+fw/2, y1=fn.y+fh;
     const x2=tn.x+tw/2, y2=tn.y;
     const cy=(y1+y2)/2;
@@ -1762,26 +1786,32 @@ function drawAllEdges(svg,goal,allTasks){
     svg.appendChild(hit);
   });
 
-  // Draw subgoal→lane header lines for shared subgoals
-  // For each subgoal, find which lanes have nodes that depend on it (incoming edges TO lane nodes FROM subgoal)
+  // Draw subgoal→lane dependency lines
+  // A subgoal is "feeding" a lane if it has outgoing edges to nodes in that lane
   nodes.filter(n=>n.type==='subgoal').forEach(sg=>{
-    // Find all destination nodes of edges from this subgoal
-    const toNodes=(goal.dagEdges||[]).filter(e=>e.from===sg.id).map(e=>nodes.find(n=>n.id===e.to)).filter(Boolean);
-    const toLaneIds=[...new Set(toNodes.map(n=>n.laneId).filter(Boolean))];
-    if(toLaneIds.length<2) return; // only draw lane lines if truly cross-lane (2+ lanes)
-    const sgW=getNodeW(sg.id,svg)||180;
-    const sgH=getNodeH(sg.id,svg)||54;
-    const sgCx=sg.x+sgW/2, sgTop=sg.y;
-    toLaneIds.forEach(laneId=>{
+    const outEdgeNodes=(goal.dagEdges||[]).filter(e=>e.from===sg.id).map(e=>nodes.find(n=>n.id===e.to)).filter(Boolean);
+    const toLaneIds=[...new Set(outEdgeNodes.map(n=>n.laneId).filter(Boolean))];
+    // Show lane lines if feeding 1+ lanes AND the subgoal isn't in that lane itself
+    const externalLanes=toLaneIds.filter(lid=>lid!==sg.laneId);
+    if(!externalLanes.length) return;
+    const sgW=getNodeW(sg); const sgH=getNodeH(sg);
+    const sgCx=sg.x+sgW/2;
+    const sgBottom=sg.y+sgH;
+    externalLanes.forEach(laneId=>{
       const li=lanes.findIndex(l=>l.id===laneId);
       if(li<0) return;
-      const laneCx=li*(DAG_LANE_W+10)+DAG_LANE_W/2;
-      const laneHdrY=0; // lane header is at top of canvas
-      const mx=(sgCx+laneCx)/2;
-      const d=`M${sgCx},${sgTop} C${sgCx},${sgTop-40} ${laneCx},${laneHdrY+60} ${laneCx},${laneHdrY+30}`;
+      // Find the topmost node in this lane that the subgoal feeds into
+      const laneNodes=outEdgeNodes.filter(n=>n.laneId===laneId);
+      const topNode=laneNodes.reduce((best,n)=>(!best||n.y<best.y)?n:best,null);
+      if(!topNode) return;
+      const tnW=getNodeW(topNode);
+      const tx=topNode.x+tnW/2, ty=topNode.y;
+      const cy1=sgBottom+(ty-sgBottom)*0.4;
+      const cy2=sgBottom+(ty-sgBottom)*0.7;
+      const d=`M${sgCx},${sgBottom} C${sgCx},${cy1} ${tx},${cy2} ${tx},${ty}`;
       const path=document.createElementNS('http://www.w3.org/2000/svg','path');
       path.setAttribute('class','dag-lane-edge');
-      path.style.cssText='fill:none;stroke:rgba(230,126,34,.4);stroke-width:1.5;stroke-dasharray:5,4;marker-end:url(#dga)';
+      path.style.cssText='fill:none;stroke:rgba(230,126,34,.55);stroke-width:2;stroke-dasharray:6,4;marker-end:url(#dga)';
       svg.appendChild(path);
       path.setAttribute('d',d);
     });
