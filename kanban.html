@@ -312,9 +312,10 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .sgn-rm{position:absolute;top:-8px;right:-8px;width:18px;height:18px;border-radius:50%;background:#1a2438;border:1px solid var(--border2);color:var(--muted);font-size:.55em;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .15s;z-index:5}
 .sgn:hover .sgn-rm{opacity:1}
 .sgn-actions{display:flex;gap:.25rem;padding:.15rem .4rem .35rem;flex-wrap:wrap}
-.dag-zoom{position:absolute;bottom:.6rem;right:.6rem;display:flex;gap:.3rem;z-index:10}
-.dag-zoom button{width:30px;height:30px;border-radius:6px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-size:.9em;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.dag-zoom button:hover{background:var(--surface2)}
+.dag-zoom{position:absolute;top:50%;right:.5rem;transform:translateY(-50%);display:flex;flex-direction:column;gap:.3rem;z-index:10}
+.dag-zoom button{width:34px;height:34px;border-radius:8px;background:var(--surface);border:1px solid var(--border2);color:var(--text);font-size:1em;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;transition:all .15s}
+.dag-zoom button:hover{background:var(--surface2);border-color:rgba(230,126,34,.4);color:#e67e22}
+.dag-zoom-pct{font-size:.6em;font-family:'JetBrains Mono',monospace;color:var(--muted);text-align:center;padding:.15rem 0;min-width:34px}
 </style>
 </head>
 <body>
@@ -1466,11 +1467,13 @@ function renderGoalCard(goal,allTasks,area){
   window.addEventListener('mouseup',()=>{isPanning=false;vp.classList.remove('panning');});
   vp.addEventListener('wheel',e=>{
     e.preventDefault();
-    s.scale=Math.min(3,Math.max(.1,s.scale*(e.deltaY>0?.9:1.1)));
+    s.scale=Math.min(3,Math.max(.1,+(s.scale*(e.deltaY>0?.9:1.1)).toFixed(2)));
     cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
+    vp.querySelector('.dag-zoom-pct')&&(vp.querySelector('.dag-zoom-pct').textContent=Math.round(s.scale*100)+'%');
+    setTimeout(()=>redrawEdges(goal,allTasks),30);
   },{passive:false});
 
-  function redraw(){ drawEdges(svg,goal,allTasks); }
+  function redraw(){ drawEdges(svg,goal,allTasks,cvs); }
 
   // Render all nodes
   (goal.dagNodes||[]).forEach(node=>{
@@ -1481,10 +1484,17 @@ function renderGoalCard(goal,allTasks,area){
 
   // Zoom controls
   const zc=document.createElement('div'); zc.className='dag-zoom';
+  const pctEl=document.createElement('div'); pctEl.className='dag-zoom-pct'; pctEl.textContent=Math.round(s.scale*100)+'%';
+  const applyScale=()=>{
+    cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
+    pctEl.textContent=Math.round(s.scale*100)+'%';
+    setTimeout(()=>redrawEdges(goal,allTasks),50);
+  };
   const mkZ=(t,fn)=>{const b=document.createElement('button');b.textContent=t;b.onclick=fn;return b;};
-  zc.appendChild(mkZ('＋',()=>{s.scale=Math.min(3,s.scale*1.15);cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;} ));
-  zc.appendChild(mkZ('－',()=>{s.scale=Math.max(.1,s.scale*.85);cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;} ));
-  zc.appendChild(mkZ('⌂',()=>{s.scale=.8;s.panX=60;s.panY=40;cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;} ));
+  zc.appendChild(mkZ('＋',()=>{s.scale=Math.min(3,+(s.scale+0.1).toFixed(2));applyScale();}));
+  zc.appendChild(pctEl);
+  zc.appendChild(mkZ('－',()=>{s.scale=Math.max(.1,+(s.scale-0.1).toFixed(2));applyScale();}));
+  zc.appendChild(mkZ('⌂',()=>{s.scale=.8;s.panX=60;s.panY=40;applyScale();}));
   vp.appendChild(cvs); vp.appendChild(zc);
   card.appendChild(vp); area.appendChild(card);
 }
@@ -1633,7 +1643,7 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
   return el;
 }
 
-function drawEdges(svg,goal,allTasks){
+function drawEdges(svg,goal,allTasks,cvs){
   svg.querySelectorAll('.dag-e,.dag-e-hit').forEach(e=>e.remove());
   (goal.dagEdges||[]).forEach(edge=>{
     const fn=(goal.dagNodes||[]).find(n=>n.id===edge.from);
@@ -1641,12 +1651,13 @@ function drawEdges(svg,goal,allTasks){
     if(!fn||!tn) return;
 
     // From-node bottom center → to-node top center
-    const fx=fn.x+SG_W/2, fy=fn.y+estimateH(fn,allTasks);
-    const tx=tn.x+SG_W/2, ty=tn.y;
+    const fnH=estimateH(fn,allTasks,cvs);
+    const fx=fn.x+SG_W/2, fy=fn.y+fnH-2; // -2 to not overlap border
+    const tx=tn.x+SG_W/2, ty=tn.y+2;     // +2 to not overlap border
 
-    // Cubic bezier with vertical handles for clean S-curve
-    const dy=Math.abs(ty-fy);
-    const cp=Math.max(dy*0.5,40);
+    // Cubic bezier - vertical control points for clean top-down S-curve
+    const dy=Math.max(ty-fy,20);
+    const cp=Math.max(dy*0.55,50);
     const d=`M${fx},${fy} C${fx},${fy+cp} ${tx},${ty-cp} ${tx},${ty}`;
 
     const path=document.createElementNS('http://www.w3.org/2000/svg','path');
@@ -1669,11 +1680,24 @@ function drawEdges(svg,goal,allTasks){
   });
 }
 
-function estimateH(node,allTasks){
+function estimateH(node,allTasks,cvs){
+  // Try to measure actual element height first
+  if(cvs){
+    const el=cvs.querySelector('[data-node-id="'+node.id+'"]');
+    if(el) return el.offsetHeight;
+  }
   const visible=(node.taskIds||[]).filter(id=>{ const t=allTasks.find(x=>x.id===id); return !t||t.status!=='done'; }).length;
   return SG_HDR_H+6+visible*SG_TASK_H+SG_PAD+28+28;
 }
 
+function redrawEdges(goal,allTasks){
+  // Called after zoom to redraw edges with updated measurements
+  // Edges are in the active viewport's svg - find it by looking at all dag-vp elements
+  document.querySelectorAll('.dag-cvs').forEach(cvs=>{
+    const svg=cvs.querySelector('.dag-overlay');
+    if(svg) drawEdges(svg,goal,allTasks,cvs);
+  });
+}
 function highlightEdges(svg,nodeId,on){
   svg.querySelectorAll('.dag-e').forEach(el=>{
     if(el.dataset.from===nodeId||el.dataset.to===nodeId){
