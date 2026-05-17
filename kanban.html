@@ -1501,6 +1501,22 @@ function renderGoalCard(goal,allTasks,area){
 
   // Pan
   let isPanning=false,ps={x:0,y:0};
+  function updateAllPorts(){
+    (goal.dagNodes||[]).forEach(n=>{
+      const nodeEl=cvs.querySelector('[data-node-id="'+n.id+'"]');
+      if(!nodeEl) return;
+      const h=nodeEl.offsetHeight||120;
+      const midY=n.y+h/2;
+      const po=vp.querySelector('.sgn-port-out[data-port-node="'+n.id+'"]');
+      const pi=vp.querySelector('.sgn-port-in[data-port-node="'+n.id+'"]');
+      const ox=(n.x+220)*s.scale+s.panX;
+      const oy=(midY-8)*s.scale+s.panY;
+      const ix=(n.x-8)*s.scale+s.panX;
+      if(po){po.style.left=ox+'px';po.style.top=oy+'px';}
+      if(pi){pi.style.left=ix+'px';pi.style.top=oy+'px';}
+    });
+  }
+
   vp.addEventListener('mousedown',e=>{
     if(sgLinkSrc&&!e.target.closest('.sgn-port-in')){
       // Cancel linking
@@ -1517,6 +1533,7 @@ function renderGoalCard(goal,allTasks,area){
     if(!isPanning) return;
     s.panX=e.clientX-ps.x; s.panY=e.clientY-ps.y;
     cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
+    updateAllPorts();
   });
   window.addEventListener('mouseup',()=>{isPanning=false;vp.classList.remove('panning');});
   vp.addEventListener('wheel',e=>{
@@ -1524,7 +1541,7 @@ function renderGoalCard(goal,allTasks,area){
     s.scale=Math.min(3,Math.max(.1,+(s.scale*(e.deltaY>0?.9:1.1)).toFixed(2)));
     cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
     vp.querySelector('.dag-zoom-pct')&&(vp.querySelector('.dag-zoom-pct').textContent=Math.round(s.scale*100)+'%');
-    setTimeout(()=>redrawEdges(goal,allTasks),30);
+    setTimeout(()=>{redrawEdges(goal,allTasks);updateAllPorts();},30);
   },{passive:false});
 
   function redraw(){ drawEdges(svg,goal,allTasks,cvs); }
@@ -1640,15 +1657,19 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
 
   // Ports appended directly to cvs so they're never clipped
   function makePorts(){
-    cvs.querySelectorAll('[data-port-node="'+node.id+'"]').forEach(p=>p.remove());
+    // Remove existing ports for this node from vp
+    vp.querySelectorAll('[data-port-node="'+node.id+'"]').forEach(p=>p.remove());
     const elH=el.offsetHeight||120;
     const midY=node.y+elH/2;
-    console.log('makePorts',node.name,'elH:',elH,'midY:',midY,'x:',node.x);
+    // Convert canvas coords to viewport screen coords
+    const vpX=(node.x+220)*s.scale+s.panX;
+    const vpY=(midY-8)*s.scale+s.panY;
+    const vpXin=(node.x-8)*s.scale+s.panX;
 
     const portOut=document.createElement('div');
     portOut.className='sgn-port sgn-port-out';
     portOut.dataset.portNode=node.id;
-    portOut.style.cssText='left:'+(node.x+220)+'px;top:'+(midY-8)+'px';
+    portOut.style.cssText='position:absolute;left:'+vpX+'px;top:'+vpY+'px;z-index:999';
     portOut.title='Link from here';
     portOut.addEventListener('click',e=>{
       e.stopPropagation();
@@ -1669,7 +1690,7 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
     const portIn=document.createElement('div');
     portIn.className='sgn-port sgn-port-in';
     portIn.dataset.portNode=node.id;
-    portIn.style.cssText='left:'+(node.x-8)+'px;top:'+(midY-8)+'px';
+    portIn.style.cssText='position:absolute;left:'+vpXin+'px;top:'+vpY+'px;z-index:999';
     portIn.title='Receive link here';
     portIn.addEventListener('click',async e=>{
       e.stopPropagation();
@@ -1692,8 +1713,8 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
       vp.classList.remove('linking');
     });
 
-    cvs.appendChild(portOut);
-    cvs.appendChild(portIn);
+    vp.appendChild(portOut);
+    vp.appendChild(portIn);
   }
   // Make ports after a short delay so el has rendered height
   setTimeout(makePorts, 80);
@@ -1728,10 +1749,13 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
     // Update port positions
     const elH=el.offsetHeight||100;
     const midY=node.y+elH/2;
-    const po=cvs.querySelector('.sgn-port-out[data-port-node="'+node.id+'"]');
-    const pi=cvs.querySelector('.sgn-port-in[data-port-node="'+node.id+'"]');
-    if(po){po.style.left=(node.x+220)+'px';po.style.top=(midY-8)+'px';}
-    if(pi){pi.style.left=(node.x-8)+'px';pi.style.top=(midY-8)+'px';}
+    const po=vp.querySelector('.sgn-port-out[data-port-node="'+node.id+'"]');
+    const pi=vp.querySelector('.sgn-port-in[data-port-node="'+node.id+'"]');
+    const dVpX=(node.x+220)*s.scale+s.panX;
+    const dVpY=(midY-8)*s.scale+s.panY;
+    const dVpXin=(node.x-8)*s.scale+s.panX;
+    if(po){po.style.left=dVpX+'px';po.style.top=dVpY+'px';}
+    if(pi){pi.style.left=dVpXin+'px';pi.style.top=dVpY+'px';}
     redraw();
   };
   const onUp=async e=>{
