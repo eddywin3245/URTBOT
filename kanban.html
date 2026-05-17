@@ -1641,10 +1641,9 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
   // Ports appended directly to cvs so they're never clipped
   function makePorts(){
     cvs.querySelectorAll('[data-port-node="'+node.id+'"]').forEach(p=>p.remove());
-    const elR=el.getBoundingClientRect();
-    const cvsR=cvs.getBoundingClientRect();
-    const elH=elR.height/s.scale;
+    const elH=el.offsetHeight||120;
     const midY=node.y+elH/2;
+    console.log('makePorts',node.name,'elH:',elH,'midY:',midY,'x:',node.x);
 
     const portOut=document.createElement('div');
     portOut.className='sgn-port sgn-port-out';
