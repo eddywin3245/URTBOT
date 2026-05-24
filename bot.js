@@ -159,6 +159,49 @@ async function ensureSheetHeaders() {
   } catch (e) { console.error("Sheet header error:", e.message); }
 }
 
+// Full resync - ensures every expense in store is in the sheet
+// Adds any missing rows, removes any orphan rows
+async function fullResyncSheet() {
+  try {
+    const sheets = getSheets();
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A:A" });
+    const sheetIds = new Set((res.data.values || []).slice(1).map(r => r[0]).filter(Boolean));
+    const storeIds = new Set((store.expenses || []).map(e => e.receiptId));
+    // Add missing
+    for (const exp of store.expenses || []) {
+      if (!sheetIds.has(exp.receiptId)) {
+        console.log(`📋 Resyncing missing expense to sheet: ${exp.receiptId}`);
+        const sub = SUBSYSTEMS.find(s => s.id === (exp.subId || exp.groupId));
+        await appendExpenseRow([
+          exp.receiptId,
+          exp.date || new Date().toLocaleDateString("en-AU"),
+          exp.submittedBy || "",
+          sub?.label || exp.groupId || "",
+          exp.item || "",
+          exp.qty || 1,
+          exp.estCost ? fmtAUD(exp.estCost) : (exp.amount ? fmtAUD(exp.amount) : ""),
+          exp.estTotal ? fmtAUD(exp.estTotal) : (exp.amount ? fmtAUD(exp.amount) : ""),
+          exp.finalCost ? fmtAUD(exp.finalCost) : "",
+          exp.finalTotal ? fmtAUD(exp.finalTotal) : "",
+          exp.approved ? "Yes" : "No",
+          exp.status || exp.reimbursement || "Pending",
+          exp.receipt || "",
+          exp.justification || "",
+          ""
+        ]);
+      }
+    }
+    // Remove orphans (in sheet but not in store) - skip header row
+    for (const sheetId of sheetIds) {
+      if (sheetId && !storeIds.has(sheetId)) {
+        console.log(`🗑️ Removing orphan sheet row: ${sheetId}`);
+        await deleteSheetRow(sheetId);
+      }
+    }
+    console.log("✅ Full sheet resync complete");
+  } catch (e) { console.error("Full resync error:", e.message); }
+}
+
 async function appendExpenseRow(row) {
   await getSheets().spreadsheets.values.append({
     spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1",
@@ -183,6 +226,44 @@ async function deleteSheetRow(receiptId) {
     }
   } catch (e) { console.error("Delete sheet row error:", e.message); }
   return false;
+}
+
+async function fullResyncExpenseSheet() {
+  // Clears Sheet1 (except header) and rewrites all expenses from store
+  try {
+    const sheets = getSheets();
+    // Get current rows count
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A:A" });
+    const rowCount = (res.data.values || []).length;
+    if (rowCount > 1) {
+      // Clear all data rows
+      await sheets.spreadsheets.values.clear({ spreadsheetId: GOOGLE_SHEET_ID, range: `Sheet1!A2:Z${rowCount + 5}` });
+    }
+    // Re-append all expenses
+    const expenses = store.expenses || [];
+    for (const exp of expenses) {
+      const sub = SUBSYSTEMS.find(s => s.id === (exp.subId || exp.groupId));
+      await appendExpenseRow([
+        exp.receiptId || "",
+        exp.date || "",
+        exp.submittedBy || "",
+        sub?.label || exp.groupId || "",
+        exp.item || "",
+        exp.qty || 1,
+        exp.estCost ? fmtAUD(exp.estCost) : (exp.amount ? fmtAUD(exp.amount) : ""),
+        exp.estTotal ? fmtAUD(exp.estTotal) : (exp.amount ? fmtAUD(exp.amount) : ""),
+        exp.finalCost ? fmtAUD(exp.finalCost) : "",
+        exp.finalTotal ? fmtAUD(exp.finalTotal) : "",
+        exp.approved ? "Yes" : (exp.status || "Pending"),
+        exp.reimbursement || "",
+        exp.receipt || "",
+        exp.justification || "",
+        ""
+      ]);
+    }
+    console.log(`✅ Full sheet resync: ${expenses.length} expenses written`);
+    return true;
+  } catch (e) { console.error("Full resync error:", e.message); return false; }
 }
 
 async function syncBudgetSheet() {
@@ -848,6 +929,7 @@ client.once("clientReady", async () => {
     await guild.channels.fetch();
     await setupLeadChannels(guild, client.user.id);
     await ensureSheetHeaders();
+  await fullResyncSheet();
     await getLogChannel(guild);
     await getFinanceLogChannel(guild);
     await getApprovalChannel(guild, client.user.id);
@@ -1225,10 +1307,10 @@ ${nudge.message}
           }
 
           // Delete removed expenses from sheet
-          for (const old of prevExp) {
-            if (!currIds.has(old.receiptId)) {
-              console.log("Deleting sheet row for", old.receiptId);
-              await deleteSheetRow(old.receiptId);
+          for (const removed of prevExp) {
+            if (!currIds.has(removed.receiptId)) {
+              console.log("🗑️ Deleting sheet row for removed expense:", removed.receiptId);
+              await deleteSheetRow(removed.receiptId);
             }
           }
           await syncBudgetSheet();
@@ -1433,10 +1515,11 @@ ${desc ? `**Description:** ${desc}` : ''}`)
 
       if (id === "update_payment") {
         if (!store.expenses.length) { await interaction.reply({ content: "No logged expenses to update.", flags: MessageFlags.Ephemeral }); scheduleDelete(interaction, 4000); return; }
-        const options = store.expenses.slice(-25).reverse().map((e) =>
-          new StringSelectMenuOptionBuilder().setLabel(`${e.receiptId} — ${e.item} (${e.status})`).setValue(e.receiptId)
-        );
-        await interaction.reply({ content: "Which receipt to update?", components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("expense_for_payment").setPlaceholder("Choose a receipt...").addOptions(options))], flags: MessageFlags.Ephemeral });
+        const options = store.expenses.slice(-25).reverse().map((e) => {
+          const label = `${e.receiptId} — ${(e.item||'').slice(0,50)} (${e.status||e.reimbursement||'Pending'})`;
+          return new StringSelectMenuOptionBuilder().setLabel(label.slice(0,100)).setValue(e.receiptId);
+        });
+        await interaction.reply({ content: "Which receipt to update payment status for?", components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("expense_for_payment").setPlaceholder("Choose a receipt...").addOptions(options))], flags: MessageFlags.Ephemeral });
         scheduleDelete(interaction, 30000);
         return;
       }
@@ -1512,7 +1595,10 @@ Feel free to pick a different task!`);
       if (id === "remove_expense") {
         if (!store.expenses.length) { await interaction.reply({ content: "No logged expenses to remove.", flags: MessageFlags.Ephemeral }); scheduleDelete(interaction, 4000); return; }
         const options = store.expenses.slice(-25).reverse().map((e) =>
-          new StringSelectMenuOptionBuilder().setLabel(`${e.receiptId} — ${e.item} (${e.status})`).setValue(e.receiptId)
+          new StringSelectMenuOptionBuilder()
+            .setLabel(`${e.receiptId} — ${(e.item||'').slice(0,50)} ($${(e.finalTotal||e.estTotal||e.amount||0).toFixed(2)})`.slice(0,100))
+            .setDescription((e.date||'')+(e.groupId?' · '+e.groupId:''))
+            .setValue(e.receiptId)
         );
         await interaction.reply({ content: "Which expense to remove?", components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("expense_for_remove").setPlaceholder("Choose an expense...").addOptions(options))], flags: MessageFlags.Ephemeral });
         scheduleDelete(interaction, 30000);
@@ -1690,7 +1776,8 @@ Feel free to pick a different task!`);
         if (!expense) { await interaction.editReply({ content: "Expense not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
         // Subtract from spent
         const group = FINANCE_GROUPS.find(g => g.id === expense.groupId);
-        store.spent[expense.groupId] = Math.max(0, (store.spent[expense.groupId] || 0) - (expense.amount || 0));
+        const expAmt = expense.finalTotal || expense.estTotal || expense.amount || 0;
+        store.spent[expense.groupId] = Math.max(0, (store.spent[expense.groupId] || 0) - expAmt);
         store.expenses = store.expenses.filter(e => e.receiptId !== receiptId);
         await updateBudgetDashboard(guild);
         await deleteSheetRow(receiptId);
@@ -1862,18 +1949,22 @@ Feel free to pick a different task!`);
       }
 
       if (interaction.customId.startsWith("modal_payment_")) {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const receiptId = interaction.customId.replace("modal_payment_", "");
         const newStatus = interaction.fields.getTextInputValue("status").trim();
         const expense   = store.expenses.find((e) => e.receiptId === receiptId);
-        if (!expense) return replyAndDelete(interaction, "Receipt not found.");
+        if (!expense) { await interaction.editReply("Receipt not found."); setTimeout(()=>interaction.deleteReply().catch(()=>{}),4000); return; }
         expense.status = newStatus;
         await updateSheetRow(receiptId, "L", newStatus);
         await saveData();
         await postFinanceLog(guild, logEmbed(0x38bdf8, `💳 Payment updated — ${receiptId}`, [`New status: **${newStatus}**`, `By <@${uid}>`]));
-        return replyAndDelete(interaction, `💳 **${receiptId}** updated to **${newStatus}**!`);
+        await interaction.editReply(`💳 **${receiptId}** updated to **${newStatus}**!`);
+        setTimeout(()=>interaction.deleteReply().catch(()=>{}),5000);
+        return;
       }
 
       if (interaction.customId.startsWith("modal_expense1_")) {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const rest      = interaction.customId.replace("modal_expense1_", "");
         const isRequest = rest.endsWith("_req");
         const groupId   = rest.replace("_req", "");
@@ -1893,6 +1984,7 @@ Feel free to pick a different task!`);
       }
 
       if (interaction.customId.startsWith("modal_expense2_")) {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const parts     = interaction.customId.replace("modal_expense2_", "").split("_");
         const tempId    = parts[parts.length - 1];
         const expData   = pending.get(`${uid}_expense_${tempId}`);
