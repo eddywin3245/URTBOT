@@ -1193,9 +1193,38 @@ ${nudge.message}
         // Expenses or spent changed — sync sheets and update budget dashboard
         if (JSON.stringify(store.expenses) !== prevExpenses || JSON.stringify(store.spent) !== prevSpent) {
           console.log("🔄 Finance change detected — syncing sheets and budget dashboard");
-          // Find removed expenses and delete their sheet rows
           const prevExp = JSON.parse(prevExpenses);
+          const prevIds = new Set(prevExp.map(e => e.receiptId));
           const currIds = new Set(store.expenses.map(e => e.receiptId));
+
+          // Append new expenses not yet in sheet
+          for (const exp of store.expenses) {
+            if (!prevIds.has(exp.receiptId)) {
+              console.log("Appending new expense to sheet:", exp.receiptId);
+              const sub = SUBSYSTEMS.find(s => s.id === exp.subId);
+              try {
+                await appendExpenseRow([
+                  exp.receiptId,
+                  exp.date || new Date().toLocaleDateString("en-AU"),
+                  exp.submittedBy || "",
+                  sub?.label || exp.subId || "",
+                  exp.item || "",
+                  exp.qty || 1,
+                  exp.estCost ? fmtAUD(exp.estCost) : "",
+                  exp.estTotal ? fmtAUD(exp.estTotal) : "",
+                  exp.finalCost ? fmtAUD(exp.finalCost) : "",
+                  exp.finalTotal ? fmtAUD(exp.finalTotal) : "",
+                  exp.approved ? "Yes" : "No",
+                  exp.reimbursement || "",
+                  exp.receipt || "",
+                  exp.justification || "",
+                  ""
+                ]);
+              } catch (e) { console.error("Sheet append error:", e.message); }
+            }
+          }
+
+          // Delete removed expenses from sheet
           for (const old of prevExp) {
             if (!currIds.has(old.receiptId)) {
               console.log("Deleting sheet row for", old.receiptId);
