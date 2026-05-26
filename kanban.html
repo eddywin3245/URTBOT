@@ -285,6 +285,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .goal-progress-fill{height:100%;border-radius:2px;transition:width .6s}
 .goal-progress-nums{display:flex;justify-content:space-between;font-size:.58em;font-family:'JetBrains Mono',monospace;color:var(--muted)}
 .dag-vp{position:relative;height:680px;overflow:hidden;background:var(--bg);cursor:grab}
+.dag-vp-ports{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:50}
 .dag-vp.panning{cursor:grabbing}
 .dag-cvs{position:absolute;top:0;left:0;transform-origin:0 0;overflow:visible}
 .dag-overlay{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
@@ -1483,6 +1484,7 @@ function renderGoalCard(goal,allTasks,area){
 
   // Viewport
   const vp=document.createElement('div'); vp.className='dag-vp';
+  const portsLayer=document.createElement('div'); portsLayer.className='dag-vp-ports';
   const cvs=document.createElement('div'); cvs.className='dag-cvs';
   cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
 
@@ -1507,8 +1509,8 @@ function renderGoalCard(goal,allTasks,area){
       if(!nodeEl) return;
       const h=nodeEl.offsetHeight||120;
       const midY=n.y+h/2;
-      const po=vp.querySelector('.sgn-port-out[data-port-node="'+n.id+'"]');
-      const pi=vp.querySelector('.sgn-port-in[data-port-node="'+n.id+'"]');
+      const po=portsLayer.querySelector('.sgn-port-out[data-port-node="'+n.id+'"]');
+      const pi=portsLayer.querySelector('.sgn-port-in[data-port-node="'+n.id+'"]');
       const ox=(n.x+220)*s.scale+s.panX;
       const oy=(midY-8)*s.scale+s.panY;
       const ix=(n.x-8)*s.scale+s.panX;
@@ -1568,7 +1570,7 @@ function renderGoalCard(goal,allTasks,area){
   zc.appendChild(pctEl);
   zc.appendChild(mkZ('－',()=>{s.scale=Math.max(.1,+(s.scale-0.1).toFixed(2));applyScale();}));
   zc.appendChild(mkZ('⌂',()=>{s.scale=.8;s.panX=60;s.panY=40;applyScale();}));
-  vp.appendChild(cvs); vp.appendChild(zc);
+  vp.appendChild(cvs); vp.appendChild(portsLayer); vp.appendChild(zc);
   card.appendChild(vp); area.appendChild(card);
 }
 
@@ -1658,7 +1660,7 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
   // Ports appended directly to cvs so they're never clipped
   function makePorts(){
     // Remove existing ports for this node from vp
-    vp.querySelectorAll('[data-port-node="'+node.id+'"]').forEach(p=>p.remove());
+    portsLayer.querySelectorAll('[data-port-node="'+node.id+'"]').forEach(p=>p.remove());
     const elH=el.offsetHeight||120;
     const midY=node.y+elH/2;
     // Convert canvas coords to viewport screen coords
@@ -1713,8 +1715,10 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
       vp.classList.remove('linking');
     });
 
-    vp.appendChild(portOut);
-    vp.appendChild(portIn);
+    portOut.style.pointerEvents='all';
+    portIn.style.pointerEvents='all';
+    portsLayer.appendChild(portOut);
+    portsLayer.appendChild(portIn);
   }
   // Make ports after a short delay so el has rendered height
   setTimeout(makePorts, 80);
@@ -1749,8 +1753,8 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
     // Update port positions
     const elH=el.offsetHeight||100;
     const midY=node.y+elH/2;
-    const po=vp.querySelector('.sgn-port-out[data-port-node="'+node.id+'"]');
-    const pi=vp.querySelector('.sgn-port-in[data-port-node="'+node.id+'"]');
+    const po=portsLayer.querySelector('.sgn-port-out[data-port-node="'+node.id+'"]');
+    const pi=portsLayer.querySelector('.sgn-port-in[data-port-node="'+node.id+'"]');
     const dVpX=(node.x+220)*s.scale+s.panX;
     const dVpY=(midY-8)*s.scale+s.panY;
     const dVpXin=(node.x-8)*s.scale+s.panX;
@@ -2698,29 +2702,110 @@ function renderFinanceView(area) {
 
   const table = document.createElement('div');
   table.className = 'expense-table';
-  const headerCols = financeUnlocked ? '<div>RECEIPT</div><div>ITEM</div><div>GROUP</div><div>STATUS</div><div>DATE</div><div></div>' : '<div>RECEIPT</div><div>ITEM</div><div>GROUP</div><div>STATUS</div><div>DATE</div>';
-  const headerGrid = financeUnlocked ? 'grid-template-columns:100px 1fr 120px 110px 90px 50px' : 'grid-template-columns:100px 1fr 120px 110px 90px';
-  table.innerHTML = '<div class="expense-row header" style="' + headerGrid + '">' + headerCols + '</div>';
+  const hGrid = financeUnlocked ? 'grid-template-columns:90px 1fr 110px 140px 85px 70px' : 'grid-template-columns:90px 1fr 110px 140px 85px';
+  const hCols = financeUnlocked ? '<div>RECEIPT</div><div>ITEM</div><div>GROUP</div><div>STATUS</div><div>DATE</div><div>ACTIONS</div>' : '<div>RECEIPT</div><div>ITEM</div><div>GROUP</div><div>STATUS</div><div>DATE</div>';
+  table.innerHTML = '<div class="expense-row header" style="' + hGrid + '">' + hCols + '</div>';
 
   [...expenses].reverse().forEach(e => {
-    const statusCls = e.status === 'Paid' ? 'status-paid' : e.status === 'Pending' ? 'status-pending' : 'status-other';
-    const sub = SUBS.find(s => s.id === e.groupId);
+    const statusVal = e.status || e.reimbursement || 'Pending';
+    const statusCls = statusVal==='Paid'?'status-paid':statusVal==='Pending'?'status-pending':'status-other';
+    const sub = SUBS.find(s => s.id === (e.subId||e.groupId));
+    const amt = e.finalTotal || e.estTotal || e.amount || 0;
     const row = document.createElement('div');
-    row.className = 'expense-row';
-    if (financeUnlocked) row.style.gridTemplateColumns = '100px 1fr 120px 110px 90px 50px';
-    const delBtn = financeUnlocked
-      ? '<button onclick="removeExpenseKanban(\'' + e.receiptId + '\')" style="background:transparent;border:none;color:#e74c3c;cursor:pointer;font-size:.9em" title="Remove">&#x1F5D1;</button>'
-      : '';
-    row.innerHTML =
-      '<div class="expense-receipt">' + esc(e.receiptId) + '</div>' +
-      '<div class="expense-item">' + esc(e.item) + '</div>' +
-      '<div class="expense-group">' + esc(sub ? sub.label : e.groupId) + '</div>' +
-      '<div><span class="expense-status ' + statusCls + '">' + esc(e.status) + '</span></div>' +
-      '<div class="expense-date">' + esc(e.date) + '</div>' +
-      (financeUnlocked ? '<div>' + delBtn + '</div>' : '');
+    row.className = 'expense-row'; row.style.gridTemplateColumns = hGrid;
+
+    // receipt
+    const c1 = document.createElement('div'); c1.className='expense-receipt'; c1.textContent=e.receiptId||''; row.appendChild(c1);
+    // item + amount
+    const c2 = document.createElement('div'); c2.className='expense-item';
+    c2.innerHTML = esc(e.item||'') + (amt ? ' <span style="font-size:.8em;color:var(--muted)">$'+amt.toFixed(2)+'</span>' : '');
+    row.appendChild(c2);
+    // group
+    const c3 = document.createElement('div'); c3.className='expense-group'; c3.textContent = sub?sub.label:(e.groupId||''); row.appendChild(c3);
+    // status - dropdown if unlocked
+    const c4 = document.createElement('div');
+    if (financeUnlocked) {
+      const sel = document.createElement('select');
+      sel.style.cssText='width:100%;padding:.2rem .3rem;background:var(--bg);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:.75em;font-family:JetBrains Mono,monospace';
+      ['Pending','Approved','Paid','Rejected','No'].forEach(opt=>{
+        const o=document.createElement('option'); o.value=opt; o.textContent=opt;
+        if(statusVal===opt) o.selected=true; sel.appendChild(o);
+      });
+      sel.addEventListener('change', async ()=>{
+        e.status=sel.value; e.reimbursement=sel.value;
+        try{await saveData();toast(e.receiptId+' → '+sel.value,'success');}catch{toast('Save failed','error');}
+      });
+      c4.appendChild(sel);
+    } else {
+      c4.innerHTML='<span class="expense-status '+statusCls+'">'+esc(statusVal)+'</span>';
+    }
+    row.appendChild(c4);
+    // date
+    const c5=document.createElement('div'); c5.className='expense-date'; c5.textContent=e.date||''; row.appendChild(c5);
+    // actions
+    if(financeUnlocked){
+      const c6=document.createElement('div'); c6.style.cssText='display:flex;gap:.3rem;align-items:center';
+      const eb=document.createElement('button'); eb.title='Edit'; eb.style.cssText='background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:.95em'; eb.textContent='✎';
+      eb.addEventListener('click',()=>openEditExpenseModal(e.receiptId));
+      const db=document.createElement('button'); db.title='Remove'; db.style.cssText='background:transparent;border:none;color:#e74c3c;cursor:pointer;font-size:.95em'; db.textContent='🗑';
+      db.addEventListener('click',()=>removeExpenseKanban(e.receiptId));
+      c6.appendChild(eb); c6.appendChild(db); row.appendChild(c6);
+    }
     table.appendChild(row);
   });
   area.appendChild(table);
+}
+
+function openEditExpenseModal(receiptId) {
+  const e=(store.expenses||[]).find(x=>x.receiptId===receiptId); if(!e) return;
+  const statusVal=e.status||e.reimbursement||'Pending';
+  const subOpts=SUBS.map(s=>'<option value="'+s.id+'"'+((e.subId||e.groupId)===s.id?' selected':'')+'>'+esc(s.label)+'</option>').join('');
+  const statOpts=['Pending','Approved','Paid','Rejected','No'].map(s=>'<option value="'+s+'"'+(statusVal===s?' selected':'')+'>'+s+'</option>').join('');
+  showModal(
+    '<div class="modal-title">✎ Edit — '+esc(e.receiptId)+'</div>'+
+    '<div class="mfield"><label>ITEM</label><input type="text" id="ee-item" value="'+esc(e.item||'')+'" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"></div>'+
+    '<div class="mfield"><label>SUBSYSTEM</label><select id="ee-sub" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none">'+subOpts+'</select></div>'+
+    '<div class="mfield" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">'+
+      '<div><label>QTY</label><input type="number" id="ee-qty" value="'+(e.qty||1)+'" min="1" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"></div>'+
+      '<div><label>UNIT COST</label><input type="number" id="ee-cost" value="'+(e.estCost||e.amount||0)+'" step="0.01" min="0" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"></div>'+
+    '</div>'+
+    '<div class="mfield" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">'+
+      '<div><label>DATE</label><input type="date" id="ee-date" value="'+esc(e.date?dmyToYmd(e.date):'')+'" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none;color-scheme:dark"></div>'+
+      '<div><label>STATUS</label><select id="ee-status" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none">'+statOpts+'</select></div>'+
+    '</div>'+
+    '<div class="mfield"><label>NOTES</label><textarea id="ee-notes" rows="2" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none;resize:vertical">'+esc(e.justification||e.notes||'')+'</textarea></div>'+
+    '<div class="mfield"><label>RECEIPT URL</label><input type="text" id="ee-receipt" value="'+esc(e.receipt||'')+'" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"></div>'+
+    '<div class="modal-footer">'+
+      '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
+      '<button class="mbtn danger" data-rid="'+receiptId+'" onclick="removeExpenseKanban(this.dataset.rid).then(()=>closeModal())">Delete</button>'+
+      '<button class="mbtn primary" data-rid="'+receiptId+'" onclick="confirmEditExpense(this.dataset.rid)">Save</button>'+
+    '</div>'
+  );
+}
+
+async function confirmEditExpense(receiptId) {
+  const e=(store.expenses||[]).find(x=>x.receiptId===receiptId); if(!e) return;
+  const oldAmt=e.finalTotal||e.estTotal||e.amount||0;
+  const oldSubId=e.subId||e.groupId;
+  const newSubId=document.getElementById('ee-sub').value;
+  const qty=parseFloat(document.getElementById('ee-qty').value)||1;
+  const cost=parseFloat(document.getElementById('ee-cost').value)||0;
+  const total=qty*cost;
+  // Update spent
+  if(oldSubId) store.spent[oldSubId]=Math.max(0,(store.spent[oldSubId]||0)-oldAmt);
+  if(!store.spent[newSubId]) store.spent[newSubId]=0;
+  store.spent[newSubId]+=total;
+  e.item=document.getElementById('ee-item').value.trim()||e.item;
+  e.subId=newSubId; e.groupId=newSubId;
+  e.qty=qty; e.estCost=cost; e.estTotal=total; e.finalCost=cost; e.finalTotal=total; e.amount=total;
+  e.status=document.getElementById('ee-status').value;
+  e.reimbursement=e.status;
+  const dr=document.getElementById('ee-date').value;
+  if(dr) e.date=ymdToDmy(dr);
+  e.justification=document.getElementById('ee-notes').value.trim();
+  e.receipt=document.getElementById('ee-receipt').value.trim();
+  closeModal(); renderBoard();
+  try{await saveData();toast('Expense updated','success');}catch{toast('Save failed','error');}
 }
 
 // ── MILESTONES ──
