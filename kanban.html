@@ -1522,11 +1522,10 @@ function renderGoalCard(goal,allTasks,area){
   }
 
   vp.addEventListener('mousedown',e=>{
-    if(sgLinkSrc&&!e.target.closest('.sgn-port-in')){
-      // Cancel linking
+    if(sgLinkSrc&&!e.target.closest('.sgn-port-in,.sgn-port-out')){
       sgLinkSrc=null;
-      cvs.querySelectorAll('.sgn-port').forEach(p=>p.classList.remove('port-active'));
-      cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-can-link'));
+      if(portsLayer) portsLayer.querySelectorAll('.sgn-port').forEach(p=>p.classList.remove('port-active'));
+      cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-can-link','sg-linking'));
       vp.classList.remove('linking');
     }
     if(e.target.closest('.sgn,button,input,select')||sgLinkSrc) return;
@@ -1552,7 +1551,7 @@ function renderGoalCard(goal,allTasks,area){
 
   // Render all nodes
   (goal.dagNodes||[]).forEach(node=>{
-    const el=buildSgNode(node,goal,allTasks,s,cvs,svg,redraw);
+    const el=buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp);
     cvs.appendChild(el);
   });
   // Delay edge drawing so DOM layout is complete and heights are measurable
@@ -1576,7 +1575,7 @@ function renderGoalCard(goal,allTasks,area){
   card.appendChild(vp); area.appendChild(card);
 }
 
-function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
+function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
   const tasks=(node.taskIds||[]).map(id=>allTasks.find(t=>t.id===id)).filter(Boolean);
   const visibleTasks=tasks.filter(t=>t.status!=='done');
   const{done,total,pct}=sgNodeProgress(node,allTasks,goal);
@@ -1615,11 +1614,20 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw){
     const pri=task.priority==='high'?'🔴':task.priority==='medium'?'🟡':task.priority==='low'?'🟢':'';
     const tc=document.createElement('div');
     tc.className='sgn-task'+(task.status==='done'?' t-done':task.status==='inprogress'?' t-inprog':'');
-    tc.style.borderLeftColor=sub?.color||'var(--border2)';
+    tc.style.cssText='border-left-color:'+(sub?.color||'var(--border2)')+';display:flex;align-items:center;gap:.35rem;padding:.22rem .4rem;border-radius:5px;font-size:.65em;border-left:2px solid;background:var(--surface2);cursor:pointer;position:relative';
     tc.innerHTML='<span style="color:var(--muted);flex-shrink:0">'+(task.status==='inprogress'?'◑':'–')+'</span>'+
       '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e8edf5">'+esc(task.name)+'</span>'+
-      (pri?'<span style="flex-shrink:0">'+pri+'</span>':'');
-    tc.onclick=e=>{e.stopPropagation();if(!sgLinkSrc)openEditModal(task.subId,task.id);};
+      (pri?'<span style="flex-shrink:0">'+pri+'</span>':'')+
+      '<span class="sgn-task-rm" style="display:none;position:absolute;right:3px;top:50%;transform:translateY(-50%);color:#e74c3c;font-size:.8em;cursor:pointer;padding:0 2px;z-index:2">✕</span>';
+    tc.addEventListener('mouseenter',()=>tc.querySelector('.sgn-task-rm').style.display='block');
+    tc.addEventListener('mouseleave',()=>tc.querySelector('.sgn-task-rm').style.display='none');
+    tc.querySelector('.sgn-task-rm').addEventListener('click',async ev=>{
+      ev.stopPropagation();
+      node.taskIds=(node.taskIds||[]).filter(id=>id!==task.id);
+      renderBoard();
+      try{await saveData();toast('Removed from subgoal','success');}catch{}
+    });
+    tc.onclick=e=>{if(e.target.classList.contains('sgn-task-rm'))return;e.stopPropagation();if(!sgLinkSrc)openEditModal(task.subId,task.id);};
     taskList.appendChild(tc);
   });
   el.appendChild(taskList);
