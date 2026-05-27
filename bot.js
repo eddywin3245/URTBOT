@@ -947,7 +947,6 @@ client.once("clientReady", async () => {
     await guild.channels.fetch();
     await setupLeadChannels(guild, client.user.id);
     await ensureSheetHeaders();
-  await fullResyncSheet();
     await getLogChannel(guild);
     await getFinanceLogChannel(guild);
     await getApprovalChannel(guild, client.user.id);
