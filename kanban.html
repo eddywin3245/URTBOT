@@ -1347,70 +1347,107 @@ function autoLayout(goal){
   const nodes=goal.dagNodes||[]; const edges=goal.dagEdges||[];
   if(!nodes.length) return;
 
-  const H_GAP=80;  // horizontal gap between siblings
-  const V_GAP=220; // vertical gap between levels - must be > max node height
+  const H_GAP=80;
+  const V_GAP=240;
   const TOP=40;
 
-  // Build children map: parent -> [children] (edges go from parent down to dependency)
-  const children={};
-  const parentCount={};
-  nodes.forEach(n=>{children[n.id]=[];parentCount[n.id]=0;});
+  // edge: from=dependent, to=dependency
+  // parents of a node = nodes that depend ON it (edge.to === nodeId)
+  // children of a node = nodes it depends on (edge.from === nodeId)
+  const dependsOn={}; // nodeId -> [dependencyIds]  (what this node needs)
+  const dependents={}; // nodeId -> [dependentIds]   (what needs this node)
+  nodes.forEach(n=>{ dependsOn[n.id]=[]; dependents[n.id]=[]; });
   edges.forEach(e=>{
-    if(children[e.from]&&!children[e.from].includes(e.to)) children[e.from].push(e.to);
-    if(parentCount[e.to]!==undefined) parentCount[e.to]++;
+    if(dependsOn[e.from]) dependsOn[e.from].push(e.to);
+    if(dependents[e.to])  dependents[e.to].push(e.from);
   });
 
-  // Find roots (nodes with no incoming edges - nothing depends on them = tops)
-  const roots=nodes.filter(n=>parentCount[n.id]===0).map(n=>n.id);
-  // Nodes with no parents that aren't in edges at all
+  // Depth = distance from roots (nodes nothing depends on = roots = top level)
+  // Roots have no dependents
+  const depth={};
+  nodes.forEach(n=>depth[n.id]=0);
+  const roots=nodes.filter(n=>dependents[n.id].length===0).map(n=>n.id);
   if(!roots.length) roots.push(nodes[0].id);
 
-  // Reingold-Tilford style: compute subtree width bottom-up, then assign x top-down
-  const subtreeW={}; // minimum width needed for subtree rooted at node
-
-  function computeWidth(id, visited=new Set()){
-    if(visited.has(id)){subtreeW[id]=SG_W;return SG_W;}
-    visited.add(id);
-    const kids=children[id]||[];
-    if(!kids.length){subtreeW[id]=SG_W;return SG_W;}
-    const kidsW=kids.reduce((sum,kid)=>sum+computeWidth(kid,new Set(visited)),0)+(kids.length-1)*H_GAP;
-    subtreeW[id]=Math.max(SG_W,kidsW);
-    return subtreeW[id];
+  // Topo sort to assign depths
+  const visited=new Set();
+  function setDepth(id,d){
+    depth[id]=Math.max(depth[id],d);
+    (dependsOn[id]||[]).forEach(childId=>{
+      setDepth(childId,d+1);
+    });
   }
-  roots.forEach(r=>computeWidth(r));
+  roots.forEach(r=>setDepth(r,0));
 
-  // Assign positions top-down
-  function assignPos(id, centerX, depth, visited=new Set()){
-    if(visited.has(id)) return;
-    visited.add(id);
+  // Group nodes by depth
+  const maxDepth=Math.max(0,...Object.values(depth));
+  const byDepth=[];
+  for(let d=0;d<=maxDepth;d++) byDepth[d]=nodes.filter(n=>depth[n.id]===d);
+
+  // For shared nodes (multiple dependents), x = average of dependents' x
+  // Do two passes: first assign x based on index, then refine shared nodes
+  // Pass 1: assign x left-to-right per depth level
+  byDepth.forEach((row,d)=>{
+    const totalW=row.length*(SG_W+H_GAP)-H_GAP;
+    let startX=Math.max(40, 40); // will be refined
+    row.forEach((n,i)=>{ n._col=i; });
+  });
+
+  // Compute x using subtree centering for each root
+  const posSet=new Set();
+  function computeSubtreeW(id,seen=new Set()){
+    if(seen.has(id)) return 0;
+    seen.add(id);
+    const kids=dependsOn[id]||[];
+    // Only count kids not already positioned by another parent
+    const newKids=kids.filter(k=>!posSet.has(k));
+    if(!newKids.length) return SG_W;
+    const w=newKids.reduce((s,k)=>s+computeSubtreeW(k,new Set(seen)),0)+(newKids.length-1)*H_GAP;
+    return Math.max(SG_W,w);
+  }
+
+  function placeSubtree(id,centerX,d,seen=new Set()){
+    if(seen.has(id)) return;
+    seen.add(id); posSet.add(id);
     const n=nodes.find(x=>x.id===id); if(!n) return;
-    n.x=centerX - SG_W/2;
-    n.y=TOP + depth*V_GAP;
-    const kids=children[id]||[];
+    n.x=centerX-SG_W/2;
+    n.y=TOP+d*V_GAP;
+    const kids=(dependsOn[id]||[]).filter(k=>!posSet.has(k));
     if(!kids.length) return;
-    const totalKidsW=kids.reduce((s,k)=>s+(subtreeW[k]||SG_W),0)+(kids.length-1)*H_GAP;
-    let curX=centerX - totalKidsW/2;
+    const totalW=kids.reduce((s,k)=>s+computeSubtreeW(k,new Set()),0)+(kids.length-1)*H_GAP;
+    let curX=centerX-totalW/2;
     kids.forEach(kid=>{
-      const kw=subtreeW[kid]||SG_W;
-      assignPos(kid, curX+kw/2, depth+1, visited);
+      const kw=computeSubtreeW(kid,new Set());
+      placeSubtree(kid,curX+kw/2,d+1,seen);
       curX+=kw+H_GAP;
     });
   }
 
-  // Layout all roots side by side
-  const totalRootsW=roots.reduce((s,r)=>s+(subtreeW[r]||SG_W),0)+(roots.length-1)*H_GAP;
-  let rx=totalRootsW/2+40;
-  // Actually start from left with padding
-  let startX=40+SG_W/2;
+  // Place roots
+  const totalRootsW=roots.reduce((s,r)=>s+computeSubtreeW(r,new Set()),0)+(roots.length-1)*H_GAP;
+  let rx=40+SG_W/2;
   roots.forEach(r=>{
-    assignPos(r, startX+(subtreeW[r]||SG_W)/2, 0);
-    startX+=subtreeW[r]+H_GAP;
+    const rw=computeSubtreeW(r,new Set());
+    placeSubtree(r,rx+rw/2,0);
+    rx+=rw+H_GAP;
   });
 
-  // Place any disconnected nodes to the right
-  const placed=new Set(nodes.filter(n=>n.x!==undefined&&!isNaN(n.x)).map(n=>n.id));
-  let floatX=startX+H_GAP; let floatY=TOP;
-  nodes.filter(n=>!placed.has(n.id)||isNaN(n.x)).forEach(n=>{
+  // Refine shared nodes: if a node has multiple dependents already placed,
+  // move it to the horizontal center of its dependents
+  for(let d=1;d<=maxDepth;d++){
+    byDepth[d]&&byDepth[d].forEach(n=>{
+      const deps=dependents[n.id]||[];
+      const placedDeps=deps.map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&x.x!==undefined&&!isNaN(x.x));
+      if(placedDeps.length>1){
+        const avgX=placedDeps.reduce((s,x)=>s+x.x+SG_W/2,0)/placedDeps.length;
+        n.x=avgX-SG_W/2;
+      }
+    });
+  }
+
+  // Place any unpositioned nodes
+  let floatX=rx+H_GAP; let floatY=TOP;
+  nodes.filter(n=>n.x===undefined||isNaN(n.x)).forEach(n=>{
     n.x=floatX; n.y=floatY; floatY+=V_GAP;
   });
 }
