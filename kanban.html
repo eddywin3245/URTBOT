@@ -1856,14 +1856,15 @@ function drawEdges(svg,goal,allTasks,cvs){
     const tn=(goal.dagNodes||[]).find(n=>n.id===edge.to);   // dependency node (lower down)
     if(!fn||!tn) return;
 
-    // Arrow: from dependent(fn) top DOWN to dependency(tn) bottom
-    // Arrowhead points DOWN into the dependency
+    // Arrow: START at top of lower node (dependency/tn), END at bottom of higher node (dependent/fn)
+    // Arrowhead points UP into the bottom of the higher subgoal
     const tnH=estimateH(tn,allTasks,cvs);
-    const sx=fn.x+SG_W/2, sy=fn.y-4;       // start: top of dependent
-    const ex=tn.x+SG_W/2, ey=tn.y+tnH+4;   // end: bottom of dependency (arrowhead here, points down)
+    const fnH=estimateH(fn,allTasks,cvs);
+    const sx=tn.x+SG_W/2, sy=tn.y-4;       // start: top of lower (dependency)
+    const ex=fn.x+SG_W/2, ey=fn.y+fnH+4;   // end: bottom of higher (dependent), arrowhead here
     const dy=Math.max(Math.abs(ey-sy),40);
     const cp=Math.max(dy*0.55,60);
-    const d=`M${sx},${sy} C${sx},${sy+cp} ${ex},${ey-cp} ${ex},${ey}`;
+    const d=`M${sx},${sy} C${sx},${sy-cp} ${ex},${ey+cp} ${ex},${ey}`;
 
     const path=document.createElementNS('http://www.w3.org/2000/svg','path');
     path.setAttribute('d',d); path.setAttribute('class','dag-e');
