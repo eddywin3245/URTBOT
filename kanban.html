@@ -1664,7 +1664,17 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
     try{await saveData();toast('Sub-subgoal added','success');}catch{}
   };
 
-  actions.appendChild(editBtn); actions.appendChild(addSgBtn);
+  // Link button - connect this node as a dependency of another node
+  const linkBtn=document.createElement('div'); linkBtn.className='sgn-btn';
+  linkBtn.style.cssText='color:rgba(155,89,182,.9);border-color:rgba(155,89,182,.4);background:transparent;font-size:.58em;padding:.15rem .4rem;border-radius:4px;cursor:pointer;font-family:JetBrains Mono,monospace';
+  linkBtn.textContent='🔗 Link to...';
+  linkBtn.dataset.gid=goal.id; linkBtn.dataset.nid=node.id;
+  linkBtn.onclick=e=>{
+    e.stopPropagation();
+    openLinkModal(linkBtn.dataset.gid, linkBtn.dataset.nid);
+  };
+
+  actions.appendChild(editBtn); actions.appendChild(addSgBtn); actions.appendChild(linkBtn);
   el.appendChild(actions);
 
   // Ports appended directly to cvs so they're never clipped
@@ -1730,8 +1740,7 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
     portsLayer.appendChild(portOut);
     portsLayer.appendChild(portIn);
   }
-  // Make ports after a short delay so el has rendered height
-  setTimeout(makePorts, 80);
+
 
   // Remove button
   const rm=document.createElement('div'); rm.className='sgn-rm'; rm.textContent='✕';
@@ -1796,9 +1805,9 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
   el.addEventListener('mouseup', onUp);
   window.addEventListener('keydown',e=>{ if(e.key==='Escape'&&sgLinkSrc){ sgLinkSrc=null; cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-linking','sg-can-link')); } });
 
-  // Hover highlight
-  el.addEventListener('mouseenter',()=>highlightEdges(svg,node.id,true));
-  el.addEventListener('mouseleave',()=>highlightEdges(svg,node.id,false));
+  // Hover: highlight edges
+  el.addEventListener('mouseenter',()=>{ if(svg) highlightEdges(svg,node.id,true); });
+  el.addEventListener('mouseleave',()=>{ if(svg) highlightEdges(svg,node.id,false); });
 
   return el;
 }
@@ -1895,6 +1904,50 @@ async function addSgNode(goalId){
   goal.dagNodes.push({id:makeNodeId(),type:'subgoal',name:name.trim(),taskIds:[],x:40,y:maxY});
   renderBoard();
   try{await saveData();toast('Subgoal added — drag to position, Shift+drag to link','success');}catch{}
+}
+
+function openLinkModal(goalId, nodeId) {
+  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
+  const node=(goal.dagNodes||[]).find(n=>n.id===nodeId); if(!node) return;
+  const others=(goal.dagNodes||[]).filter(n=>n.id!==nodeId);
+  const currentDeps=new Set((goal.dagEdges||[]).filter(e=>e.from===nodeId).map(e=>e.to));
+  const opts=others.map(n=>{
+    const linked=currentDeps.has(n.id);
+    return '<label style="display:flex;align-items:center;gap:.5rem;padding:.35rem .5rem;border-radius:6px;background:var(--surface2);cursor:pointer;margin-bottom:.2rem">'+
+      '<input type="checkbox" class="link-cb" value="'+n.id+'" '+(linked?'checked':'')+' style="accent-color:#9b59b6;cursor:pointer;width:14px;height:14px">'+
+      '<span style="font-size:.78em;color:#e8edf5">📌 '+esc(n.name)+'</span>'+
+      (linked?'<span style="font-size:.65em;color:#9b59b6;margin-left:auto">linked</span>':'')+
+      '</label>';
+  }).join('');
+  showModal(
+    '<div class="modal-title">🔗 Link "'+esc(node.name)+'" depends on...</div>'+
+    '<div style="font-size:.72em;color:var(--muted);margin-bottom:.6rem">Select subgoals that must complete <strong>before</strong> "'+esc(node.name)+'" can start:</div>'+
+    (opts?'<div style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:.15rem">'+opts+'</div>':
+      '<div style="font-size:.75em;color:var(--dim)">No other subgoals to link to</div>')+
+    '<div class="modal-footer">'+
+      '<button class="mbtn secondary" onclick="closeModal()">Cancel</button>'+
+      '<button class="mbtn primary" data-gid="'+goalId+'" data-nid="'+nodeId+'" onclick="confirmLinks(this.dataset.gid,this.dataset.nid)">Save Links</button>'+
+    '</div>'
+  );
+}
+
+async function confirmLinks(goalId, nodeId) {
+  const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
+  if(!goal.dagEdges) goal.dagEdges=[];
+  const checked=new Set([...document.querySelectorAll('.link-cb:checked')].map(cb=>cb.value));
+  const unchecked=new Set([...document.querySelectorAll('.link-cb:not(:checked)')].map(cb=>cb.value));
+  // Remove unchecked links
+  goal.dagEdges=goal.dagEdges.filter(e=>!(e.from===nodeId&&unchecked.has(e.to)));
+  // Add checked links (avoid duplicates and cycles)
+  for(const toId of checked){
+    if(!goal.dagEdges.some(e=>e.from===nodeId&&e.to===toId)){
+      if(!wouldCycle(goal,nodeId,toId)){
+        goal.dagEdges.push({id:makeNodeId(),from:nodeId,to:toId});
+      } else toast('Skipped cycle: '+toId,'error');
+    }
+  }
+  closeModal(); renderBoard();
+  try{await saveData();toast('Links saved','success');}catch{toast('Save failed','error');}
 }
 
 function openEditSgNode(goalId,nodeId){
