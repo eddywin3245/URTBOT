@@ -1856,25 +1856,14 @@ function drawEdges(svg,goal,allTasks,cvs){
     const tn=(goal.dagNodes||[]).find(n=>n.id===edge.to);   // dependency node (lower down)
     if(!fn||!tn) return;
 
-    // Arrow flows UP: from dependency(tn) bottom → dependent(fn) bottom
-    // This shows "tn must complete before fn can start" visually flowing upward
+    // Arrow flows UPWARD: from dependency(tn) bottom → dependent(fn) top
+    // Arrowhead at the END = points up into the dependent node
     const tnH=estimateH(tn,allTasks,cvs);
-    const fnH=estimateH(fn,allTasks,cvs);
-
-    // Start: bottom of dependency node
-    const sx=tn.x+SG_W/2, sy=tn.y+tnH+4;
-    // End: bottom of dependent node (arrow points INTO the dependent from below)
-    const ex=fn.x+SG_W/2, ey=fn.y+fnH+4;
-
-    // Actually draw from top of dependent DOWN to top of dependency (shows flow of work)
-    // From dependent top → dependency top (arrow points at dependency = "needs this")
-    const ax=fn.x+SG_W/2, ay=fn.y-4;   // top of dependent
-    const bx=tn.x+SG_W/2, by=tn.y-4;   // top of dependency
-
-    const dy=Math.abs(by-ay);
-    const cp=Math.max(dy*0.6,80);
-    // Arrow goes from dependent top downward to dependency top
-    const d=`M${ax},${ay} C${ax},${ay-cp} ${bx},${by-cp} ${bx},${by}`;
+    const sx=tn.x+SG_W/2, sy=tn.y+tnH+4; // start: bottom of dependency
+    const ex=fn.x+SG_W/2, ey=fn.y-4;      // end: top of dependent (arrowhead here)
+    const dy=Math.max(Math.abs(ey-sy),40);
+    const cp=Math.max(dy*0.55,60);
+    const d=`M${sx},${sy} C${sx},${sy-cp} ${ex},${ey+cp} ${ex},${ey}`;
 
     const path=document.createElementNS('http://www.w3.org/2000/svg','path');
     path.setAttribute('d',d); path.setAttribute('class','dag-e');
