@@ -11,9 +11,8 @@ const https = require("https");
 const { google } = require("googleapis");
 
 const DISCORD_TOKEN          = process.env.DISCORD_TOKEN;
-const GIST_ID    = process.env.GIST_ID    || 'd30a800f14e78b239ee46717dd355e0b';
-const GIST_TOKEN = process.env.GIST_TOKEN;
-const GIST_FILE  = 'warp_store.json';
+const SB_URL = process.env.SB_URL || 'https://atiomabdvepihloypwlm.supabase.co';
+const SB_KEY = process.env.SB_KEY || 'sb_publishable_ehx6KsxAypfe3vkM54wYCw_HQfWs8JM';
 const STATUS_CHANNEL_ID      = process.env.STATUS_CHANNEL_ID;
 const GOOGLE_SHEET_ID        = process.env.GOOGLE_SHEET_ID;
 const GOOGLE_SERVICE_ACCOUNT = process.env.GOOGLE_SERVICE_ACCOUNT;
@@ -330,37 +329,29 @@ async function updateSheetRow(receiptId, colLetter, value) {
 const limiter = new Bottleneck({ maxConcurrent: 1, minTime: 300 });
 
 function jsonbinRequest(method, body) {
-  // GitHub Gist API wrapper (replaces JSONBin)
+  // Supabase REST API wrapper
+  const isWrite = method === 'PUT' || method === 'PATCH';
+  const sbHeaders = {
+    'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`,
+    'Content-Type': 'application/json', 'Prefer': 'return=minimal'
+  };
+  const path = isWrite ? '/rest/v1/store?id=eq.main' : '/rest/v1/store?id=eq.main&select=data';
+  const bodyStr = isWrite ? JSON.stringify({ data: body, updated_at: new Date().toISOString() }) : null;
+  const url = new URL(SB_URL);
   return new Promise((resolve, reject) => {
-    const isWrite = method === 'PUT' || method === 'PATCH';
-    const bodyStr = isWrite ? JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(body) } } }) : null;
     const options = {
-      hostname: 'api.github.com',
-      path: `/gists/${GIST_ID}`,
-      method: isWrite ? 'PATCH' : 'GET',
-      headers: {
-        'Authorization': `Bearer ${GIST_TOKEN}`,
-        'Accept': 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': 'WARP-Bot',
-        'Content-Type': 'application/json',
-        ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {})
-      }
+      hostname: url.hostname, path, method: isWrite ? 'PATCH' : 'GET',
+      headers: { ...sbHeaders, ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {}) }
     };
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', d => data += d);
       res.on('end', () => {
         try {
-          const parsed = JSON.parse(data);
-          if (!isWrite) {
-            // Wrap in { record: ... } to match old JSONBin shape
-            const fileContent = parsed.files?.[GIST_FILE]?.content;
-            resolve({ record: fileContent ? JSON.parse(fileContent) : {} });
-          } else {
-            resolve({ record: body });
-          }
-        } catch(e) { reject(new Error('Bad JSON: ' + data.slice(0,100))); }
+          if (isWrite) { resolve({ record: body }); return; }
+          const rows = JSON.parse(data);
+          resolve({ record: rows[0]?.data || {} });
+        } catch(e) { reject(new Error('Supabase parse error: ' + data.slice(0,100))); }
       });
     });
     req.on('error', reject);

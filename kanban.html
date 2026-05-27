@@ -354,17 +354,8 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 <div class="toast" id="toast"></div>
 
 <script>
-const GIST_ID   = 'd30a800f14e78b239ee46717dd355e0b';
-const GIST_FILE = 'warp_store.json';
-// Token only needed for writes — stored in sessionStorage, prompted once per session
-function getGistToken() {
-  let t = sessionStorage.getItem('gist_token');
-  if (!t) {
-    t = prompt('Enter Gist write token (stored in session only, never sent to server except GitHub):');
-    if (t) sessionStorage.setItem('gist_token', t.trim());
-  }
-  return t || '';
-}
+const SB_URL = 'https://atiomabdvepihloypwlm.supabase.co';
+const SB_KEY = 'sb_publishable_ehx6KsxAypfe3vkM54wYCw_HQfWs8JM';
 
 const SUBS = [
   { id:'manipulator', label:'Manipulator', color:'#e74c3c' },
@@ -416,30 +407,21 @@ function todayDmy() {
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
 }
 
-// ── API (GitHub Gist) ──
+// ── API (Supabase) ──
+const SB_HEADERS = { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
 async function jbGet() {
-  // Read anonymously — works on public gist, no token needed
-  const r = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
-    headers: { 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }
-  });
-  if (!r.ok) throw new Error(`Gist GET error ${r.status}`);
-  const gist = await r.json();
-  const fileContent = gist.files?.[GIST_FILE]?.content;
-  if (!fileContent) return {};
-  return JSON.parse(fileContent);
+  const r = await fetch(`${SB_URL}/rest/v1/store?id=eq.main&select=data`, { headers: SB_HEADERS });
+  if (!r.ok) throw new Error(`Supabase GET error ${r.status}`);
+  const rows = await r.json();
+  return rows[0]?.data || {};
 }
 async function jbPut(data) {
-  const token = getGistToken();
-  if (!token) { toast('No write token — changes not saved', 'error'); return; }
-  const r = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+  const r = await fetch(`${SB_URL}/rest/v1/store?id=eq.main`, {
     method: 'PATCH',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
-    body: JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(data) } } })
+    headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ data, updated_at: new Date().toISOString() })
   });
-  if (!r.ok) {
-    if (r.status === 401) { sessionStorage.removeItem('gist_token'); toast('Token invalid — you will be prompted again', 'error'); }
-    else throw new Error(`Gist PATCH error ${r.status}`);
-  }
+  if (!r.ok) throw new Error(`Supabase PATCH error ${r.status}`);
 }
 
 async function loadData() {
