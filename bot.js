@@ -11,8 +11,9 @@ const https = require("https");
 const { google } = require("googleapis");
 
 const DISCORD_TOKEN          = process.env.DISCORD_TOKEN;
-const JSONBIN_BIN_ID         = process.env.JSONBIN_BIN_ID;
-const JSONBIN_API_KEY        = process.env.JSONBIN_API_KEY;
+const GIST_ID    = process.env.GIST_ID    || 'd30a800f14e78b239ee46717dd355e0b';
+const GIST_TOKEN = process.env.GIST_TOKEN;
+const GIST_FILE  = 'warp_store.json';
 const STATUS_CHANNEL_ID      = process.env.STATUS_CHANNEL_ID;
 const GOOGLE_SHEET_ID        = process.env.GOOGLE_SHEET_ID;
 const GOOGLE_SERVICE_ACCOUNT = process.env.GOOGLE_SERVICE_ACCOUNT;
@@ -239,8 +240,12 @@ async function fullResyncExpenseSheet() {
       // Clear all data rows
       await sheets.spreadsheets.values.clear({ spreadsheetId: GOOGLE_SHEET_ID, range: `Sheet1!A2:Z${rowCount + 5}` });
     }
-    // Re-append all expenses
+    // Guard: never resync with empty expenses if store seems wrong
     const expenses = store.expenses || [];
+    if (!expenses.length && store.receiptCounter > 1) {
+      console.warn("⚠️ Resync aborted — expenses empty but receiptCounter > 1, likely a load error");
+      return false;
+    }
     for (const exp of expenses) {
       const sub = SUBSYSTEMS.find(s => s.id === (exp.subId || exp.groupId));
       await appendExpenseRow([
@@ -325,19 +330,40 @@ async function updateSheetRow(receiptId, colLetter, value) {
 const limiter = new Bottleneck({ maxConcurrent: 1, minTime: 300 });
 
 function jsonbinRequest(method, body) {
+  // GitHub Gist API wrapper (replaces JSONBin)
   return new Promise((resolve, reject) => {
-    const bodyStr = body ? JSON.stringify(body) : null;
+    const isWrite = method === 'PUT' || method === 'PATCH';
+    const bodyStr = isWrite ? JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(body) } } }) : null;
     const options = {
-      hostname: "api.jsonbin.io", path: `/v3/b/${JSONBIN_BIN_ID}`, method,
-      headers: { "Content-Type": "application/json", "X-Master-Key": JSONBIN_API_KEY, "X-Bin-Versioning": "false",
-        ...(bodyStr ? { "Content-Length": Buffer.byteLength(bodyStr) } : {}) },
+      hostname: 'api.github.com',
+      path: `/gists/${GIST_ID}`,
+      method: isWrite ? 'PATCH' : 'GET',
+      headers: {
+        'Authorization': `Bearer ${GIST_TOKEN}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'WARP-Bot',
+        'Content-Type': 'application/json',
+        ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {})
+      }
     };
     const req = https.request(options, (res) => {
-      let data = "";
-      res.on("data", (d) => (data += d));
-      res.on("end", () => { try { resolve(JSON.parse(data)); } catch { reject(new Error("Bad JSON")); } });
+      let data = '';
+      res.on('data', d => data += d);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (!isWrite) {
+            // Wrap in { record: ... } to match old JSONBin shape
+            const fileContent = parsed.files?.[GIST_FILE]?.content;
+            resolve({ record: fileContent ? JSON.parse(fileContent) : {} });
+          } else {
+            resolve({ record: body });
+          }
+        } catch(e) { reject(new Error('Bad JSON: ' + data.slice(0,100))); }
+      });
     });
-    req.on("error", reject);
+    req.on('error', reject);
     if (bodyStr) req.write(bodyStr);
     req.end();
   });
@@ -347,6 +373,7 @@ let store = null;
 
 async function loadData() {
   const res = await jsonbinRequest("GET");
+  if (!res || !res.record) throw new Error("JSONBin returned empty response");
   const r   = res.record || {};
   store = {
     tasks:               r.tasks               || Object.fromEntries(SUBSYSTEMS.map((s) => [s.id, []])),
@@ -1024,7 +1051,12 @@ client.once("clientReady", async () => {
     // Poll for check-ins every hour and DM assigned members
     setInterval(async () => {
       try {
-        await loadData();
+        try {
+          await loadData();
+        } catch (loadErr) {
+          console.warn("⚠️ Poll skipped — JSONBin unavailable:", loadErr.message);
+          return; // skip entire poll cycle if load fails
+        }
         const now = nowLocal();
         const todayDmy = todayDmyLocal();
         let changed = false;

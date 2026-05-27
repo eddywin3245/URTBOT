@@ -354,8 +354,17 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 <div class="toast" id="toast"></div>
 
 <script>
-const BIN_ID  = '69d5d38c36566621a88c9d8c';
-const API_KEY = '$2a$10$DbpaQeAX21FZZuIOP3ZUmOdE0RC.hGmsLq.dYzkx/WOHVaS0RtoYG';
+const GIST_ID   = 'd30a800f14e78b239ee46717dd355e0b';
+const GIST_FILE = 'warp_store.json';
+// Token only needed for writes — stored in sessionStorage, prompted once per session
+function getGistToken() {
+  let t = sessionStorage.getItem('gist_token');
+  if (!t) {
+    t = prompt('Enter Gist write token (stored in session only, never sent to server except GitHub):');
+    if (t) sessionStorage.setItem('gist_token', t.trim());
+  }
+  return t || '';
+}
 
 const SUBS = [
   { id:'manipulator', label:'Manipulator', color:'#e74c3c' },
@@ -407,19 +416,30 @@ function todayDmy() {
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
 }
 
-// ── API ──
+// ── API (GitHub Gist) ──
 async function jbGet() {
-  const r = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, { headers: { 'X-Master-Key': API_KEY } });
-  if (!r.ok) throw new Error(`JSONBin error ${r.status}`);
-  return (await r.json()).record || {};
+  // Read anonymously — works on public gist, no token needed
+  const r = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+    headers: { 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }
+  });
+  if (!r.ok) throw new Error(`Gist GET error ${r.status}`);
+  const gist = await r.json();
+  const fileContent = gist.files?.[GIST_FILE]?.content;
+  if (!fileContent) return {};
+  return JSON.parse(fileContent);
 }
 async function jbPut(data) {
-  const r = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY, 'X-Bin-Versioning': 'false' },
-    body: JSON.stringify(data)
+  const token = getGistToken();
+  if (!token) { toast('No write token — changes not saved', 'error'); return; }
+  const r = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+    method: 'PATCH',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+    body: JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(data) } } })
   });
-  if (!r.ok) throw new Error(`Save error ${r.status}`);
+  if (!r.ok) {
+    if (r.status === 401) { sessionStorage.removeItem('gist_token'); toast('Token invalid — you will be prompted again', 'error'); }
+    else throw new Error(`Gist PATCH error ${r.status}`);
+  }
 }
 
 async function loadData() {
