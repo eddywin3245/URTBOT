@@ -1432,17 +1432,39 @@ function autoLayout(goal){
     rx+=rw+H_GAP;
   });
 
-  // Refine shared nodes: if a node has multiple dependents already placed,
-  // move it to the horizontal center of its dependents
-  for(let d=1;d<=maxDepth;d++){
-    byDepth[d]&&byDepth[d].forEach(n=>{
-      const deps=dependents[n.id]||[];
-      const placedDeps=deps.map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&x.x!==undefined&&!isNaN(x.x));
-      if(placedDeps.length>1){
-        const avgX=placedDeps.reduce((s,x)=>s+x.x+SG_W/2,0)/placedDeps.length;
-        n.x=avgX-SG_W/2;
-      }
-    });
+  // Refine shared nodes: center between all parents, then reposition their children
+  // Do multiple passes to propagate position changes downward
+  for(let pass=0;pass<3;pass++){
+    for(let d=1;d<=maxDepth;d++){
+      byDepth[d]&&byDepth[d].forEach(n=>{
+        const deps=dependents[n.id]||[];
+        const placedDeps=deps.map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&x.x!==undefined&&!isNaN(x.x));
+        if(placedDeps.length>1){
+          // Center this node between all its parents
+          const avgX=placedDeps.reduce((s,x)=>s+x.x+SG_W/2,0)/placedDeps.length;
+          n.x=avgX-SG_W/2;
+        }
+      });
+      // After adjusting shared nodes at this depth, re-center their children
+      byDepth[d]&&byDepth[d].forEach(n=>{
+        const kids=dependsOn[n.id]||[];
+        if(!kids.length) return;
+        // Re-space children around this node's new center
+        const validKids=kids.map(id=>nodes.find(x=>x.id===id)).filter(Boolean);
+        if(!validKids.length) return;
+        const totalW=validKids.length*SG_W+(validKids.length-1)*H_GAP;
+        const centerX=n.x+SG_W/2;
+        let curX=centerX-totalW/2;
+        // Only move kids that have a single parent (don't fight shared node centering)
+        validKids.forEach(kid=>{
+          const kidParents=(dependents[kid.id]||[]);
+          if(kidParents.length===1){
+            kid.x=curX;
+          }
+          curX+=SG_W+H_GAP;
+        });
+      });
+    }
   }
 
   // Place any unpositioned nodes
