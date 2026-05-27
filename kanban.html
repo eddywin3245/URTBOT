@@ -1350,126 +1350,95 @@ function autoLayout(goal){
   const H_GAP=80;
   const V_GAP=240;
   const TOP=40;
+  const NODE_W=SG_W+H_GAP;
 
-  // edge: from=dependent, to=dependency
-  // parents of a node = nodes that depend ON it (edge.to === nodeId)
-  // children of a node = nodes it depends on (edge.from === nodeId)
-  const dependsOn={}; // nodeId -> [dependencyIds]  (what this node needs)
-  const dependents={}; // nodeId -> [dependentIds]   (what needs this node)
+  // Build relationship maps
+  // edge.from = dependent (higher), edge.to = dependency (lower)
+  const dependsOn={};   // id -> [ids this node depends on]
+  const dependents={};  // id -> [ids that depend on this node]
   nodes.forEach(n=>{ dependsOn[n.id]=[]; dependents[n.id]=[]; });
   edges.forEach(e=>{
-    if(dependsOn[e.from]) dependsOn[e.from].push(e.to);
-    if(dependents[e.to])  dependents[e.to].push(e.from);
+    if(dependsOn[e.from]&&!dependsOn[e.from].includes(e.to)) dependsOn[e.from].push(e.to);
+    if(dependents[e.to]&&!dependents[e.to].includes(e.from))  dependents[e.to].push(e.from);
   });
 
-  // Depth = distance from roots (nodes nothing depends on = roots = top level)
-  // Roots have no dependents
+  // Assign depth (roots = top, no dependents)
   const depth={};
   nodes.forEach(n=>depth[n.id]=0);
   const roots=nodes.filter(n=>dependents[n.id].length===0).map(n=>n.id);
   if(!roots.length) roots.push(nodes[0].id);
-
-  // Topo sort to assign depths
-  const visited=new Set();
-  function setDepth(id,d){
-    depth[id]=Math.max(depth[id],d);
-    (dependsOn[id]||[]).forEach(childId=>{
-      setDepth(childId,d+1);
-    });
+  function assignDepth(id,d,seen=new Set()){
+    if(seen.has(id)) return; seen.add(id);
+    depth[id]=Math.max(depth[id]||0,d);
+    (dependsOn[id]||[]).forEach(c=>assignDepth(c,d+1,seen));
   }
-  roots.forEach(r=>setDepth(r,0));
+  roots.forEach(r=>assignDepth(r,0));
 
-  // Group nodes by depth
   const maxDepth=Math.max(0,...Object.values(depth));
   const byDepth=[];
-  for(let d=0;d<=maxDepth;d++) byDepth[d]=nodes.filter(n=>depth[n.id]===d);
+  for(let d=0;d<=maxDepth;d++) byDepth[d]=(nodes.filter(n=>depth[n.id]===d));
 
-  // For shared nodes (multiple dependents), x = average of dependents' x
-  // Do two passes: first assign x based on index, then refine shared nodes
-  // Pass 1: assign x left-to-right per depth level
-  byDepth.forEach((row,d)=>{
-    const totalW=row.length*(SG_W+H_GAP)-H_GAP;
-    let startX=Math.max(40, 40); // will be refined
-    row.forEach((n,i)=>{ n._col=i; });
-  });
-
-  // Compute x using subtree centering for each root
-  const posSet=new Set();
-  function computeSubtreeW(id,seen=new Set()){
-    if(seen.has(id)) return 0;
-    seen.add(id);
-    const kids=dependsOn[id]||[];
-    // Only count kids not already positioned by another parent
-    const newKids=kids.filter(k=>!posSet.has(k));
-    if(!newKids.length) return SG_W;
-    const w=newKids.reduce((s,k)=>s+computeSubtreeW(k,new Set(seen)),0)+(newKids.length-1)*H_GAP;
+  // Compute minimum subtree width needed (for nodes not yet placed)
+  const placed=new Set();
+  function subtreeW(id,seen=new Set()){
+    if(seen.has(id)) return 0; seen.add(id);
+    const unplacedKids=(dependsOn[id]||[]).filter(k=>!placed.has(k));
+    if(!unplacedKids.length) return SG_W;
+    const w=unplacedKids.reduce((s,k)=>s+subtreeW(k,new Set(seen)),0)+(unplacedKids.length-1)*H_GAP;
     return Math.max(SG_W,w);
   }
 
-  function placeSubtree(id,centerX,d,seen=new Set()){
-    if(seen.has(id)) return;
-    seen.add(id); posSet.add(id);
+  // Place each node once, centering over its unplaced children
+  function place(id,cx,d,seen=new Set()){
+    if(seen.has(id)||placed.has(id)) return;
+    seen.add(id); placed.add(id);
     const n=nodes.find(x=>x.id===id); if(!n) return;
-    n.x=centerX-SG_W/2;
-    n.y=TOP+d*V_GAP;
-    const kids=(dependsOn[id]||[]).filter(k=>!posSet.has(k));
+    n.x=cx-SG_W/2; n.y=TOP+d*V_GAP;
+    const kids=(dependsOn[id]||[]).filter(k=>!placed.has(k));
     if(!kids.length) return;
-    const totalW=kids.reduce((s,k)=>s+computeSubtreeW(k,new Set()),0)+(kids.length-1)*H_GAP;
-    let curX=centerX-totalW/2;
-    kids.forEach(kid=>{
-      const kw=computeSubtreeW(kid,new Set());
-      placeSubtree(kid,curX+kw/2,d+1,seen);
+    const totalW=kids.reduce((s,k)=>s+subtreeW(k,new Set()),0)+(kids.length-1)*H_GAP;
+    let curX=cx-totalW/2;
+    kids.forEach(k=>{
+      const kw=subtreeW(k,new Set());
+      place(k,curX+kw/2,d+1,seen);
       curX+=kw+H_GAP;
     });
   }
 
-  // Place roots
-  const totalRootsW=roots.reduce((s,r)=>s+computeSubtreeW(r,new Set()),0)+(roots.length-1)*H_GAP;
+  // Place all roots
   let rx=40+SG_W/2;
   roots.forEach(r=>{
-    const rw=computeSubtreeW(r,new Set());
-    placeSubtree(r,rx+rw/2,0);
+    const rw=subtreeW(r,new Set());
+    place(r,rx+rw/2,0);
     rx+=rw+H_GAP;
   });
 
-  // Refine shared nodes: center between all parents, then reposition their children
-  // Do multiple passes to propagate position changes downward
-  for(let pass=0;pass<3;pass++){
-    for(let d=1;d<=maxDepth;d++){
-      byDepth[d]&&byDepth[d].forEach(n=>{
-        const deps=dependents[n.id]||[];
-        const placedDeps=deps.map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&x.x!==undefined&&!isNaN(x.x));
-        if(placedDeps.length>1){
-          // Center this node between all its parents
-          const avgX=placedDeps.reduce((s,x)=>s+x.x+SG_W/2,0)/placedDeps.length;
-          n.x=avgX-SG_W/2;
-        }
-      });
-      // After adjusting shared nodes at this depth, re-center their children
-      byDepth[d]&&byDepth[d].forEach(n=>{
-        const kids=dependsOn[n.id]||[];
-        if(!kids.length) return;
-        // Re-space children around this node's new center
-        const validKids=kids.map(id=>nodes.find(x=>x.id===id)).filter(Boolean);
-        if(!validKids.length) return;
-        const totalW=validKids.length*SG_W+(validKids.length-1)*H_GAP;
-        const centerX=n.x+SG_W/2;
-        let curX=centerX-totalW/2;
-        // Only move kids that have a single parent (don't fight shared node centering)
-        validKids.forEach(kid=>{
-          const kidParents=(dependents[kid.id]||[]);
-          if(kidParents.length===1){
-            kid.x=curX;
-          }
-          curX+=SG_W+H_GAP;
-        });
-      });
-    }
+  // Center shared nodes (multiple parents) between their parents' positions
+  // Do depth-by-depth, top-down, only moving nodes — never their already-placed siblings
+  for(let d=1;d<=maxDepth;d++){
+    (byDepth[d]||[]).forEach(n=>{
+      const parents=(dependents[n.id]||[]).map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&!isNaN(x.x));
+      if(parents.length>1){
+        n.x=Math.round(parents.reduce((s,p)=>s+p.x+SG_W/2,0)/parents.length)-SG_W/2;
+      }
+    });
   }
 
-  // Place any unpositioned nodes
-  let floatX=rx+H_GAP; let floatY=TOP;
-  nodes.filter(n=>n.x===undefined||isNaN(n.x)).forEach(n=>{
+  // Fix overlaps per row: sort by x, then push apart any overlapping nodes
+  for(let d=0;d<=maxDepth;d++){
+    const row=(byDepth[d]||[]).slice().sort((a,b)=>a.x-b.x);
+    for(let i=1;i<row.length;i++){
+      const prev=row[i-1], cur=row[i];
+      const minX=prev.x+SG_W+H_GAP;
+      if(cur.x<minX) cur.x=minX;
+    }
+    // Then re-center any shared nodes that got pushed
+    // (a simple left-to-right sweep is enough to prevent overlap)
+  }
+
+  // Float unplaced nodes
+  let floatX=rx; let floatY=TOP;
+  nodes.filter(n=>!placed.has(n.id)||isNaN(n.x)).forEach(n=>{
     n.x=floatX; n.y=floatY; floatY+=V_GAP;
   });
 }
