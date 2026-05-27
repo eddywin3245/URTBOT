@@ -1257,7 +1257,7 @@ const SG_HDR_H = 36;     // header height
 const SG_TASK_H = 26;    // per task height
 const SG_PAD = 8;        // bottom padding
 const COL_GAP = 60;      // horizontal gap between columns
-const ROW_GAP = 180;     // vertical gap between rows
+const ROW_GAP = 220;     // vertical gap between rows
 
 let sgLinkSrc = null;    // {nodeId, goalId} shift+drag linking
 const fcState = {};
@@ -1347,8 +1347,8 @@ function autoLayout(goal){
   const nodes=goal.dagNodes||[]; const edges=goal.dagEdges||[];
   if(!nodes.length) return;
 
-  const H_GAP=60;  // horizontal gap between siblings
-  const V_GAP=180; // vertical gap between levels - must be > max node height
+  const H_GAP=80;  // horizontal gap between siblings
+  const V_GAP=220; // vertical gap between levels - must be > max node height
   const TOP=40;
 
   // Build children map: parent -> [children] (edges go from parent down to dependency)
@@ -1815,19 +1815,29 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
 function drawEdges(svg,goal,allTasks,cvs){
   svg.querySelectorAll('.dag-e,.dag-e-hit').forEach(e=>e.remove());
   (goal.dagEdges||[]).forEach(edge=>{
-    const fn=(goal.dagNodes||[]).find(n=>n.id===edge.from);
-    const tn=(goal.dagNodes||[]).find(n=>n.id===edge.to);
+    const fn=(goal.dagNodes||[]).find(n=>n.id===edge.from); // dependent node (higher up)
+    const tn=(goal.dagNodes||[]).find(n=>n.id===edge.to);   // dependency node (lower down)
     if(!fn||!tn) return;
 
-    // From-node bottom center → to-node top center
+    // Arrow flows UP: from dependency(tn) bottom → dependent(fn) bottom
+    // This shows "tn must complete before fn can start" visually flowing upward
+    const tnH=estimateH(tn,allTasks,cvs);
     const fnH=estimateH(fn,allTasks,cvs);
-    const fx=fn.x+SG_W/2, fy=fn.y+fnH+4; // start below node
-    const tx=tn.x+SG_W/2, ty=tn.y-4;     // end above node
 
-    // Cubic bezier - vertical S-curve with generous control points
-    const dy=Math.max(ty-fy,30);
-    const cp=Math.max(dy*0.6,60);
-    const d=`M${fx},${fy} C${fx},${fy+cp} ${tx},${ty-cp} ${tx},${ty}`;
+    // Start: bottom of dependency node
+    const sx=tn.x+SG_W/2, sy=tn.y+tnH+4;
+    // End: bottom of dependent node (arrow points INTO the dependent from below)
+    const ex=fn.x+SG_W/2, ey=fn.y+fnH+4;
+
+    // Actually draw from top of dependent DOWN to top of dependency (shows flow of work)
+    // From dependent top → dependency top (arrow points at dependency = "needs this")
+    const ax=fn.x+SG_W/2, ay=fn.y-4;   // top of dependent
+    const bx=tn.x+SG_W/2, by=tn.y-4;   // top of dependency
+
+    const dy=Math.abs(by-ay);
+    const cp=Math.max(dy*0.6,80);
+    // Arrow goes from dependent top downward to dependency top
+    const d=`M${ax},${ay} C${ax},${ay-cp} ${bx},${by-cp} ${bx},${by}`;
 
     const path=document.createElementNS('http://www.w3.org/2000/svg','path');
     path.setAttribute('d',d); path.setAttribute('class','dag-e');
