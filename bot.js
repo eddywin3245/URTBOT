@@ -2043,9 +2043,11 @@ Feel free to pick a different task!`);
           store.spent[groupId] = (store.spent[groupId] || 0) + costToLog;
           const expAmount = finalTotal !== null ? finalTotal : estTotal;
           store.expenses.push({ receiptId, item, groupId, status: reimbursement, amount: expAmount, date: new Date().toLocaleDateString("en-AU") });
-          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), userName, group.label, item, qty, fmtAUD(estCost), fmtAUD(estTotal), finalCost !== null ? fmtAUD(finalCost) : "", finalTotal !== null ? fmtAUD(finalTotal) : "", "No", reimbursement, receipt, justification, ""]);
-          await updateBudgetDashboard(guild);
-          await syncBudgetSheet();
+          try {
+            await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), userName, group.label, item, qty, fmtAUD(estCost), fmtAUD(estTotal), finalCost !== null ? fmtAUD(finalCost) : "", finalTotal !== null ? fmtAUD(finalTotal) : "", "No", reimbursement, receipt, justification, ""]);
+          } catch (sheetErr) { console.error("Sheet append error (non-fatal):", sheetErr.message); }
+          try { await updateBudgetDashboard(guild); } catch (e) { console.error("Budget dashboard error:", e.message); }
+          try { await syncBudgetSheet(); } catch (e) { console.error("Sync sheet error:", e.message); }
           await postFinanceLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
             [`**${item}** x${qty}`, `Est: ${fmtAUD(estTotal)}${finalTotal !== null ? `  |  Final: ${fmtAUD(finalTotal)}` : ""}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `Reimbursement: ${reimbursement}`, justification ? `Justification: ${justification}` : null].filter(Boolean)));
           await saveData();
