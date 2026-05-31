@@ -1449,7 +1449,7 @@ function autoLayout(goal){
   }
 
   // Float unplaced nodes
-  let floatX=rx; let floatY=TOP;
+  let floatX = (typeof rx !== 'undefined' ? rx : 40 + SG_W/2); let floatY = TOP;
   nodes.filter(n=>!placed.has(n.id)||isNaN(n.x)).forEach(n=>{
     n.x=floatX; n.y=floatY; floatY+=V_GAP;
   });
