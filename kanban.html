@@ -1348,15 +1348,15 @@ function autoLayout(goal){
   if(!nodes.length) return;
   const H_GAP=80, V_GAP=240, TOP=40;
 
-  // Build maps: edge.from=dependent(higher), edge.to=dependency(lower)
+  // Build relationship maps
   const dependsOn={}, dependents={};
   nodes.forEach(n=>{ dependsOn[n.id]=[]; dependents[n.id]=[]; });
   edges.forEach(e=>{
     if(!dependsOn[e.from].includes(e.to)) dependsOn[e.from].push(e.to);
-    if(!dependents[e.to].includes(e.from)) dependents[e.to].push(e.from);
+    if(!dependents[e.to].includes(e.from))  dependents[e.to].push(e.from);
   });
 
-  // Assign depths (roots = no dependents = top)
+  // Assign depths
   const depth={};
   nodes.forEach(n=>depth[n.id]=0);
   const roots=nodes.filter(n=>!dependents[n.id].length).map(n=>n.id);
@@ -1368,106 +1368,84 @@ function autoLayout(goal){
   }
   roots.forEach(r=>assignDepth(r,0));
   const maxDepth=Math.max(0,...Object.values(depth));
-  const byDepth=[];
-  for(let d=0;d<=maxDepth;d++) byDepth[d]=nodes.filter(n=>depth[n.id]===d);
 
-  // Compute subtree width (only counting nodes not yet placed)
-  const placed=new Set();
-  function subtreeW(id,seen=new Set()){
-    if(seen.has(id))return 0; seen.add(id);
-    const kids=dependsOn[id].filter(k=>!placed.has(k));
-    if(!kids.length)return SG_W;
-    return Math.max(SG_W,kids.reduce((s,k)=>s+subtreeW(k,new Set(seen)),0)+(kids.length-1)*H_GAP);
+  // For each root, collect its EXCLUSIVE nodes (nodes that only this root can reach)
+  // Shared nodes (reachable from multiple roots) are handled separately
+  function collectReachable(id, seen=new Set()){
+    if(seen.has(id))return seen; seen.add(id);
+    dependsOn[id].forEach(c=>collectReachable(c,seen));
+    return seen;
+  }
+  const reachableFromRoot={};
+  roots.forEach(r=>{ reachableFromRoot[r]=collectReachable(r); });
+
+  // A node is "shared" if multiple roots can reach it
+  function isShared(id){
+    return roots.filter(r=>reachableFromRoot[r].has(id)).length>1;
+  }
+  function exclusiveChildren(id, rootId){
+    return (dependsOn[id]||[]).filter(c=>!isShared(c));
   }
 
-  // Place subtrees recursively
-  function place(id,cx,d,seen=new Set()){
+  // Compute exclusive subtree width (ignoring shared nodes)
+  const placed=new Set();
+  function exclusiveSubtreeW(id, rootId, seen=new Set()){
+    if(seen.has(id))return 0; seen.add(id);
+    const kids=exclusiveChildren(id,rootId).filter(k=>!placed.has(k));
+    if(!kids.length)return SG_W;
+    return Math.max(SG_W, kids.reduce((s,k)=>s+exclusiveSubtreeW(k,rootId,new Set(seen)),0)+(kids.length-1)*H_GAP);
+  }
+
+  // Place exclusive subtree within a given band [bandLeft, bandLeft+bandW]
+  function placeExclusive(id, rootId, cx, d, seen=new Set()){
     if(seen.has(id)||placed.has(id))return;
     seen.add(id); placed.add(id);
     const n=nodes.find(x=>x.id===id); if(!n)return;
     n.x=cx-SG_W/2; n.y=TOP+d*V_GAP;
-    const kids=dependsOn[id].filter(k=>!placed.has(k));
+    const kids=exclusiveChildren(id,rootId).filter(k=>!placed.has(k));
     if(!kids.length)return;
-    const totalW=kids.reduce((s,k)=>s+subtreeW(k,new Set()),0)+(kids.length-1)*H_GAP;
+    const totalW=kids.reduce((s,k)=>s+exclusiveSubtreeW(k,rootId,new Set()),0)+(kids.length-1)*H_GAP;
     let curX=cx-totalW/2;
-    kids.forEach(k=>{ const kw=subtreeW(k,new Set()); place(k,curX+kw/2,d+1,seen); curX+=kw+H_GAP; });
-  }
-
-  // Initial placement of all root subtrees side by side
-  let rx=40+SG_W/2;
-  roots.forEach(r=>{ const rw=subtreeW(r,new Set()); place(r,rx+rw/2,0); rx+=rw+H_GAP; });
-
-  // Shift a node and all its exclusive descendants (single-parent children only)
-  function shiftExclusive(id, dx, visited=new Set()){
-    if(visited.has(id)||Math.abs(dx)<0.5)return;
-    visited.add(id);
-    const n=nodes.find(x=>x.id===id); if(n) n.x+=dx;
-    dependsOn[id].forEach(c=>{ if((dependents[c]||[]).length===1) shiftExclusive(c,dx,visited); });
-  }
-
-  // Shift an ENTIRE root subtree (everything under a root, regardless of shared status)
-  function shiftRootSubtree(rootId, dx){
-    const all=new Set();
-    function collect(id){ if(all.has(id))return; all.add(id); dependsOn[id].forEach(c=>collect(c)); }
-    collect(rootId);
-    all.forEach(id=>{ const n=nodes.find(x=>x.id===id); if(n) n.x+=dx; });
-  }
-
-  // Center shared nodes between their parents
-  for(let d=1;d<=maxDepth;d++){
-    (byDepth[d]||[]).forEach(n=>{
-      const parents=(dependents[n.id]||[]).map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&!isNaN(x.x));
-      if(parents.length>1){
-        const targetCx=parents.reduce((s,p)=>s+p.x+SG_W/2,0)/parents.length;
-        const dx=targetCx-(n.x+SG_W/2);
-        if(Math.abs(dx)>0.5) shiftExclusive(n.id,dx);
-      }
+    kids.forEach(k=>{
+      const kw=exclusiveSubtreeW(k,rootId,new Set());
+      placeExclusive(k,rootId,curX+kw/2,d+1,seen);
+      curX+=kw+H_GAP;
     });
   }
 
-  // Separate root subtrees cleanly — no row-level overlap fixes that cause crossings
-  // Instead: measure each root's subtree bounding box, then push subtrees apart
-  function subtreeMinX(id, visited=new Set()){
-    if(visited.has(id))return Infinity; visited.add(id);
-    const n=nodes.find(x=>x.id===id);
-    const own=n?n.x:Infinity;
-    return Math.min(own,...dependsOn[id].map(c=>subtreeMinX(c,visited)));
-  }
-  function subtreeMaxX(id, visited=new Set()){
-    if(visited.has(id))return -Infinity; visited.add(id);
-    const n=nodes.find(x=>x.id===id);
-    const own=n?n.x+SG_W:-Infinity;
-    return Math.max(own,...dependsOn[id].map(c=>subtreeMaxX(c,visited)));
-  }
-
-  // Sort roots by current x position, then push right if overlapping
-  const sortedRoots=[...roots].sort((a,b)=>{
-    const na=nodes.find(x=>x.id===a), nb=nodes.find(x=>x.id===b);
-    return (na?.x||0)-(nb?.x||0);
+  // 1. Place each root's exclusive subtree in its own band
+  let curBandX=40;
+  roots.forEach(r=>{
+    const w=exclusiveSubtreeW(r,r,new Set());
+    const cx=curBandX+w/2;
+    placeExclusive(r,r,cx,0);
+    curBandX+=w+H_GAP;
   });
-  for(let i=1;i<sortedRoots.length;i++){
-    const prevMax=subtreeMaxX(sortedRoots[i-1]);
-    const curMin=subtreeMinX(sortedRoots[i]);
-    const gap=prevMax+H_GAP-curMin;
-    if(gap>0) shiftRootSubtree(sortedRoots[i], gap);
-  }
 
-  // Bottom-up: re-center single-parent nodes over their children's actual positions
-  for(let d=maxDepth-1;d>=0;d--){
-    (byDepth[d]||[]).forEach(n=>{
-      const kids=dependsOn[n.id]||[];
-      if(!kids.length)return;
-      // Only recenter if this node has a single parent or is a root (don't fight shared node logic)
-      if((dependents[n.id]||[]).length>1)return;
-      const kidNodes=kids.map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&!isNaN(x.x));
-      if(!kidNodes.length)return;
-      const avgCx=kidNodes.reduce((s,k)=>s+k.x+SG_W/2,0)/kidNodes.length;
-      n.x=avgCx-SG_W/2;
+  // 2. Place shared nodes: center between all parents that are already placed
+  // Process depth by depth so parents are placed first
+  for(let d=1;d<=maxDepth;d++){
+    nodes.filter(n=>depth[n.id]===d&&isShared(n.id)&&!placed.has(n.id)).forEach(n=>{
+      const parents=(dependents[n.id]||[]).map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&!isNaN(x.x));
+      if(!parents.length)return;
+      placed.add(n.id);
+      n.x=parents.reduce((s,p)=>s+p.x+SG_W/2,0)/parents.length - SG_W/2;
+      n.y=TOP+d*V_GAP;
+      // Place this shared node's exclusive children (children only shared node can reach exclusively)
+      const kids=dependsOn[n.id].filter(k=>!placed.has(k));
+      const totalW=kids.length*(SG_W)+(kids.length-1)*H_GAP;
+      let curX=n.x+SG_W/2-totalW/2;
+      kids.forEach(k=>{
+        placed.add(k);
+        const kn=nodes.find(x=>x.id===k); if(!kn)return;
+        kn.x=curX; kn.y=TOP+(d+1)*V_GAP;
+        curX+=SG_W+H_GAP;
+      });
     });
   }
 
-  // Float any unplaced nodes to the right
-  let floatX=rx; let floatY=TOP;
+  // 3. Float any remaining unplaced
+  let floatX=curBandX; let floatY=TOP;
   nodes.filter(n=>!placed.has(n.id)||isNaN(n.x)).forEach(n=>{n.x=floatX;n.y=floatY;floatY+=V_GAP;});
 }
 // ─── Subgoal node height ───
