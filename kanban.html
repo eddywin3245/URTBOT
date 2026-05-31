@@ -1413,25 +1413,37 @@ function autoLayout(goal){
     rx+=rw+H_GAP;
   });
 
-  // Center shared nodes (multiple parents) between their parents' positions
-  // Do depth-by-depth, top-down, only moving nodes — never their already-placed siblings
+// Shift a node AND all its single-parent descendants together
+  function shiftSubtreeDesc(id, dx, visited=new Set()){
+    if(visited.has(id)||Math.abs(dx)<0.5) return;
+    visited.add(id);
+    const n=nodes.find(x=>x.id===id); if(n) n.x+=dx;
+    (dependsOn[id]||[]).forEach(childId=>{
+      if((dependents[childId]||[]).length===1) shiftSubtreeDesc(childId,dx,visited);
+    });
+  }
+
+  // Center shared nodes between parents, bring their children with them
   for(let d=1;d<=maxDepth;d++){
     (byDepth[d]||[]).forEach(n=>{
       const parents=(dependents[n.id]||[]).map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&!isNaN(x.x));
       if(parents.length>1){
-        n.x=Math.round(parents.reduce((s,p)=>s+p.x+SG_W/2,0)/parents.length)-SG_W/2;
+        const targetCx=parents.reduce((s,p)=>s+p.x+SG_W/2,0)/parents.length;
+        const dx=targetCx-(n.x+SG_W/2);
+        if(Math.abs(dx)>0.5) shiftSubtreeDesc(n.id,dx);
       }
     });
   }
 
-  // Fix overlaps per row: sort by x, then push apart any overlapping nodes
+  // Fix overlaps, shifting descendants along too
   for(let d=0;d<=maxDepth;d++){
     const row=(byDepth[d]||[]).slice().sort((a,b)=>a.x-b.x);
     for(let i=1;i<row.length;i++){
       const prev=row[i-1], cur=row[i];
       const minX=prev.x+SG_W+H_GAP;
-      if(cur.x<minX) cur.x=minX;
+      if(cur.x<minX) shiftSubtreeDesc(cur.id, minX-cur.x);
     }
+  }
     // Then re-center any shared nodes that got pushed
     // (a simple left-to-right sweep is enough to prevent overlap)
   }
@@ -1441,7 +1453,7 @@ function autoLayout(goal){
   nodes.filter(n=>!placed.has(n.id)||isNaN(n.x)).forEach(n=>{
     n.x=floatX; n.y=floatY; floatY+=V_GAP;
   });
-}
+
 
 // ─── Subgoal node height ───
 function sgHeight(node,allTasks){
