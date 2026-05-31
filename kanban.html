@@ -1413,7 +1413,7 @@ function autoLayout(goal){
     rx+=rw+H_GAP;
   });
 
-// Shift a node AND all its single-parent descendants together
+  // Shift a node AND all its single-parent descendants together
   function shiftSubtreeDesc(id, dx, visited=new Set()){
     if(visited.has(id)||Math.abs(dx)<0.5) return;
     visited.add(id);
@@ -1444,15 +1444,13 @@ function autoLayout(goal){
       if(cur.x<minX) shiftSubtreeDesc(cur.id, minX-cur.x);
     }
   }
-    // Then re-center any shared nodes that got pushed
-    // (a simple left-to-right sweep is enough to prevent overlap)
-  }
 
   // Float unplaced nodes
-  let floatX = (typeof rx !== 'undefined' ? rx : 40 + SG_W/2); let floatY = TOP;
+  let floatX=rx; let floatY=TOP;
   nodes.filter(n=>!placed.has(n.id)||isNaN(n.x)).forEach(n=>{
     n.x=floatX; n.y=floatY; floatY+=V_GAP;
   });
+}
 
 
 // ─── Subgoal node height ───
