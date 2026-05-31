@@ -1348,7 +1348,6 @@ function autoLayout(goal){
   if(!nodes.length) return;
   const H_GAP=80, V_GAP=240, TOP=40;
 
-  // Build maps
   const dependsOn={}, dependents={};
   nodes.forEach(n=>{ dependsOn[n.id]=[]; dependents[n.id]=[]; });
   edges.forEach(e=>{
@@ -1356,7 +1355,6 @@ function autoLayout(goal){
     if(!dependents[e.to].includes(e.from)) dependents[e.to].push(e.from);
   });
 
-  // Depths
   const depth={};
   nodes.forEach(n=>depth[n.id]=0);
   const roots=nodes.filter(n=>!dependents[n.id].length).map(n=>n.id);
@@ -1371,20 +1369,15 @@ function autoLayout(goal){
   const byDepth=[];
   for(let d=0;d<=maxDepth;d++) byDepth[d]=nodes.filter(n=>depth[n.id]===d);
 
-  // Compute full subtree width including ALL descendants
-  const swCache={};
+  // Full subtree width
   function subtreeW(id,seen=new Set()){
-    if(seen.has(id))return 0;
-    const key=id+','+[...seen].join();
-    if(swCache[key]!==undefined)return swCache[key];
-    seen.add(id);
+    if(seen.has(id))return 0; seen.add(id);
     const kids=dependsOn[id]||[];
-    if(!kids.length)return swCache[key]=SG_W;
-    const w=kids.reduce((s,k)=>s+subtreeW(k,new Set(seen)),0)+(kids.length-1)*H_GAP;
-    return swCache[key]=Math.max(SG_W,w);
+    if(!kids.length)return SG_W;
+    return Math.max(SG_W,kids.reduce((s,k)=>s+subtreeW(k,new Set(seen)),0)+(kids.length-1)*H_GAP);
   }
 
-  // Place a full subtree recursively, centering each node over its children
+  // Place full subtree
   const placed=new Set();
   function place(id,cx,d,seen=new Set()){
     if(seen.has(id)||placed.has(id))return;
@@ -1402,35 +1395,56 @@ function autoLayout(goal){
     });
   }
 
-  // Place all roots in separate bands — NO interleaving possible
+  // Shift node + exclusive descendants only
+  function shiftExcl(id,dx,vis=new Set()){
+    if(vis.has(id)||Math.abs(dx)<0.5)return; vis.add(id);
+    const n=nodes.find(x=>x.id===id); if(n) n.x+=dx;
+    (dependsOn[id]||[]).forEach(c=>{
+      if((dependents[c]||[]).length===1) shiftExcl(c,dx,vis);
+    });
+  }
+
+  // Place roots in strict bands
   let bandStart=40;
   roots.forEach(r=>{
     const w=subtreeW(r,new Set());
-    place(r, bandStart+w/2, 0);
+    place(r,bandStart+w/2,0);
     bandStart+=w+H_GAP;
   });
 
-  // Re-center nodes that have multiple parents (shared nodes) between their parents
-  // Run multiple passes top-down so changes propagate
-  for(let pass=0;pass<2;pass++){
-    for(let d=1;d<=maxDepth;d++){
-      (byDepth[d]||[]).forEach(n=>{
-        const parents=(dependents[n.id]||[]).map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&!isNaN(x.x));
-        if(parents.length<2)return;
-        // Center between parents
-        const cx=parents.reduce((s,p)=>s+p.x+SG_W/2,0)/parents.length;
-        const dx=cx-(n.x+SG_W/2);
-        if(Math.abs(dx)<1)return;
-        // Move this node and ONLY nodes exclusively under it
-        function shiftExcl(id,dx,vis=new Set()){
-          if(vis.has(id))return; vis.add(id);
-          const nd=nodes.find(x=>x.id===id); if(nd) nd.x+=dx;
-          (dependsOn[id]||[]).forEach(c=>{
-            if((dependents[c]||[]).length===1) shiftExcl(c,dx,vis);
-          });
-        }
-        shiftExcl(n.id,dx);
-      });
+  // Re-center shared nodes between their parents
+  for(let d=1;d<=maxDepth;d++){
+    (byDepth[d]||[]).forEach(n=>{
+      const parents=(dependents[n.id]||[]).map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&!isNaN(x.x));
+      if(parents.length<2)return;
+      const cx=parents.reduce((s,p)=>s+p.x+SG_W/2,0)/parents.length;
+      const dx=cx-(n.x+SG_W/2);
+      if(Math.abs(dx)>0.5) shiftExcl(n.id,dx);
+    });
+  }
+
+  // Final overlap fix: sweep each depth level left-to-right
+  // When pushing a node right, also push its exclusive descendants
+  for(let d=0;d<=maxDepth;d++){
+    const row=(byDepth[d]||[]).slice().sort((a,b)=>a.x-b.x);
+    for(let i=1;i<row.length;i++){
+      const prev=row[i-1], cur=row[i];
+      const minX=prev.x+SG_W+H_GAP;
+      if(cur.x<minX){
+        shiftExcl(cur.id, minX-cur.x);
+        // Also update parent position if it has only one child at this depth
+        // to avoid parent-child arrows crossing other nodes
+        (dependents[cur.id]||[]).forEach(parentId=>{
+          const pn=nodes.find(x=>x.id===parentId); if(!pn)return;
+          const sibs=(dependsOn[parentId]||[]).map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&!isNaN(x.x));
+          if(!sibs.length)return;
+          const avgCx=sibs.reduce((s,s2)=>s+s2.x+SG_W/2,0)/sibs.length;
+          // Only move parent if it has a single parent itself (not a shared/root node)
+          if((dependents[parentId]||[]).length===1){
+            pn.x=avgCx-SG_W/2;
+          }
+        });
+      }
     }
   }
 
