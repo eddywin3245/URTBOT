@@ -1369,7 +1369,6 @@ function autoLayout(goal){
   const byDepth=[];
   for(let d=0;d<=maxDepth;d++) byDepth[d]=nodes.filter(n=>depth[n.id]===d);
 
-  // Full subtree width
   function subtreeW(id,seen=new Set()){
     if(seen.has(id))return 0; seen.add(id);
     const kids=dependsOn[id]||[];
@@ -1377,7 +1376,6 @@ function autoLayout(goal){
     return Math.max(SG_W,kids.reduce((s,k)=>s+subtreeW(k,new Set(seen)),0)+(kids.length-1)*H_GAP);
   }
 
-  // Place full subtree
   const placed=new Set();
   function place(id,cx,d,seen=new Set()){
     if(seen.has(id)||placed.has(id))return;
@@ -1395,13 +1393,20 @@ function autoLayout(goal){
     });
   }
 
-  // Shift node + exclusive descendants only
+  // Shift node + all exclusive descendants
   function shiftExcl(id,dx,vis=new Set()){
     if(vis.has(id)||Math.abs(dx)<0.5)return; vis.add(id);
     const n=nodes.find(x=>x.id===id); if(n) n.x+=dx;
     (dependsOn[id]||[]).forEach(c=>{
       if((dependents[c]||[]).length===1) shiftExcl(c,dx,vis);
     });
+  }
+
+  // Get all exclusive descendants of a node (those with only one parent)
+  function getExclDescendants(id,vis=new Set()){
+    if(vis.has(id))return vis; vis.add(id);
+    (dependsOn[id]||[]).forEach(c=>{ if((dependents[c]||[]).length===1) getExclDescendants(c,vis); });
+    return vis;
   }
 
   // Place roots in strict bands
@@ -1423,27 +1428,23 @@ function autoLayout(goal){
     });
   }
 
-  // Final overlap fix: sweep each depth level left-to-right
-  // When pushing a node right, also push its exclusive descendants
+  // Final overlap fix: at each depth, sort nodes then push SIBLING GROUPS apart
+  // A sibling group = a node + all its exclusive descendants at that depth level
   for(let d=0;d<=maxDepth;d++){
     const row=(byDepth[d]||[]).slice().sort((a,b)=>a.x-b.x);
+    if(row.length<2)continue;
+
+    // Build sibling groups: each node at this depth + its excl descendants also at this depth
+    // Group key = the node's own id (it represents its group)
+    // Sort groups by their leftmost x
     for(let i=1;i<row.length;i++){
       const prev=row[i-1], cur=row[i];
-      const minX=prev.x+SG_W+H_GAP;
+      // Find rightmost x of prev's exclusive descendants at THIS depth
+      const prevDescAtDepth=[...getExclDescendants(prev.id)].map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&depth[x.id]===d&&x.id!==prev.id);
+      const prevRight=Math.max(prev.x+SG_W,...prevDescAtDepth.map(n=>n.x+SG_W));
+      const minX=prevRight+H_GAP;
       if(cur.x<minX){
         shiftExcl(cur.id, minX-cur.x);
-        // Also update parent position if it has only one child at this depth
-        // to avoid parent-child arrows crossing other nodes
-        (dependents[cur.id]||[]).forEach(parentId=>{
-          const pn=nodes.find(x=>x.id===parentId); if(!pn)return;
-          const sibs=(dependsOn[parentId]||[]).map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&!isNaN(x.x));
-          if(!sibs.length)return;
-          const avgCx=sibs.reduce((s,s2)=>s+s2.x+SG_W/2,0)/sibs.length;
-          // Only move parent if it has a single parent itself (not a shared/root node)
-          if((dependents[parentId]||[]).length===1){
-            pn.x=avgCx-SG_W/2;
-          }
-        });
       }
     }
   }
