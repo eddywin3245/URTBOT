@@ -1344,46 +1344,58 @@ function wouldCycle(goal,from,to){
 
 // ─── Auto layout (top-down, goal as root at top) ───
 function autoLayout(goal){
-  const nodes=goal.dagNodes||[], edges=goal.dagEdges||[];
+  const nodes=goal.dagNodes||[]; const edges=goal.dagEdges||[];
   if(!nodes.length) return;
-  const H_GAP=80, V_GAP=240, TOP=40;
 
-  const dependsOn={}, dependents={};
+  const H_GAP=80;
+  const V_GAP=240;
+  const TOP=40;
+  const NODE_W=SG_W+H_GAP;
+
+  // Build relationship maps
+  // edge.from = dependent (higher), edge.to = dependency (lower)
+  const dependsOn={};   // id -> [ids this node depends on]
+  const dependents={};  // id -> [ids that depend on this node]
   nodes.forEach(n=>{ dependsOn[n.id]=[]; dependents[n.id]=[]; });
   edges.forEach(e=>{
-    if(!dependsOn[e.from].includes(e.to)) dependsOn[e.from].push(e.to);
-    if(!dependents[e.to].includes(e.from)) dependents[e.to].push(e.from);
+    if(dependsOn[e.from]&&!dependsOn[e.from].includes(e.to)) dependsOn[e.from].push(e.to);
+    if(dependents[e.to]&&!dependents[e.to].includes(e.from))  dependents[e.to].push(e.from);
   });
 
+  // Assign depth (roots = top, no dependents)
   const depth={};
   nodes.forEach(n=>depth[n.id]=0);
-  const roots=nodes.filter(n=>!dependents[n.id].length).map(n=>n.id);
+  const roots=nodes.filter(n=>dependents[n.id].length===0).map(n=>n.id);
   if(!roots.length) roots.push(nodes[0].id);
   function assignDepth(id,d,seen=new Set()){
-    if(seen.has(id))return; seen.add(id);
+    if(seen.has(id)) return; seen.add(id);
     depth[id]=Math.max(depth[id]||0,d);
-    dependsOn[id].forEach(c=>assignDepth(c,d+1,seen));
+    (dependsOn[id]||[]).forEach(c=>assignDepth(c,d+1,seen));
   }
   roots.forEach(r=>assignDepth(r,0));
+
   const maxDepth=Math.max(0,...Object.values(depth));
   const byDepth=[];
-  for(let d=0;d<=maxDepth;d++) byDepth[d]=nodes.filter(n=>depth[n.id]===d);
+  for(let d=0;d<=maxDepth;d++) byDepth[d]=(nodes.filter(n=>depth[n.id]===d));
 
+  // Compute minimum subtree width needed (for nodes not yet placed)
+  const placed=new Set();
   function subtreeW(id,seen=new Set()){
-    if(seen.has(id))return 0; seen.add(id);
-    const kids=dependsOn[id]||[];
-    if(!kids.length)return SG_W;
-    return Math.max(SG_W,kids.reduce((s,k)=>s+subtreeW(k,new Set(seen)),0)+(kids.length-1)*H_GAP);
+    if(seen.has(id)) return 0; seen.add(id);
+    const unplacedKids=(dependsOn[id]||[]).filter(k=>!placed.has(k));
+    if(!unplacedKids.length) return SG_W;
+    const w=unplacedKids.reduce((s,k)=>s+subtreeW(k,new Set(seen)),0)+(unplacedKids.length-1)*H_GAP;
+    return Math.max(SG_W,w);
   }
 
-  const placed=new Set();
+  // Place each node once, centering over its unplaced children
   function place(id,cx,d,seen=new Set()){
-    if(seen.has(id)||placed.has(id))return;
+    if(seen.has(id)||placed.has(id)) return;
     seen.add(id); placed.add(id);
-    const n=nodes.find(x=>x.id===id); if(!n)return;
+    const n=nodes.find(x=>x.id===id); if(!n) return;
     n.x=cx-SG_W/2; n.y=TOP+d*V_GAP;
     const kids=(dependsOn[id]||[]).filter(k=>!placed.has(k));
-    if(!kids.length)return;
+    if(!kids.length) return;
     const totalW=kids.reduce((s,k)=>s+subtreeW(k,new Set()),0)+(kids.length-1)*H_GAP;
     let curX=cx-totalW/2;
     kids.forEach(k=>{
@@ -1393,66 +1405,56 @@ function autoLayout(goal){
     });
   }
 
-  // Shift node + all exclusive descendants
-  function shiftExcl(id,dx,vis=new Set()){
-    if(vis.has(id)||Math.abs(dx)<0.5)return; vis.add(id);
+  // Place all roots
+  let rx=40+SG_W/2;
+  roots.forEach(r=>{
+    const rw=subtreeW(r,new Set());
+    place(r,rx+rw/2,0);
+    rx+=rw+H_GAP;
+  });
+
+// Shift a node AND all its single-parent descendants together
+  function shiftSubtreeDesc(id, dx, visited=new Set()){
+    if(visited.has(id)||Math.abs(dx)<0.5) return;
+    visited.add(id);
     const n=nodes.find(x=>x.id===id); if(n) n.x+=dx;
-    (dependsOn[id]||[]).forEach(c=>{
-      if((dependents[c]||[]).length===1) shiftExcl(c,dx,vis);
+    (dependsOn[id]||[]).forEach(childId=>{
+      if((dependents[childId]||[]).length===1) shiftSubtreeDesc(childId,dx,visited);
     });
   }
 
-  // Get all exclusive descendants of a node (those with only one parent)
-  function getExclDescendants(id,vis=new Set()){
-    if(vis.has(id))return vis; vis.add(id);
-    (dependsOn[id]||[]).forEach(c=>{ if((dependents[c]||[]).length===1) getExclDescendants(c,vis); });
-    return vis;
-  }
-
-  // Place roots in strict bands
-  let bandStart=40;
-  roots.forEach(r=>{
-    const w=subtreeW(r,new Set());
-    place(r,bandStart+w/2,0);
-    bandStart+=w+H_GAP;
-  });
-
-  // Re-center shared nodes between their parents
+  // Center shared nodes between parents, bring their children with them
   for(let d=1;d<=maxDepth;d++){
     (byDepth[d]||[]).forEach(n=>{
       const parents=(dependents[n.id]||[]).map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&!isNaN(x.x));
-      if(parents.length<2)return;
-      const cx=parents.reduce((s,p)=>s+p.x+SG_W/2,0)/parents.length;
-      const dx=cx-(n.x+SG_W/2);
-      if(Math.abs(dx)>0.5) shiftExcl(n.id,dx);
+      if(parents.length>1){
+        const targetCx=parents.reduce((s,p)=>s+p.x+SG_W/2,0)/parents.length;
+        const dx=targetCx-(n.x+SG_W/2);
+        if(Math.abs(dx)>0.5) shiftSubtreeDesc(n.id,dx);
+      }
     });
   }
 
-  // Final overlap fix: at each depth, sort nodes then push SIBLING GROUPS apart
-  // A sibling group = a node + all its exclusive descendants at that depth level
+  // Fix overlaps, shifting descendants along too
   for(let d=0;d<=maxDepth;d++){
     const row=(byDepth[d]||[]).slice().sort((a,b)=>a.x-b.x);
-    if(row.length<2)continue;
-
-    // Build sibling groups: each node at this depth + its excl descendants also at this depth
-    // Group key = the node's own id (it represents its group)
-    // Sort groups by their leftmost x
     for(let i=1;i<row.length;i++){
       const prev=row[i-1], cur=row[i];
-      // Find rightmost x of prev's exclusive descendants at THIS depth
-      const prevDescAtDepth=[...getExclDescendants(prev.id)].map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&depth[x.id]===d&&x.id!==prev.id);
-      const prevRight=Math.max(prev.x+SG_W,...prevDescAtDepth.map(n=>n.x+SG_W));
-      const minX=prevRight+H_GAP;
-      if(cur.x<minX){
-        shiftExcl(cur.id, minX-cur.x);
-      }
+      const minX=prev.x+SG_W+H_GAP;
+      if(cur.x<minX) shiftSubtreeDesc(cur.id, minX-cur.x);
     }
   }
+    // Then re-center any shared nodes that got pushed
+    // (a simple left-to-right sweep is enough to prevent overlap)
+  }
 
-  // Float unplaced
-  let floatX=bandStart, floatY=TOP;
-  nodes.filter(n=>!placed.has(n.id)||isNaN(n.x)).forEach(n=>{n.x=floatX;n.y=floatY;floatY+=V_GAP;});
-}
+  // Float unplaced nodes
+  let floatX = (typeof rx !== 'undefined' ? rx : 40 + SG_W/2); let floatY = TOP;
+  nodes.filter(n=>!placed.has(n.id)||isNaN(n.x)).forEach(n=>{
+    n.x=floatX; n.y=floatY; floatY+=V_GAP;
+  });
+
+
 // ─── Subgoal node height ───
 function sgHeight(node,allTasks){
   const tasks=(node.taskIds||[]).filter(id=>{const t=allTasks.find(x=>x.id===id);return !t||t.status!=='done';});
@@ -2662,6 +2664,9 @@ function openAddExpenseModal() {
     '<div class="mfield"><label>SUBSYSTEM</label>' +
       '<select id="exp-sub" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none">' + subOpts + '</select>' +
     '</div>' +
+    '<div class="mfield"><label>PAYEE NAME (who bought it)</label>' +
+      '<input type="text" id="exp-payee" placeholder="e.g. Edwin Mathew" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none">' +
+    '</div>' +
     '<div class="mfield"><label>ITEM DESCRIPTION</label>' +
       '<input type="text" id="exp-item" placeholder="e.g. Stepper motors x4" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none">' +
     '</div>' +
@@ -2688,22 +2693,32 @@ function openAddExpenseModal() {
 }
 
 async function confirmAddExpense() {
-  const subId   = document.getElementById('exp-sub').value;
-  const item    = document.getElementById('exp-item').value.trim();
-  const qty     = parseFloat(document.getElementById('exp-qty').value) || 1;
-  const cost    = parseFloat(document.getElementById('exp-cost').value) || 0;
-  const date    = document.getElementById('exp-date').value;
-  const reimb   = document.getElementById('exp-reimb').value;
-  const notes   = document.getElementById('exp-notes').value.trim();
-  const receipt = document.getElementById('exp-receipt').value.trim();
+  const subId   = document.getElementById('exp-sub')?.value;
+  const payee   = (document.getElementById('exp-payee')?.value || '').trim();
+  const item    = (document.getElementById('exp-item')?.value || '').trim();
+  const qty     = parseFloat(document.getElementById('exp-qty')?.value) || 1;
+  const costRaw = document.getElementById('exp-cost')?.value;
+  const cost    = parseFloat(costRaw);
+  const date    = document.getElementById('exp-date')?.value || '';
+  const reimb   = document.getElementById('exp-reimb')?.value || 'No';
+  const notes   = (document.getElementById('exp-notes')?.value || '').trim();
+  const receipt = (document.getElementById('exp-receipt')?.value || '').trim();
 
   if (!item) { alert('Item description required'); return; }
-  if (!cost)  { alert('Cost required'); return; }
+  if (!payee) { alert('Payee name required'); return; }
+  if (!costRaw || isNaN(cost) || cost <= 0) { alert('Please enter a valid cost greater than 0'); return; }
 
   const sub = SUBS.find(s => s.id === subId);
   const total = qty * cost;
-  const receiptId = 'K' + Date.now().toString(36).toUpperCase();
-  const dateStr = date ? new Date(date).toLocaleDateString('en-AU') : new Date().toLocaleDateString('en-AU');
+
+  // Use proper RCP-XXXX format matching the bot
+  if (!store.receiptCounter) store.receiptCounter = 1;
+  const receiptId = 'RCP-' + String(store.receiptCounter).padStart(4, '0');
+  store.receiptCounter++;
+
+  let dateStr;
+  try { dateStr = date ? new Date(date + 'T00:00:00').toLocaleDateString('en-AU') : new Date().toLocaleDateString('en-AU'); }
+  catch { dateStr = new Date().toLocaleDateString('en-AU'); }
 
   if (!store.expenses) store.expenses = [];
   if (!store.spent)    store.spent    = {};
@@ -2711,8 +2726,8 @@ async function confirmAddExpense() {
   store.expenses.push({
     receiptId, subId, groupId: subId,
     item, qty, estCost: cost, estTotal: total,
-    finalCost: cost, finalTotal: total,
-    date: dateStr, submittedBy: 'Kanban',
+    finalCost: cost, finalTotal: total, amount: total,
+    date: dateStr, submittedBy: payee,
     approved: true, reimbursement: reimb,
     justification: notes, receipt,
     addedAt: Date.now()
@@ -2724,8 +2739,8 @@ async function confirmAddExpense() {
   renderBoard();
   try {
     await saveData();
-    toast('Expense added — $' + total.toFixed(2) + ' logged for ' + esc(sub?.label || subId), 'success');
-  } catch { toast('Save failed', 'error'); }
+    toast(receiptId + ' added — $' + total.toFixed(2) + ' for ' + esc(sub?.label || subId), 'success');
+  } catch(err) { toast('Save failed: ' + (err.message||''), 'error'); console.error(err); }
 }
 
 function renderFinanceView(area) {
