@@ -409,8 +409,39 @@ async function loadData() {
 // Safe save — fetches latest from JSONBin, merges critical fields, then saves
 // This prevents a stale in-memory store from overwriting newer data
 const saveData = limiter.wrap(async () => {
-  // Just write — no read-modify-write race condition.
-  // The 30s poll's loadData() is the only place we read from Supabase.
+  try {
+    const latest = (await jsonbinRequest("GET")).record || {};
+    // Always preserve the most up-to-date version of financial data from JSONBin
+    // unless our in-memory store has MORE expenses (meaning we just added some)
+    if (latest.expenses && latest.expenses.length > store.expenses.length) {
+      console.warn("⚠️ JSONBin has more expenses than in-memory — merging");
+      // Merge: keep all from JSONBin, add any new ones from store not in JSONBin
+      const binIds = new Set(latest.expenses.map(e => e.receiptId));
+      const newOnes = store.expenses.filter(e => !binIds.has(e.receiptId));
+      store.expenses = [...latest.expenses, ...newOnes];
+    }
+    // Same for spent — take the higher value per subsystem
+    if (latest.spent) {
+      for (const key of Object.keys(latest.spent)) {
+        if ((latest.spent[key] || 0) > (store.spent[key] || 0)) {
+          console.warn(`⚠️ JSONBin has higher spent for ${key} — using JSONBin value`);
+          store.spent[key] = latest.spent[key];
+        }
+      }
+    }
+    // Merge tasks — take JSONBin version for any task not modified in memory
+    if (latest.tasks) {
+      for (const subId of Object.keys(latest.tasks)) {
+        if (!store.tasks[subId]) store.tasks[subId] = latest.tasks[subId];
+      }
+    }
+    // Always defer to JSONBin for data the bot never modifies
+    if (latest.goals)         store.goals         = latest.goals;
+    if (latest.meetings)      store.meetings      = latest.meetings;
+    if (latest.milestones)    store.milestones    = latest.milestones;
+    if (latest.adminNotes)    store.adminNotes    = latest.adminNotes;
+    if (latest.adminReminders) store.adminReminders = latest.adminReminders;
+  } catch (e) { console.error("Merge check failed:", e.message); }
   await jsonbinRequest("PUT", store);
 });
 
@@ -1668,7 +1699,6 @@ Feel free to pick a different task!`);
         const group = FINANCE_GROUPS.find((g) => g.id === req.groupId);
         try { await interaction.message.delete(); } catch {}
         if (approved) {
-          try { await loadData(); } catch(e) { console.error('Pre-approve load:', e.message); }
           const estTotal  = req.qty * req.estCost;
           store.spent[req.groupId] = (store.spent[req.groupId] || 0) + estTotal;
           const receiptId = makeReceiptId();
@@ -1763,7 +1793,6 @@ Feel free to pick a different task!`);
 
       if (id === "expense_for_remove") {
         await interaction.deferUpdate();
-        try { await loadData(); } catch(e) { console.error('Pre-remove load:', e.message); }
         const receiptId = value;
         const expense = store.expenses.find(e => e.receiptId === receiptId);
         if (!expense) { await interaction.editReply({ content: "Expense not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
@@ -2001,7 +2030,7 @@ Feel free to pick a different task!`);
           store.pendingRequests.push({ id: reqId, groupId, item, qty, estCost, receipt, reimbursement, justification, userName, userId: uid });
           await postApprovalRequest(guild,
             new EmbedBuilder().setTitle(`📝 Purchase Request — ${group.emoji} ${group.label}`).setColor(group.color)
-              .setDescription(`**${item}** x${qty}\nEst. Unit: ${fmtAUD(estCost)}  |  Est. Total: ${fmtAUD(estTotal)}\n${justification ? `Justification: ${justification}\n` : ""}Receipt: ${receipt || "*none yet*"}\nRequested by: <@${uid}>`)
+              .setDescription(`**${item}** x${qty}\nEst. Unit: ${fmtAUD(estCost)}  |  Est. Total: ${fmtAUD(estTotal)}\n${justification ? `Justification: ${justification}\n` : ""}Receipt: ${receipt || "*none yet*"}\nRequested by: <@${uid}>\n\n📎 Upload invoice here: [Invoices folder](${INVOICE_URL})`)
               .setTimestamp(),
             [new ActionRowBuilder().addComponents(
               new ButtonBuilder().setCustomId(`approve_req_${reqId}`).setLabel("✅ Approve").setStyle(ButtonStyle.Success),
@@ -2012,7 +2041,6 @@ Feel free to pick a different task!`);
           await saveData();
           return replyAndDelete(interaction, `📝 Purchase request submitted for **${item}** x${qty} (${fmtAUD(estTotal)}) — awaiting approval in #purchase-approvals!`);
         } else {
-          try { await loadData(); } catch(e) { console.error('Pre-add load:', e.message); }
           const receiptId  = makeReceiptId();
           const costToLog  = finalTotal !== null ? finalTotal : estTotal;
           store.spent[groupId] = (store.spent[groupId] || 0) + costToLog;
@@ -2024,7 +2052,7 @@ Feel free to pick a different task!`);
           await postFinanceLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
             [`**${item}** x${qty}`, `Est: ${fmtAUD(estTotal)}${finalTotal !== null ? `  |  Final: ${fmtAUD(finalTotal)}` : ""}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `Reimbursement: ${reimbursement}`, justification ? `Justification: ${justification}` : null].filter(Boolean)));
           await saveData();
-          return replyAndDelete(interaction, `💸 **${receiptId}** logged!\n${item} x${qty} — ${fmtAUD(costToLog)} charged to **${group.label}**`);
+          return replyAndDelete(interaction, `💸 **${receiptId}** logged!\n${item} x${qty} — ${fmtAUD(costToLog)} charged to **${group.label}**\n\n📎 Please upload your invoice to the [Invoices folder](<${INVOICE_URL}>)`);
         }
       }
     }
