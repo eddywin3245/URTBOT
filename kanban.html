@@ -284,13 +284,14 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .goal-progress-bar{height:4px;background:var(--bg);border-radius:2px;overflow:hidden;margin:.2rem 0}
 .goal-progress-fill{height:100%;border-radius:2px;transition:width .6s}
 .goal-progress-nums{display:flex;justify-content:space-between;font-size:.58em;font-family:'JetBrains Mono',monospace;color:var(--muted)}
-.dag-vp{position:relative;height:680px;overflow:hidden;background:var(--bg);cursor:grab}
+.dag-vp{position:relative;height:680px;overflow:hidden;background:var(--bg);cursor:grab;touch-action:none}
 .dag-vp-ports{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:50}
 .dag-vp.panning{cursor:grabbing}
 .dag-cvs{position:absolute;top:0;left:0;transform-origin:0 0;overflow:visible}
 .dag-overlay{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
 .dag-hint{padding:.25rem 1rem;font-size:.6em;font-family:'JetBrains Mono',monospace;color:var(--dim);background:var(--surface2);border-bottom:1px solid var(--border);display:flex;gap:1.5rem;flex-wrap:wrap}
 .sgn{position:absolute;width:220px;background:var(--surface);border:2px solid rgba(230,126,34,.4);border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.3);cursor:default;box-sizing:border-box;overflow:visible}
+.sgn.sg-critical{border-color:rgba(231,76,60,.8);box-shadow:0 0 14px rgba(231,76,60,.3)}
 .sgn:hover{border-color:rgba(230,126,34,.7);box-shadow:0 4px 18px rgba(0,0,0,.4)}
 .sgn.sg-root{border-color:rgba(231,76,60,.5);background:rgba(231,76,60,.04)}
 .sgn.sg-blocked{border-color:rgba(241,196,15,.5)}
@@ -409,24 +410,43 @@ function todayDmy() {
 
 // ── API (Supabase) ──
 const SB_HEADERS = { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+let currentRev = 0; // last revision seen from the server (optimistic concurrency)
+function teamKeyHeader() {
+  const k = localStorage.getItem('urt_team_key');
+  return k ? { 'x-team-key': k } : {};
+}
 async function jbGet() {
-  const r = await fetch(`${SB_URL}/rest/v1/store?id=eq.main&select=data`, { headers: SB_HEADERS });
+  const r = await fetch(`${SB_URL}/rest/v1/store?id=eq.main&select=data`, { headers: { ...SB_HEADERS, ...teamKeyHeader() } });
   if (!r.ok) throw new Error(`Supabase GET error ${r.status}`);
   const rows = await r.json();
   return rows[0]?.data || {};
 }
 async function jbPut(data) {
-  const r = await fetch(`${SB_URL}/rest/v1/store?id=eq.main`, {
+  const prevRev = currentRev, newRev = prevRev + 1;
+  data._rev = newRev;
+  // Only update if the server still holds the revision we loaded — otherwise someone saved first
+  const guard = prevRev ? `data->>_rev=eq.${prevRev}` : `data->>_rev=is.null`;
+  const r = await fetch(`${SB_URL}/rest/v1/store?id=eq.main&${guard}&select=id`, {
     method: 'PATCH',
-    headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' },
+    headers: { ...SB_HEADERS, ...teamKeyHeader(), 'Prefer': 'return=representation' },
     body: JSON.stringify({ data, updated_at: new Date().toISOString() })
   });
   if (!r.ok) throw new Error(`Supabase PATCH error ${r.status}`);
+  const rows = await r.json();
+  if (!rows.length) {
+    // 0 rows updated: either a concurrent save bumped the rev, or RLS rejected the write (missing/bad team key)
+    const fresh = await jbGet().catch(() => null);
+    const err = new Error('save rejected');
+    if (fresh && (fresh._rev || 0) === prevRev) err.unauthorized = true; else err.conflict = true;
+    throw err;
+  }
+  currentRev = newRev;
 }
 
 async function loadData() {
   const rec = await jbGet();
   store = rec;
+  currentRev = store._rev || 0;
   if (!store.tasks)      store.tasks      = {};
   if (!store.members)   store.members   = {};
   if (!store.milestones) store.milestones = [];
@@ -444,8 +464,20 @@ async function loadData() {
   document.getElementById('sync-info').textContent = 'SYNCED ' + new Date().toLocaleTimeString();
 }
 async function saveData() {
-  await jbPut(store);
-  document.getElementById('sync-info').textContent = 'SAVED ' + new Date().toLocaleTimeString();
+  try {
+    await jbPut(store);
+    document.getElementById('sync-info').textContent = 'SAVED ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    if (e.conflict) {
+      toast('⚠ Someone else saved first — board refreshed, please redo your last change', 'error');
+      try { await loadData(); } catch {}
+    } else if (e.unauthorized) {
+      const k = prompt('This board requires a write key (ask a team lead).\nEnter team key:');
+      if (k?.trim()) { localStorage.setItem('urt_team_key', k.trim()); return saveData(); }
+      toast('Save cancelled — no write key', 'error');
+    }
+    throw e;
+  }
 }
 function refresh() {
   const btn = document.getElementById('refresh-btn');
@@ -534,6 +566,8 @@ function makeTab(id, label, color, remaining, total) {
 
 // ── BOARD ROUTER ──
 function renderBoard() {
+  // Drop window-level listeners from the previous goals render (they re-register each render)
+  if (goalsAbort) { goalsAbort.abort(); goalsAbort = null; }
   const allTasks = Object.values(store.tasks).flat();
   const total    = allTasks.length;
   const done     = allTasks.filter(t => t.status === 'done').length;
@@ -1260,6 +1294,9 @@ const COL_GAP = 60;      // horizontal gap between columns
 const ROW_GAP = 220;     // vertical gap between rows
 
 let sgLinkSrc = null;    // {nodeId, goalId} shift+drag linking
+let goalsAbort = null;   // aborts window-level listeners from the previous goals render
+const goalUndoStack = []; // snapshots of store.goals, for undoing destructive actions
+const critState = {};    // per-goal critical-path node/edge sets (transient, never saved)
 const fcState = {};
 function getFcState(id){ if(!fcState[id]) fcState[id]={scale:.8,panX:60,panY:40}; return fcState[id]; }
 
@@ -1342,110 +1379,168 @@ function wouldCycle(goal,from,to){
   return false;
 }
 
-// ─── Auto layout (top-down, goal as root at top) ───
+// ─── Undo (destructive goal actions) ───
+function pushGoalUndo(label){
+  goalUndoStack.push({label,json:JSON.stringify(store.goals||[])});
+  if(goalUndoStack.length>15) goalUndoStack.shift();
+}
+async function undoGoalAction(){
+  const u=goalUndoStack.pop(); if(!u) return;
+  store.goals=JSON.parse(u.json);
+  renderBoard();
+  try{await saveData();toast('Undid: '+u.label,'success');}catch{toast('Save failed','error');}
+}
+
+// ─── Collapse ───
+function isNodeCollapsed(node,allTasks){
+  if(node.collapsed!==undefined) return node.collapsed;
+  // Auto-collapse nodes whose own tasks are all done
+  const ids=node.taskIds||[];
+  return ids.length>0&&ids.every(id=>{const t=allTasks.find(x=>x.id===id);return t&&t.status==='done';});
+}
+
+// ─── Critical path: chain of subgoals with the most remaining open tasks ───
+function computeCritical(goal,allTasks){
+  const nodes=goal.dagNodes||[],edges=goal.dagEdges||[];
+  const open={},kids={},byId={};
+  nodes.forEach(n=>{
+    byId[n.id]=n;kids[n.id]=[];
+    open[n.id]=(n.taskIds||[]).filter(id=>{const t=allTasks.find(x=>x.id===id);return !t||t.status!=='done';}).length;
+  });
+  edges.forEach(e=>{ if(byId[e.from]&&byId[e.to]) kids[e.from].push(e); });
+  const memo={};
+  function longest(id,stack){
+    if(memo[id]) return memo[id];
+    if(stack.has(id)) return{len:0,nodes:[],edges:[]};
+    stack.add(id);
+    let best={len:0,nodes:[],edges:[]};
+    kids[id].forEach(e=>{
+      const r=longest(e.to,stack);
+      if(r.len>best.len||(r.len===best.len&&r.nodes.length>best.nodes.length))
+        best={len:r.len,nodes:r.nodes,edges:[e.id,...r.edges]};
+    });
+    stack.delete(id);
+    return memo[id]={len:open[id]+best.len,nodes:[id,...best.nodes],edges:best.edges};
+  }
+  let top=null;
+  nodes.forEach(n=>{ const r=longest(n.id,new Set()); if(!top||r.len>top.len) top=r; });
+  if(!top||top.len===0) return{nodes:new Set(),edges:new Set()};
+  return{nodes:new Set(top.nodes),edges:new Set(top.edges)};
+}
+function toggleCritical(goalId){
+  const s=getFcState(goalId);
+  s.showCrit=!s.showCrit;
+  renderBoard();
+}
+
+// ─── Auto layout (layered top-down: roots at top, dependencies below) ───
 function autoLayout(goal){
   const nodes=goal.dagNodes||[], edges=goal.dagEdges||[];
   if(!nodes.length) return;
-  const H_GAP=80, V_GAP=240, TOP=40;
+  const H_GAP=60, V_GAP=120, TOP=40, LEFT=40;
+  const allTasks=getAllTasks();
+  const byId={}; nodes.forEach(n=>byId[n.id]=n);
 
+  // Adjacency (edge from→to means "from depends on to"; to is drawn below from)
   const dependsOn={}, dependents={};
   nodes.forEach(n=>{ dependsOn[n.id]=[]; dependents[n.id]=[]; });
   edges.forEach(e=>{
+    if(!byId[e.from]||!byId[e.to]) return;
     if(!dependsOn[e.from].includes(e.to)) dependsOn[e.from].push(e.to);
     if(!dependents[e.to].includes(e.from)) dependents[e.to].push(e.from);
   });
 
+  // Layer = longest path down from any root, so every edge points to a strictly lower row
   const depth={};
-  nodes.forEach(n=>depth[n.id]=0);
-  const roots=nodes.filter(n=>!dependents[n.id].length).map(n=>n.id);
-  if(!roots.length) roots.push(nodes[0].id);
-  function assignDepth(id,d,seen=new Set()){
-    if(seen.has(id))return; seen.add(id);
-    depth[id]=Math.max(depth[id]||0,d);
-    dependsOn[id].forEach(c=>assignDepth(c,d+1,seen));
+  function calcDepth(id,stack){
+    if(depth[id]!==undefined) return depth[id];
+    if(stack.has(id)) return 0;
+    stack.add(id);
+    const parents=dependents[id];
+    const d=parents.length?Math.max(...parents.map(p=>calcDepth(p,stack)))+1:0;
+    stack.delete(id);
+    return depth[id]=d;
   }
-  roots.forEach(r=>assignDepth(r,0));
-  const maxDepth=Math.max(0,...Object.values(depth));
-  const byDepth=[];
-  for(let d=0;d<=maxDepth;d++) byDepth[d]=nodes.filter(n=>depth[n.id]===d);
+  nodes.forEach(n=>calcDepth(n.id,new Set()));
 
-  function subtreeW(id,seen=new Set()){
-    if(seen.has(id))return 0; seen.add(id);
-    const kids=dependsOn[id]||[];
-    if(!kids.length)return SG_W;
-    return Math.max(SG_W,kids.reduce((s,k)=>s+subtreeW(k,new Set(seen)),0)+(kids.length-1)*H_GAP);
+  const maxDepth=Math.max(...Object.values(depth));
+  const rows=[]; for(let d=0;d<=maxDepth;d++) rows[d]=[];
+  // Initial within-row order: DFS from roots so related nodes start adjacent
+  const seen=new Set();
+  function dfs(id){
+    if(seen.has(id)) return; seen.add(id);
+    rows[depth[id]].push(id);
+    dependsOn[id].forEach(dfs);
   }
+  nodes.filter(n=>!dependents[n.id].length).forEach(n=>dfs(n.id));
+  nodes.forEach(n=>dfs(n.id));
 
-  const placed=new Set();
-  function place(id,cx,d,seen=new Set()){
-    if(seen.has(id)||placed.has(id))return;
-    seen.add(id); placed.add(id);
-    const n=nodes.find(x=>x.id===id); if(!n)return;
-    n.x=cx-SG_W/2; n.y=TOP+d*V_GAP;
-    const kids=(dependsOn[id]||[]).filter(k=>!placed.has(k));
-    if(!kids.length)return;
-    const totalW=kids.reduce((s,k)=>s+subtreeW(k,new Set()),0)+(kids.length-1)*H_GAP;
-    let curX=cx-totalW/2;
-    kids.forEach(k=>{ const kw=subtreeW(k,new Set()); place(k,curX+kw/2,d+1,seen); curX+=kw+H_GAP; });
-  }
-
-  function shiftExcl(id,dx,vis=new Set()){
-    if(vis.has(id)||Math.abs(dx)<0.5)return; vis.add(id);
-    const n=nodes.find(x=>x.id===id); if(n) n.x+=dx;
-    (dependsOn[id]||[]).forEach(c=>{ if((dependents[c]||[]).length===1) shiftExcl(c,dx,vis); });
-  }
-
-  function getExclDescendants(id,vis=new Set()){
-    if(vis.has(id))return vis; vis.add(id);
-    (dependsOn[id]||[]).forEach(c=>{ if((dependents[c]||[]).length===1) getExclDescendants(c,vis); });
-    return vis;
-  }
-
-  // Place roots in strict non-overlapping bands
-  let bandStart=40;
-  roots.forEach(r=>{ const w=subtreeW(r,new Set()); place(r,bandStart+w/2,0); bandStart+=w+H_GAP; });
-
-  // Center shared nodes between their parents
-  for(let d=1;d<=maxDepth;d++){
-    (byDepth[d]||[]).forEach(n=>{
-      const parents=(dependents[n.id]||[]).map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&!isNaN(x.x));
-      if(parents.length<2)return;
-      const cx=parents.reduce((s,p)=>s+p.x+SG_W/2,0)/parents.length;
-      const dx=cx-(n.x+SG_W/2);
-      if(Math.abs(dx)>0.5) shiftExcl(n.id,dx);
-    });
-  }
-
-  // Fix same-depth overlaps treating each node's exclusive cluster as one block
-  for(let d=0;d<=maxDepth;d++){
-    const row=(byDepth[d]||[]).slice().sort((a,b)=>a.x-b.x);
-    for(let i=1;i<row.length;i++){
-      const prev=row[i-1], cur=row[i];
-      const prevDescAtDepth=[...getExclDescendants(prev.id)].map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&depth[x.id]===d&&x.id!==prev.id);
-      const prevRight=Math.max(prev.x+SG_W,...prevDescAtDepth.map(n=>n.x+SG_W));
-      const minX=prevRight+H_GAP;
-      if(cur.x<minX) shiftExcl(cur.id,minX-cur.x);
+  // Crossing reduction: sort each row by average position of its neighbors (barycenter sweeps)
+  const order={};
+  const reindex=()=>rows.forEach(r=>r.forEach((id,i)=>order[id]=i));
+  reindex();
+  const bary=(id,neighbors)=>{
+    const ns=neighbors[id].filter(x=>order[x]!==undefined);
+    return ns.length?ns.reduce((s,x)=>s+order[x],0)/ns.length:order[id];
+  };
+  for(let it=0;it<4;it++){
+    const down=it%2===0;
+    for(let d=down?1:maxDepth-1; down?d<=maxDepth:d>=0; down?d++:d--){
+      rows[d].sort((a,b)=>bary(a,down?dependents:dependsOn)-bary(b,down?dependents:dependsOn));
+      reindex();
     }
   }
 
-  // Float unplaced nodes
-  let floatX=bandStart; let floatY=TOP;
-  nodes.filter(n=>!placed.has(n.id)||isNaN(n.x)).forEach(n=>{ n.x=floatX; n.y=floatY; floatY+=V_GAP; });
+  // Row Y positions stack on the tallest node of each row, so tall nodes never overlap the next row
+  const rowY=[];
+  let yCur=TOP;
+  for(let d=0;d<=maxDepth;d++){
+    rowY[d]=yCur;
+    yCur+=Math.max(100,...rows[d].map(id=>sgHeight(byId[id],allTasks)))+V_GAP;
+  }
+
+  // X positions: pack rows, then pull each node toward the centre of its neighbours.
+  // Overlaps are resolved twice (left-anchored and right-anchored) and averaged so rows stay centred.
+  rows.forEach(r=>r.forEach((id,i)=>{ byId[id].x=LEFT+i*(SG_W+H_GAP); }));
+  const center=id=>byId[id].x+SG_W/2;
+  function alignRow(d,neighbors){
+    const want=rows[d].map(id=>{
+      const ns=neighbors[id];
+      return ns.length?ns.reduce((s,x)=>s+center(x),0)/ns.length:center(id);
+    });
+    const a=want.map(w=>w-SG_W/2);
+    for(let i=1;i<a.length;i++) a[i]=Math.max(a[i],a[i-1]+SG_W+H_GAP);
+    const b=want.map(w=>w-SG_W/2);
+    for(let i=b.length-2;i>=0;i--) b[i]=Math.min(b[i],b[i+1]-SG_W-H_GAP);
+    rows[d].forEach((id,i)=>byId[id].x=(a[i]+b[i])/2);
+  }
+  for(let it=0;it<3;it++){
+    for(let d=1;d<=maxDepth;d++) alignRow(d,dependents);
+    for(let d=maxDepth-1;d>=0;d--) alignRow(d,dependsOn);
+  }
+
+  // Normalize onto the canvas
+  const minX=Math.min(...nodes.map(n=>n.x));
+  nodes.forEach(n=>{ n.x=Math.round(n.x-minX+LEFT); n.y=rowY[depth[n.id]]; });
 }
 // ─── Subgoal node height ───
 function sgHeight(node,allTasks){
+  if(isNodeCollapsed(node,allTasks)) return SG_HDR_H+4+SG_PAD; // hdr+prog only
   const tasks=(node.taskIds||[]).filter(id=>{const t=allTasks.find(x=>x.id===id);return !t||t.status!=='done';});
   return SG_HDR_H+4+(tasks.length*SG_TASK_H)+SG_PAD+28+28; // hdr+prog+tasks+addBtn+actionRow
 }
 
 // ─── Main render ───
 function renderGoalsView(area){
+  goalsAbort=new AbortController();
   area.className='goals-area'; area.innerHTML='';
   if(!store.goals) store.goals=[];
   const hdr=document.createElement('div');
   hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem';
   hdr.innerHTML='<div style="font-size:.85em;font-weight:700;color:var(--text)">🎯 Goals</div>'+
-    '<button onclick="openAddGoalModal()" class="mbtn primary" style="font-size:.72em">+ New Goal</button>';
+    '<div style="display:flex;gap:.4rem;align-items:center">'+
+    (goalUndoStack.length?'<button onclick="undoGoalAction()" class="mbtn secondary" style="font-size:.72em" title="Ctrl+Z">↩ Undo: '+esc(goalUndoStack[goalUndoStack.length-1].label)+'</button>':'')+
+    '<button onclick="openAddGoalModal()" class="mbtn primary" style="font-size:.72em">+ New Goal</button></div>';
   area.appendChild(hdr);
   if(!store.goals.length){
     const e=document.createElement('div');
@@ -1481,6 +1576,7 @@ function renderGoalCard(goal,allTasks,area){
       (blockingGoals.length?'<span style="color:#f1c40f">⏳ blocked by: '+blockingGoals.map(g=>esc(g.name)).join(', ')+'</span>':'')+
     '</div></div>'+
     '<div style="display:flex;gap:.35rem;align-items:center">'+
+      '<button data-gid="'+goal.id+'" onclick="toggleCritical(this.dataset.gid)" class="admin-nudge-btn" style="color:'+(s.showCrit?'#e74c3c':'var(--muted)')+';border-color:'+(s.showCrit?'rgba(231,76,60,.5)':'var(--border2)')+'" title="Highlight the chain of subgoals with the most remaining work">⚡ Critical</button>'+
       '<button data-gid="'+goal.id+'" onclick="openGoalDepsModal(this.dataset.gid)" class="admin-nudge-btn" style="color:#9b59b6;border-color:rgba(155,89,182,.3)">🔗 Goal Deps</button>'+
       '<button data-gid="'+goal.id+'" onclick="addSgNode(this.dataset.gid)" class="admin-nudge-btn" style="color:#e67e22;border-color:rgba(230,126,34,.3)">+ Subgoal</button>'+
       '<button data-gid="'+goal.id+'" onclick="doLayout(this.dataset.gid)" class="admin-nudge-btn" style="color:var(--muted);border-color:var(--border2)">⟳ Layout</button>'+
@@ -1496,10 +1592,13 @@ function renderGoalCard(goal,allTasks,area){
 
   // Hint
   const hint=document.createElement('div'); hint.className='dag-hint';
-  hint.innerHTML='<span>🖱 Drag background to pan · scroll to zoom</span>'+
+  hint.innerHTML='<span>🖱 Drag background to pan · scroll or pinch to zoom</span>'+
     '<span>🔴 Click right circle on a node, then left circle on another to link</span>'+
-    '<span>Click arrow to remove dependency</span>';
+    '<span>Click arrow to remove dependency · ↩ Undo reverses removals</span>';
   card.appendChild(hint);
+
+  // Critical path (computed fresh each render, never saved)
+  critState[goal.id]=s.showCrit?computeCritical(goal,allTasks):{nodes:new Set(),edges:new Set()};
 
   // Viewport
   const vp=document.createElement('div'); vp.className='dag-vp';
@@ -1516,6 +1615,9 @@ function renderGoalCard(goal,allTasks,area){
     '</marker>'+
     '<marker id="sg-arr-h" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">'+
       '<polygon points="0 0,10 4,0 8" fill="#e67e22"/>'+
+    '</marker>'+
+    '<marker id="sg-arr-crit" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">'+
+      '<polygon points="0 0,10 4,0 8" fill="#e74c3c"/>'+
     '</marker>'+
     '</defs>';
   cvs.appendChild(svg);
@@ -1538,29 +1640,67 @@ function renderGoalCard(goal,allTasks,area){
     });
   }
 
-  vp.addEventListener('mousedown',e=>{
+  const applyTransform=()=>{ cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`; };
+  const setZoomLabel=()=>{ const el=vp.querySelector('.dag-zoom-pct'); if(el) el.textContent=Math.round(s.scale*100)+'%'; };
+
+  // Pan + pinch zoom (pointer events: works for mouse AND touch)
+  const pinchPts=new Map(); let lastPinch=null;
+  vp.addEventListener('pointerdown',e=>{
     if(sgLinkSrc&&!e.target.closest('.sgn-port-in,.sgn-port-out')){
       sgLinkSrc=null;
       if(portsLayer) portsLayer.querySelectorAll('.sgn-port').forEach(p=>p.classList.remove('port-active'));
       cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-can-link','sg-linking'));
       vp.classList.remove('linking');
     }
-    if(e.target.closest('.sgn,button,input,select')||sgLinkSrc) return;
-    isPanning=true; vp.classList.add('panning');
-    ps={x:e.clientX-s.panX,y:e.clientY-s.panY}; e.preventDefault();
+    if(e.target.closest('.sgn,button,input,select,.sgn-port')||sgLinkSrc) return;
+    pinchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pinchPts.size===1){
+      isPanning=true; vp.classList.add('panning');
+      ps={x:e.clientX-s.panX,y:e.clientY-s.panY};
+    } else {
+      isPanning=false; lastPinch=null; vp.classList.remove('panning');
+    }
+    e.preventDefault();
   });
-  window.addEventListener('mousemove',e=>{
-    if(!isPanning) return;
-    s.panX=e.clientX-ps.x; s.panY=e.clientY-ps.y;
-    cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
-    updateAllPorts();
-  });
-  window.addEventListener('mouseup',()=>{isPanning=false;vp.classList.remove('panning');});
+  window.addEventListener('pointermove',e=>{
+    if(pinchPts.has(e.pointerId)) pinchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pinchPts.size===2){
+      const [a,b]=[...pinchPts.values()];
+      const dist=Math.hypot(a.x-b.x,a.y-b.y);
+      const rect=vp.getBoundingClientRect();
+      const mx=(a.x+b.x)/2-rect.left, my=(a.y+b.y)/2-rect.top;
+      if(lastPinch&&lastPinch.dist>0){
+        const target=Math.min(3,Math.max(.1,s.scale*(dist/lastPinch.dist)));
+        const k=target/s.scale;
+        s.panX=mx-(mx-s.panX)*k+(mx-lastPinch.mx);
+        s.panY=my-(my-s.panY)*k+(my-lastPinch.my);
+        s.scale=target;
+        applyTransform(); setZoomLabel(); updateAllPorts();
+      }
+      lastPinch={dist,mx,my};
+    } else if(isPanning){
+      s.panX=e.clientX-ps.x; s.panY=e.clientY-ps.y;
+      applyTransform();
+      updateAllPorts();
+    }
+  },{signal:goalsAbort.signal});
+  const endPointer=e=>{
+    pinchPts.delete(e.pointerId);
+    if(pinchPts.size<2&&lastPinch){ lastPinch=null; setTimeout(()=>{redrawEdges(goal,allTasks);updateAllPorts();},30); }
+    if(!pinchPts.size){ isPanning=false; vp.classList.remove('panning'); }
+  };
+  window.addEventListener('pointerup',endPointer,{signal:goalsAbort.signal});
+  window.addEventListener('pointercancel',endPointer,{signal:goalsAbort.signal});
+
+  // Wheel zoom, centred on the cursor
   vp.addEventListener('wheel',e=>{
     e.preventDefault();
-    s.scale=Math.min(3,Math.max(.1,+(s.scale*(e.deltaY>0?.9:1.1)).toFixed(2)));
-    cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
-    vp.querySelector('.dag-zoom-pct')&&(vp.querySelector('.dag-zoom-pct').textContent=Math.round(s.scale*100)+'%');
+    const rect=vp.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const target=Math.min(3,Math.max(.1,+(s.scale*(e.deltaY>0?.9:1.1)).toFixed(3)));
+    const k=target/s.scale;
+    s.panX=mx-(mx-s.panX)*k; s.panY=my-(my-s.panY)*k; s.scale=target;
+    applyTransform(); setZoomLabel();
     setTimeout(()=>{redrawEdges(goal,allTasks);updateAllPorts();},30);
   },{passive:false});
 
@@ -1581,13 +1721,13 @@ function renderGoalCard(goal,allTasks,area){
   const applyScale=()=>{
     cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
     pctEl.textContent=Math.round(s.scale*100)+'%';
-    setTimeout(()=>redrawEdges(goal,allTasks),50);
+    setTimeout(()=>{redrawEdges(goal,allTasks);updateAllPorts();},50);
   };
   const mkZ=(t,fn)=>{const b=document.createElement('button');b.textContent=t;b.onclick=fn;return b;};
   zc.appendChild(mkZ('＋',()=>{s.scale=Math.min(3,+(s.scale+0.1).toFixed(2));applyScale();}));
   zc.appendChild(pctEl);
   zc.appendChild(mkZ('－',()=>{s.scale=Math.max(.1,+(s.scale-0.1).toFixed(2));applyScale();}));
-  zc.appendChild(mkZ('⌂',()=>{s.scale=.8;s.panX=60;s.panY=40;applyScale();}));
+  zc.appendChild(mkZ('⌂',()=>{fitGoalView(goal);applyScale();}));
   vp.appendChild(cvs); vp.appendChild(portsLayer); vp.appendChild(zc);
   card.appendChild(vp); area.appendChild(card);
 }
@@ -1601,7 +1741,10 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
   const isRoot=(goal.dagEdges||[]).filter(e=>e.to===node.id).length===0;
   const fill=isDone?'#2ecc71':pct>50?'#3498db':pct>0?'#f1c40f':'rgba(230,126,34,.4)';
 
-  const el=document.createElement('div'); el.className='sgn'+(isRoot?' sg-root':'')+(blocked?' sg-blocked':'')+(isDone?' sg-done':'');
+  const collapsed=isNodeCollapsed(node,allTasks);
+  const isCritNode=critState[goal.id]?.nodes.has(node.id);
+
+  const el=document.createElement('div'); el.className='sgn'+(isRoot?' sg-root':'')+(blocked?' sg-blocked':'')+(isDone?' sg-done':'')+(isCritNode?' sg-critical':'');
   el.dataset.nodeId=node.id;
   el.style.left=node.x+'px'; el.style.top=node.y+'px';
 
@@ -1612,10 +1755,21 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
   const countEl=document.createElement('span');
   countEl.style.cssText='font-size:.65em;color:var(--muted);font-family:JetBrains Mono,monospace;flex-shrink:0';
   countEl.textContent=done+'/'+total;
+  const collBtn=document.createElement('span');
+  collBtn.textContent=collapsed?'▸':'▾';
+  collBtn.title=collapsed?'Expand':'Collapse';
+  collBtn.style.cssText='cursor:pointer;color:var(--muted);font-size:.8em;flex-shrink:0;padding:0 .2rem';
+  collBtn.addEventListener('pointerdown',e=>e.stopPropagation());
+  collBtn.addEventListener('click',async e=>{
+    e.stopPropagation();
+    node.collapsed=!collapsed;
+    renderBoard();
+    try{await saveData();}catch{}
+  });
   const dragHandle=document.createElement('span');
   dragHandle.style.cssText='color:rgba(230,126,34,.4);font-size:.85em;flex-shrink:0;cursor:grab';
   dragHandle.textContent='⠿';
-  hdr.appendChild(dragHandle); hdr.appendChild(titleEl); hdr.appendChild(countEl);
+  hdr.appendChild(dragHandle); hdr.appendChild(titleEl); hdr.appendChild(countEl); hdr.appendChild(collBtn);
   el.appendChild(hdr);
 
   // Progress bar
@@ -1640,6 +1794,7 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
     tc.addEventListener('mouseleave',()=>tc.querySelector('.sgn-task-rm').style.display='none');
     tc.querySelector('.sgn-task-rm').addEventListener('click',async ev=>{
       ev.stopPropagation();
+      pushGoalUndo('remove "'+task.name+'" from '+node.name);
       node.taskIds=(node.taskIds||[]).filter(id=>id!==task.id);
       renderBoard();
       try{await saveData();toast('Removed from subgoal','success');}catch{}
@@ -1647,14 +1802,14 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
     tc.onclick=e=>{if(e.target.classList.contains('sgn-task-rm'))return;e.stopPropagation();if(!sgLinkSrc)openEditModal(task.subId,task.id);};
     taskList.appendChild(tc);
   });
-  el.appendChild(taskList);
+  if(!collapsed) el.appendChild(taskList);
 
   // Add task button
   const addT=document.createElement('div'); addT.className='sgn-add-task';
   addT.textContent='+ Add tasks';
   addT.dataset.gid=goal.id; addT.dataset.nid=node.id;
   addT.onclick=e=>{e.stopPropagation();openAddTasksToNode(addT.dataset.gid,addT.dataset.nid);};
-  el.appendChild(addT);
+  if(!collapsed) el.appendChild(addT);
 
   // Action row
   const actions=document.createElement('div'); actions.className='sgn-actions';
@@ -1692,7 +1847,7 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
   };
 
   actions.appendChild(editBtn); actions.appendChild(addSgBtn); actions.appendChild(linkBtn);
-  el.appendChild(actions);
+  if(!collapsed) el.appendChild(actions);
 
   // Ports appended directly to cvs so they're never clipped
   function makePorts(){
@@ -1764,17 +1919,18 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
   rm.addEventListener('click',async e=>{
     e.stopPropagation();
     if(!confirm('Remove this subgoal? Tasks stay in the system.')) return;
+    pushGoalUndo('remove subgoal "'+node.name+'"');
     goal.dagNodes=(goal.dagNodes||[]).filter(n=>n.id!==node.id);
     goal.dagEdges=(goal.dagEdges||[]).filter(e=>e.from!==node.id&&e.to!==node.id);
     renderBoard();
-    try{await saveData();toast('Removed','success');}catch{}
+    try{await saveData();toast('Removed — ↩ Undo available','success');}catch{}
   });
   el.appendChild(rm);
 
-  // Drag to move
+  // Drag to move (pointer events: mouse + touch)
   let dragging=false,ds={x:0,y:0},ns={x:0,y:0};
 
-  hdr.addEventListener('mousedown',e=>{
+  hdr.addEventListener('pointerdown',e=>{
     if(e.target.closest('button')||sgLinkSrc) return;
 
     dragging=true; ds={x:e.clientX,y:e.clientY}; ns={x:node.x,y:node.y};
@@ -1816,11 +1972,10 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
       cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-linking','sg-can-link'));
     }
   };
-  window.addEventListener('mousemove',onMove);
-  window.addEventListener('mouseup',onUp);
+  window.addEventListener('pointermove',onMove,{signal:goalsAbort.signal});
+  window.addEventListener('pointerup',onUp,{signal:goalsAbort.signal});
   // Also handle drop on the node body (not just header)
-  el.addEventListener('mouseup', onUp);
-  window.addEventListener('keydown',e=>{ if(e.key==='Escape'&&sgLinkSrc){ sgLinkSrc=null; cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-linking','sg-can-link')); } });
+  el.addEventListener('pointerup', onUp);
 
   // Hover: highlight edges
   el.addEventListener('mouseenter',()=>{ if(svg) highlightEdges(svg,node.id,true); });
@@ -1846,10 +2001,12 @@ function drawEdges(svg,goal,allTasks,cvs){
     const cp=Math.max(dy*0.55,60);
     const d=`M${sx},${sy} C${sx},${sy-cp} ${ex},${ey+cp} ${ex},${ey}`;
 
+    const isCrit=critState[goal.id]?.edges.has(edge.id);
     const path=document.createElementNS('http://www.w3.org/2000/svg','path');
     path.setAttribute('d',d); path.setAttribute('class','dag-e');
     path.setAttribute('data-from',edge.from); path.setAttribute('data-to',edge.to); path.setAttribute('data-eid',edge.id);
-    path.style.cssText='fill:none;stroke:rgba(230,126,34,.55);stroke-width:2.5;marker-end:url(#sg-arr)';
+    if(isCrit) path.setAttribute('data-crit','1');
+    path.style.cssText='fill:none;stroke:'+(isCrit?'rgba(231,76,60,.85)':'rgba(230,126,34,.55)')+';stroke-width:'+(isCrit?'3.5':'2.5')+';marker-end:url(#'+(isCrit?'sg-arr-crit':'sg-arr')+')';
     svg.appendChild(path);
 
     // Hit area for clicking to remove
@@ -1858,9 +2015,10 @@ function drawEdges(svg,goal,allTasks,cvs){
     hit.style.cssText='fill:none;stroke:transparent;stroke-width:18;cursor:pointer;pointer-events:stroke';
     hit.addEventListener('click',async e=>{
       if(!confirm('Remove this dependency link?')) return;
+      pushGoalUndo('remove dependency link');
       goal.dagEdges=(goal.dagEdges||[]).filter(x=>x.id!==edge.id);
       renderBoard();
-      try{await saveData();toast('Link removed','success');}catch{}
+      try{await saveData();toast('Link removed — ↩ Undo available','success');}catch{}
     });
     svg.appendChild(hit);
   });
@@ -1897,9 +2055,10 @@ function redrawEdges(goal,allTasks){
 function highlightEdges(svg,nodeId,on){
   svg.querySelectorAll('.dag-e').forEach(el=>{
     if(el.dataset.from===nodeId||el.dataset.to===nodeId){
-      el.style.stroke=on?'#e67e22':'rgba(230,126,34,.55)';
-      el.style.strokeWidth=on?'3.5':'2.5';
-      el.setAttribute('marker-end',on?'url(#sg-arr-h)':'url(#sg-arr)');
+      const crit=el.dataset.crit==='1';
+      el.style.stroke=on?(crit?'#e74c3c':'#e67e22'):(crit?'rgba(231,76,60,.85)':'rgba(230,126,34,.55)');
+      el.style.strokeWidth=on?(crit?'4':'3.5'):(crit?'3.5':'2.5');
+      el.setAttribute('marker-end',crit?'url(#sg-arr-crit)':(on?'url(#sg-arr-h)':'url(#sg-arr)'));
     }
   });
 }
@@ -1908,8 +2067,21 @@ function highlightEdges(svg,nodeId,on){
 async function doLayout(goalId){
   const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
   autoLayout(goal);
+  fitGoalView(goal);
   renderBoard();
   try{await saveData();toast('Layout applied & saved','success');}catch{}
+}
+
+function fitGoalView(goal){
+  const nodes=goal.dagNodes||[]; if(!nodes.length) return;
+  const allTasks=getAllTasks();
+  const minX=Math.min(...nodes.map(n=>n.x)), maxX=Math.max(...nodes.map(n=>n.x+SG_W));
+  const minY=Math.min(...nodes.map(n=>n.y)), maxY=Math.max(...nodes.map(n=>n.y+sgHeight(n,allTasks)));
+  const vpW=document.querySelector('.dag-vp')?.clientWidth||1100, vpH=680, MARGIN=60;
+  const s=getFcState(goal.id);
+  s.scale=Math.max(.25,Math.min(1,+Math.min(vpW/(maxX-minX+MARGIN*2),vpH/(maxY-minY+MARGIN*2)).toFixed(2)));
+  s.panX=Math.max(20,(vpW-(maxX-minX)*s.scale)/2-minX*s.scale);
+  s.panY=30-minY*s.scale;
 }
 
 async function addSgNode(goalId){
@@ -2133,9 +2305,11 @@ async function saveGoal(goalId){
 }
 async function deleteGoal(goalId){
   if(!confirm('Delete this goal?')) return;
+  const g=(store.goals||[]).find(x=>x.id===goalId);
+  pushGoalUndo('delete goal "'+(g?.name||'')+'"');
   store.goals=(store.goals||[]).filter(g=>g.id!==goalId);
   closeModal(); renderBoard();
-  try{await saveData();toast('Deleted','success');}catch{}
+  try{await saveData();toast('Deleted — ↩ Undo available','success');}catch{}
 }
 
 
@@ -3135,6 +3309,19 @@ function toast(msg, type = 'success') {
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// Goals-view shortcuts: Escape cancels link mode, Ctrl/Cmd+Z undoes destructive actions
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && sgLinkSrc) {
+    sgLinkSrc = null;
+    document.querySelectorAll('.sgn').forEach(n => n.classList.remove('sg-linking', 'sg-can-link'));
+    document.querySelectorAll('.sgn-port').forEach(p => p.classList.remove('port-active'));
+    document.querySelectorAll('.dag-vp').forEach(v => v.classList.remove('linking'));
+  }
+  if (activeTab === 'goals' && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.target.closest('input,textarea,select')) {
+    e.preventDefault(); undoGoalAction();
+  }
+});
 
 // ── INIT ──
 loadData().then(startAutoRefresh).catch(() => {
