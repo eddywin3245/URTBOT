@@ -562,21 +562,41 @@ function logEmbed(color, title, lines) {
 
 async function postSnapshot(guild) {
   const ch = await getLogChannel(guild);
-  const lines = SUBSYSTEMS.map((sub) => {
+  const total = Object.values(store.tasks).flat().length;
+  const done  = Object.values(store.tasks).flat().filter((t) => t.done).length;
+
+  const sections = SUBSYSTEMS.map((sub) => {
     const list = store.tasks[sub.id] || [];
     if (!list.length) return `${sub.emoji} **${sub.label}** — no tasks`;
-    return `${sub.emoji} **${sub.label}**\n${list.map((t) => {
+    const taskLines = list.map((t) => {
       const who = t.assignees?.length ? t.assignees.map(id => `<@${id}>`).join(", ") : "*unassigned*";
       const pri = t.priority ? ` ${PRI_EMOJI[t.priority]}` : "";
       const due = t.dueDate ? `  📅 ${t.dueDate}` : "";
-      const dep = (t.dependsOn||[]).length > 0 ? " ⛓" : "";
-      return `  ${t.status === 'done' ? "✅" : t.status === 'inprogress' ? "◑" : "⬜"} ${t.name}${pri}${dep} — ${who}${due}`;
-    }).join("\n")}`;
+      return `  ${t.status==="done"?"✅":t.status==="inprogress"?"◑":"⬜"} ${t.name.slice(0,60)}${pri} — ${who}${due}`;
+    });
+    return `${sub.emoji} **${sub.label}**\n${taskLines.join("\n")}`;
   });
-  const total = Object.values(store.tasks).flat().length;
-  const done  = Object.values(store.tasks).flat().filter((t) => t.done).length;
-  await ch.send({ embeds: [new EmbedBuilder().setColor(0x38bdf8).setTitle("📋 Warp — Full Task Snapshot")
-    .setDescription(lines.join("\n\n")).setFooter({ text: `${done}/${total} tasks complete` }).setTimestamp()] });
+
+  const chunks = [];
+  let current = "";
+  for (const section of sections) {
+    const candidate = current ? current + "\n\n" + section : section;
+    if (candidate.length > 4000) {
+      if (current) chunks.push(current);
+      current = section.length > 4000 ? section.slice(0, 3997) + "…" : section;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) chunks.push(current);
+
+  for (let i = 0; i < chunks.length; i++) {
+    const embed = new EmbedBuilder().setColor(0x38bdf8)
+      .setTitle(i === 0 ? "📋 Warp — Full Task Snapshot" : "📋 Warp — Task Snapshot (cont.)")
+      .setDescription(chunks[i]).setTimestamp();
+    if (i === chunks.length - 1) embed.setFooter({ text: `${done}/${total} tasks complete` });
+    await ch.send({ embeds: [embed] });
+  }
 }
 
 // ─────────────────────────────────────────
