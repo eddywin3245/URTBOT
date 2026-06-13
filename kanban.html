@@ -94,6 +94,21 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .card-progress{height:3px;border-radius:2px;overflow:hidden;margin:.35rem 0 .1rem;background:var(--surface2)}
 .card-progress-fill{height:100%;border-radius:2px;background:#3498db;transition:width .4s ease}
 .card-progress-label{display:flex;justify-content:space-between;align-items:center;font-size:.58em;font-family:'JetBrains Mono',monospace;color:var(--muted);margin-bottom:.1rem}
+.card-history{font-size:.57em;color:var(--dim);font-family:'JetBrains Mono',monospace;margin-top:.3rem;padding-top:.25rem;border-top:1px solid var(--border)}
+
+/* USER CHIP */
+.user-chip{display:flex;align-items:center;gap:.3rem;padding:.28rem .6rem;border-radius:20px;background:var(--surface);border:1px solid var(--border2);cursor:pointer;font-size:.65em;color:var(--text);font-family:'JetBrains Mono',monospace;white-space:nowrap;transition:border-color .2s}
+.user-chip:hover{border-color:#3498db;color:#3498db}
+.user-chip-avatar{width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,#3498db,#9b59b6);display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;font-weight:700;flex-shrink:0}
+
+/* LOGIN OVERLAY */
+#login-overlay{position:fixed;inset:0;background:rgba(8,12,20,.93);backdrop-filter:blur(10px);z-index:9000;display:flex;align-items:center;justify-content:center}
+.login-box{background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:2rem 2.5rem;width:min(400px,90vw);text-align:center}
+.login-title{font-size:1.05em;font-weight:800;color:var(--text);margin-bottom:.2rem}
+.login-sub{font-size:.68em;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:1.5rem;line-height:1.6}
+.login-select,.login-freetext{width:100%;padding:.55rem .8rem;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:.83em;outline:none;margin-bottom:.75rem;box-sizing:border-box;font-family:inherit}
+.login-select:focus,.login-freetext:focus{border-color:#3498db}
+.login-freetext{display:none}
 .card-assignees{display:flex;align-items:center;gap:.2rem;flex-wrap:wrap}
 .achip{font-size:.58em;padding:.1rem .38rem;border-radius:8px;background:var(--surface2);color:var(--muted);font-family:'JetBrains Mono',monospace;white-space:nowrap}
 .uchip{font-size:.58em;color:var(--dim);font-family:'JetBrains Mono',monospace;font-style:italic}
@@ -337,6 +352,7 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
       </div>
     </div>
     <div class="header-right">
+      <div class="user-chip" id="user-chip" onclick="changeUser()" title="Click to change name"><div class="user-chip-avatar" id="user-chip-avatar">?</div><span id="user-chip-label">Set name</span></div>
       <div class="sync-info" id="sync-info">Connecting...</div>
       <button class="hbtn green" onclick="openMembersModal()">👥 Members</button>
       <button class="hbtn" style="color:#9b59b6;border-color:rgba(155,89,182,.3)" onclick="openAddMilestoneModal()">🏁 Add Milestone</button>
@@ -356,6 +372,21 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
   <div class="modal" id="modal-content"></div>
 </div>
 <div class="toast" id="toast"></div>
+
+<div id="login-overlay" style="display:none">
+  <div class="login-box">
+    <div class="login-title">👋 Who are you?</div>
+    <div class="login-sub">Your name is saved in this browser and used to<br>auto-fill purchases and track task changes.</div>
+    <select id="login-select" class="login-select" onchange="loginSelectChange()">
+      <option value="">Select your name...</option>
+    </select>
+    <input type="text" id="login-freetext" class="login-freetext" placeholder="Type your name..." maxlength="50">
+    <div style="display:flex;gap:.6rem">
+      <button id="login-cancel-btn" onclick="document.getElementById('login-overlay').style.display='none'" class="mbtn secondary" style="display:none;font-size:.8em">Cancel</button>
+      <button onclick="confirmLogin()" class="mbtn primary" style="font-size:.85em;flex:1">Let's go →</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const SB_URL = 'https://atiomabdvepihloypwlm.supabase.co';
@@ -386,6 +417,78 @@ let dragData = null;
 let calMonth = new Date().getMonth();
 let calYear  = new Date().getFullYear();
 let calFilter = 'all'; // 'all' or a sub id
+let currentUser = localStorage.getItem('urt_user_name') || null;
+
+// ── USER IDENTITY ──
+function timeAgo(ts) {
+  const d = Date.now() - ts;
+  if (d < 60000) return 'just now';
+  if (d < 3600000) return Math.floor(d / 60000) + 'm ago';
+  if (d < 86400000) return Math.floor(d / 3600000) + 'h ago';
+  if (d < 604800000) return Math.floor(d / 86400000) + 'd ago';
+  return new Date(ts).toLocaleDateString('en-AU', { day:'numeric', month:'short' });
+}
+
+function renderUserChip() {
+  const label  = document.getElementById('user-chip-label');
+  const avatar = document.getElementById('user-chip-avatar');
+  if (!label) return;
+  if (currentUser) {
+    label.textContent  = currentUser + ' ▾';
+    avatar.textContent = currentUser.charAt(0).toUpperCase();
+  } else {
+    label.textContent  = 'Set name ▾';
+    avatar.textContent = '?';
+  }
+}
+
+function setUser(name) {
+  currentUser = name;
+  localStorage.setItem('urt_user_name', name);
+  renderUserChip();
+}
+
+function changeUser() { showLoginOverlay(true); }
+
+function checkUserIdentity() {
+  renderUserChip();
+  if (!currentUser) showLoginOverlay(false);
+}
+
+function showLoginOverlay(allowClose) {
+  const ov  = document.getElementById('login-overlay');
+  const sel = document.getElementById('login-select');
+  const inp = document.getElementById('login-freetext');
+  const cancelBtn = document.getElementById('login-cancel-btn');
+  if (!ov) return;
+  const members = Object.values(store.members || {}).filter(Boolean).sort();
+  sel.innerHTML = '<option value="">Select your name...</option>' +
+    members.map(n => `<option value="${esc(n)}"${currentUser === n ? ' selected' : ''}>${esc(n)}</option>`).join('') +
+    '<option value="__other__">Other (type name)</option>';
+  inp.style.display = 'none';
+  inp.value = '';
+  if (cancelBtn) cancelBtn.style.display = allowClose ? '' : 'none';
+  ov.style.display = 'flex';
+  setTimeout(() => sel.focus(), 80);
+}
+
+function loginSelectChange() {
+  const sel = document.getElementById('login-select');
+  const inp = document.getElementById('login-freetext');
+  const isOther = sel.value === '__other__';
+  inp.style.display = isOther ? 'block' : 'none';
+  if (isOther) inp.focus();
+}
+
+function confirmLogin() {
+  const sel  = document.getElementById('login-select');
+  const inp  = document.getElementById('login-freetext');
+  const name = sel.value === '__other__' ? inp.value.trim() : sel.value.trim();
+  if (!name || name === '__other__') { toast('Please choose or enter your name', 'error'); return; }
+  setUser(name);
+  document.getElementById('login-overlay').style.display = 'none';
+  toast('Welcome, ' + name + '! 👋', 'success');
+}
 
 // ── DATE HELPERS ──
 function dmyToYmd(dmy) {
@@ -919,6 +1022,9 @@ function buildCard(task, sub, compact) {
   const progHtml  = (task.status === 'inprogress' && prgVal > 0) ? `
     <div class="card-progress-label"><span>progress</span><span>${prgVal}%</span></div>
     <div class="card-progress"><div class="card-progress-fill" style="width:${prgVal}%"></div></div>` : '';
+  const lastH     = task.history?.length ? task.history[task.history.length - 1] : null;
+  const histIcon  = lastH ? (lastH.to === 'done' ? '✓' : lastH.to === 'inprogress' ? '◑' : '○') : '';
+  const histHtml  = lastH ? `<div class="card-history">${histIcon} ${esc(lastH.by)} · ${timeAgo(lastH.at)}</div>` : '';
 
   // Dependency info
   let depHtml = '';
@@ -950,6 +1056,7 @@ function buildCard(task, sub, compact) {
       <div class="card-assignees">${aHtml}</div>
       <div class="card-dates">${startHtml}${dueHtml}</div>
     </div>
+    ${histHtml}
   `;
 
   card.querySelector('.card-status').addEventListener('click', e => {
@@ -974,8 +1081,12 @@ async function cycleStatus(subId, taskId) {
   if (!task) return;
   const order = ['todo','inprogress','done'];
   const cur   = order.indexOf(task.status || 'todo');
+  const prev  = task.status || 'todo';
   task.status = order[(cur + 1) % order.length];
   task.done   = task.status === 'done';
+  if (!task.history) task.history = [];
+  task.history.push({ by: currentUser || 'unknown', at: Date.now(), from: prev, to: task.status });
+  if (task.history.length > 30) task.history = task.history.slice(-30);
   renderTabs(); renderBoard();
   try {
     await saveData();
@@ -1128,7 +1239,7 @@ async function addTask(subId) {
   const dueDate   = ymdToDmy(document.getElementById('m-due').value);
   const notes     = document.getElementById('m-notes').value.trim();
   const assignees = getCheckedMembers();
-  store.tasks[subId].push({ id:makeId(), name, status, done:status==='done', priority, assignees, startDate:startDate||null, dueDate:dueDate||null, notes:notes||null, dependsOn:[], addedAt:Date.now() });
+  store.tasks[subId].push({ id:makeId(), name, status, done:status==='done', priority, assignees, startDate:startDate||null, dueDate:dueDate||null, notes:notes||null, dependsOn:[], addedAt:Date.now(), history:[{by:currentUser||'unknown',at:Date.now(),from:null,to:status}] });
   closeModal(); renderTabs(); renderBoard();
   try { await saveData(); toast('Task added', 'success'); }
   catch { toast('Save failed', 'error'); }
@@ -1223,6 +1334,11 @@ async function saveEdit(subId, taskId) {
   task.notes     = document.getElementById('m-notes').value.trim() || null;
   task.progress  = task.status === 'inprogress' ? parseInt(document.getElementById('m-progress')?.value || 0, 10) : (task.status === 'done' ? 100 : 0);
   task.assignees = getCheckedMembers();
+  if (task.status !== prevStatus) {
+    if (!task.history) task.history = [];
+    task.history.push({ by: currentUser || 'unknown', at: Date.now(), from: prevStatus, to: task.status });
+    if (task.history.length > 30) task.history = task.history.slice(-30);
+  }
   closeModal(); renderTabs(); renderBoard();
   try {
     await saveData();
@@ -2825,7 +2941,10 @@ function openAddExpenseModal() {
       '<button class="mbtn primary" onclick="confirmAddExpense()">Add Expense</button>' +
     '</div>'
   );
-  setTimeout(() => document.getElementById('exp-item')?.focus(), 50);
+  setTimeout(() => {
+    document.getElementById('exp-item')?.focus();
+    if (currentUser) { const p = document.getElementById('exp-purchaser'); if (p && !p.value) p.value = currentUser; }
+  }, 50);
 }
 
 async function confirmAddExpense() {
@@ -3314,7 +3433,7 @@ window.addEventListener('keydown', e => {
 });
 
 // ── INIT ──
-loadData().then(startAutoRefresh).catch(() => {
+loadData().then(() => { startAutoRefresh(); checkUserIdentity(); }).catch(() => {
   document.getElementById('sync-info').textContent = 'CONNECTION ERROR';
   document.getElementById('main-area').innerHTML = `<div class="loading" style="color:#e74c3c">Failed to connect</div>`;
 });
