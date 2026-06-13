@@ -410,43 +410,24 @@ function todayDmy() {
 
 // ── API (Supabase) ──
 const SB_HEADERS = { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
-let currentRev = 0; // last revision seen from the server (optimistic concurrency)
-function teamKeyHeader() {
-  const k = localStorage.getItem('urt_team_key');
-  return k ? { 'x-team-key': k } : {};
-}
 async function jbGet() {
-  const r = await fetch(`${SB_URL}/rest/v1/store?id=eq.main&select=data`, { headers: { ...SB_HEADERS, ...teamKeyHeader() } });
+  const r = await fetch(`${SB_URL}/rest/v1/store?id=eq.main&select=data`, { headers: SB_HEADERS });
   if (!r.ok) throw new Error(`Supabase GET error ${r.status}`);
   const rows = await r.json();
   return rows[0]?.data || {};
 }
 async function jbPut(data) {
-  const prevRev = currentRev, newRev = prevRev + 1;
-  data._rev = newRev;
-  // Only update if the server still holds the revision we loaded — otherwise someone saved first
-  const guard = prevRev ? `data->>_rev=eq.${prevRev}` : `data->>_rev=is.null`;
-  const r = await fetch(`${SB_URL}/rest/v1/store?id=eq.main&${guard}&select=id`, {
+  const r = await fetch(`${SB_URL}/rest/v1/store?id=eq.main`, {
     method: 'PATCH',
-    headers: { ...SB_HEADERS, ...teamKeyHeader(), 'Prefer': 'return=representation' },
+    headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' },
     body: JSON.stringify({ data, updated_at: new Date().toISOString() })
   });
   if (!r.ok) throw new Error(`Supabase PATCH error ${r.status}`);
-  const rows = await r.json();
-  if (!rows.length) {
-    // 0 rows updated: either a concurrent save bumped the rev, or RLS rejected the write (missing/bad team key)
-    const fresh = await jbGet().catch(() => null);
-    const err = new Error('save rejected');
-    if (fresh && (fresh._rev || 0) === prevRev) err.unauthorized = true; else err.conflict = true;
-    throw err;
-  }
-  currentRev = newRev;
 }
 
 async function loadData() {
   const rec = await jbGet();
   store = rec;
-  currentRev = store._rev || 0;
   if (!store.tasks)      store.tasks      = {};
   if (!store.members)   store.members   = {};
   if (!store.milestones) store.milestones = [];
@@ -464,20 +445,8 @@ async function loadData() {
   document.getElementById('sync-info').textContent = 'SYNCED ' + new Date().toLocaleTimeString();
 }
 async function saveData() {
-  try {
-    await jbPut(store);
-    document.getElementById('sync-info').textContent = 'SAVED ' + new Date().toLocaleTimeString();
-  } catch (e) {
-    if (e.conflict) {
-      toast('⚠ Someone else saved first — board refreshed, please redo your last change', 'error');
-      try { await loadData(); } catch {}
-    } else if (e.unauthorized) {
-      const k = prompt('This board requires a write key (ask a team lead).\nEnter team key:');
-      if (k?.trim()) { localStorage.setItem('urt_team_key', k.trim()); return saveData(); }
-      toast('Save cancelled — no write key', 'error');
-    }
-    throw e;
-  }
+  await jbPut(store);
+  document.getElementById('sync-info').textContent = 'SAVED ' + new Date().toLocaleTimeString();
 }
 function refresh() {
   const btn = document.getElementById('refresh-btn');
