@@ -2792,8 +2792,8 @@ async function resetSpentKanban(subId) {
 }
 
 function openAddExpenseModal() {
-  if (!financeUnlocked) { toast('Unlock finance first', 'error'); return; }
   const subOpts = SUBS.map(s => '<option value="' + s.id + '">' + esc(s.label) + '</option>').join('');
+  const memberOpts = Object.values(store.members || {}).map(n => '<option value="' + esc(n) + '">').join('');
   showModal(
     '<div class="modal-title">+ Add Expense</div>' +
     '<div class="mfield"><label>SUBSYSTEM</label>' +
@@ -2809,6 +2809,10 @@ function openAddExpenseModal() {
     '<div class="mfield" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">' +
       '<div><label>DATE</label><input type="date" id="exp-date" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none;color-scheme:dark" value="' + new Date().toISOString().slice(0,10) + '"></div>' +
       '<div><label>REIMBURSEMENT</label><select id="exp-reimb" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"><option value="No">No</option><option value="Pending">Pending</option><option value="Yes">Yes</option></select></div>' +
+    '</div>' +
+    '<div class="mfield"><label>PURCHASED BY</label>' +
+      '<input type="text" id="exp-purchaser" list="exp-members-list" placeholder="Who made the purchase?" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none">' +
+      '<datalist id="exp-members-list">' + memberOpts + '</datalist>' +
     '</div>' +
     '<div class="mfield"><label>JUSTIFICATION / NOTES (optional)</label>' +
       '<textarea id="exp-notes" rows="2" placeholder="What is this for?" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none;resize:vertical"></textarea>' +
@@ -2831,6 +2835,7 @@ async function confirmAddExpense() {
   const cost    = parseFloat(document.getElementById('exp-cost').value) || 0;
   const date    = document.getElementById('exp-date').value;
   const reimb   = document.getElementById('exp-reimb').value;
+  const purchaser = document.getElementById('exp-purchaser').value.trim();
   const notes   = document.getElementById('exp-notes').value.trim();
   const receipt = document.getElementById('exp-receipt').value.trim();
 
@@ -2849,7 +2854,7 @@ async function confirmAddExpense() {
     receiptId, subId, groupId: subId,
     item, qty, estCost: cost, estTotal: total,
     finalCost: cost, finalTotal: total,
-    date: dateStr, submittedBy: 'Kanban',
+    date: dateStr, submittedBy: purchaser || 'Kanban', purchasedBy: purchaser || null,
     approved: true, reimbursement: reimb,
     justification: notes, receipt,
     addedAt: Date.now()
@@ -2876,13 +2881,13 @@ function renderFinanceView(area) {
   // PIN bar
   const pinBar = document.createElement('div');
   pinBar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem';
-  pinBar.innerHTML = financeUnlocked
-    ? '<span style="font-size:.65em;font-family:JetBrains Mono,monospace;color:#2ecc71">🔓 Editing enabled</span>' +
-      '<div style="display:flex;gap:.4rem">' +
-        '<button onclick="openAddExpenseModal()" class="mbtn primary" style="font-size:.68em">+ Add Expense</button>' +
-        '<button onclick="lockFinance()" style="padding:.3rem .7rem;background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">🔒 Lock</button>' +
-      '</div>'
-    : '<span style="font-size:.65em;font-family:JetBrains Mono,monospace;color:var(--dim)">🔒 Read-only mode — unlock to add expenses</span><button onclick="checkFinancePin()" style="padding:.3rem .7rem;background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">🔓 Unlock</button>';
+  pinBar.innerHTML = '<div style="display:flex;gap:.4rem;align-items:center">' +
+      '<button onclick="openAddExpenseModal()" class="mbtn primary" style="font-size:.68em">+ Add Expense</button>' +
+      (financeUnlocked
+        ? '<span style="font-size:.65em;font-family:JetBrains Mono,monospace;color:#2ecc71;margin-left:.5rem">🔓 Admin unlocked</span>' +
+          '<button onclick="lockFinance()" style="padding:.3rem .7rem;background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">🔒 Lock</button>'
+        : '<button onclick="checkFinancePin()" style="padding:.3rem .7rem;background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">🔓 Admin unlock</button>') +
+    '</div>';
   area.appendChild(pinBar);
 
   // Budget overview
@@ -2956,7 +2961,8 @@ function renderFinanceView(area) {
     const c1 = document.createElement('div'); c1.className='expense-receipt'; c1.textContent=e.receiptId||''; row.appendChild(c1);
     // item + amount
     const c2 = document.createElement('div'); c2.className='expense-item';
-    c2.innerHTML = esc(e.item||'') + (amt ? ' <span style="font-size:.8em;color:var(--muted)">$'+amt.toFixed(2)+'</span>' : '');
+    c2.innerHTML = esc(e.item||'') + (amt ? ' <span style="font-size:.8em;color:var(--muted)">$'+amt.toFixed(2)+'</span>' : '') +
+      ((e.purchasedBy||e.submittedBy&&e.submittedBy!=='Kanban'&&e.submittedBy!=='Bot') ? '<div style="font-size:.7em;color:var(--dim);font-family:JetBrains Mono,monospace;margin-top:.1rem">👤 '+ esc(e.purchasedBy||e.submittedBy)+'</div>' : '');
     row.appendChild(c2);
     // group
     const c3 = document.createElement('div'); c3.className='expense-group'; c3.textContent = sub?sub.label:(e.groupId||''); row.appendChild(c3);
