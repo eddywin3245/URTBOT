@@ -91,6 +91,9 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .pri-low{background:rgba(46,204,113,.12);color:var(--pri-low);border:1px solid rgba(46,204,113,.2)}
 .card-notes{font-size:.66em;color:var(--muted);line-height:1.5;margin-bottom:.35rem;font-family:'JetBrains Mono',monospace;word-break:break-word}
 .card-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.2rem;margin-top:.3rem;padding-top:.3rem;border-top:1px solid var(--border)}
+.card-progress{height:3px;border-radius:2px;overflow:hidden;margin:.35rem 0 .1rem;background:var(--surface2)}
+.card-progress-fill{height:100%;border-radius:2px;background:#3498db;transition:width .4s ease}
+.card-progress-label{display:flex;justify-content:space-between;align-items:center;font-size:.58em;font-family:'JetBrains Mono',monospace;color:var(--muted);margin-bottom:.1rem}
 .card-assignees{display:flex;align-items:center;gap:.2rem;flex-wrap:wrap}
 .achip{font-size:.58em;padding:.1rem .38rem;border-radius:8px;background:var(--surface2);color:var(--muted);font-family:'JetBrains Mono',monospace;white-space:nowrap}
 .uchip{font-size:.58em;color:var(--dim);font-family:'JetBrains Mono',monospace;font-style:italic}
@@ -912,6 +915,10 @@ function buildCard(task, sub, compact) {
   const startHtml = (!compact && task.startDate) ? `<span class="card-start">▶ ${esc(task.startDate)}</span>` : '';
   const noteHtml  = (!compact && task.notes) ? `<div class="card-notes">${esc(task.notes)}</div>` : '';
   const priHtml   = task.priority ? `<span class="card-priority pri-${task.priority}">${PRI_LABELS[task.priority]}</span>` : '';
+  const prgVal    = task.progress || 0;
+  const progHtml  = (task.status === 'inprogress' && prgVal > 0) ? `
+    <div class="card-progress-label"><span>progress</span><span>${prgVal}%</span></div>
+    <div class="card-progress"><div class="card-progress-fill" style="width:${prgVal}%"></div></div>` : '';
 
   // Dependency info
   let depHtml = '';
@@ -938,6 +945,7 @@ function buildCard(task, sub, compact) {
     </div>
     ${noteHtml}
     ${depHtml}
+    ${progHtml}
     <div class="card-footer">
       <div class="card-assignees">${aHtml}</div>
       <div class="card-dates">${startHtml}${dueHtml}</div>
@@ -1145,7 +1153,7 @@ function openEditModal(subId, taskId) {
         </select>
       </div>
       <div class="mfield"><label>STATUS</label>
-        <select id="m-status">
+        <select id="m-status" onchange="document.getElementById('m-progress-wrap').style.display=this.value==='inprogress'?'':'none'">
           <option value="todo" ${task.status==='todo'?'selected':''}>To Do</option>
           <option value="inprogress" ${task.status==='inprogress'?'selected':''}>In Progress</option>
           <option value="done" ${task.status==='done'?'selected':''}>Done</option>
@@ -1157,6 +1165,13 @@ function openEditModal(subId, taskId) {
       <div class="mfield"><label>DUE DATE</label><input type="date" id="m-due" value="${esc(dmyToYmd(task.dueDate||''))}"></div>
     </div>
     <div class="mfield"><label>NOTES</label><textarea id="m-notes" rows="2">${esc(task.notes||'')}</textarea></div>
+    <div class="mfield" id="m-progress-wrap" style="${task.status!=='inprogress'?'display:none':''}">
+      <label>PROGRESS — <span id="m-prog-val">${task.progress||0}%</span></label>
+      <input type="range" id="m-progress" min="0" max="100" step="5" value="${task.progress||0}"
+        style="width:100%;accent-color:#3498db;cursor:pointer;margin-top:.3rem"
+        oninput="document.getElementById('m-prog-val').textContent=this.value+'%'">
+      <div style="display:flex;justify-content:space-between;font-size:.6em;font-family:'JetBrains Mono',monospace;color:var(--dim);margin-top:.1rem"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
+    </div>
     <div class="mfield"><label>ASSIGN TO</label>
       <input type="text" id="m-assign-search" placeholder="Search members..." oninput="filterMembers()" style="width:100%;padding:.45rem .7rem;background:var(--bg);border:1px solid var(--border2);border-bottom:none;border-radius:7px 7px 0 0;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.78em;outline:none;margin-bottom:0">
       <div id="m-assign-list" style="max-height:120px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 7px 7px;padding:.25rem">${memberCheckboxList(task.assignees||[])}</div>
@@ -1206,6 +1221,7 @@ async function saveEdit(subId, taskId) {
   task.startDate = ymdToDmy(document.getElementById('m-start').value) || null;
   task.dueDate   = ymdToDmy(document.getElementById('m-due').value) || null;
   task.notes     = document.getElementById('m-notes').value.trim() || null;
+  task.progress  = task.status === 'inprogress' ? parseInt(document.getElementById('m-progress')?.value || 0, 10) : (task.status === 'done' ? 100 : 0);
   task.assignees = getCheckedMembers();
   closeModal(); renderTabs(); renderBoard();
   try {
@@ -1801,7 +1817,7 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
     g.dagNodes.push(newNode);
     if(!g.dagEdges) g.dagEdges=[];
     g.dagEdges.push({id:makeNodeId(),from:parent.id,to:newNode.id});
-    renderBoard();
+    autoLayout(g); renderBoard();
     try{await saveData();toast('Sub-subgoal added','success');}catch{}
   };
 
@@ -1865,7 +1881,7 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
         if(!goal.dagEdges) goal.dagEdges=[];
         if(!goal.dagEdges.some(x=>x.from===srcId&&x.to===node.id)){
           goal.dagEdges.push({id:makeNodeId(),from:srcId,to:node.id});
-          renderBoard();
+          autoLayout(goal); renderBoard();
           try{await saveData();toast('Linked ✓','success');}catch{}
           return;
         } else toast('Already linked','error');
@@ -1891,7 +1907,7 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
     pushGoalUndo('remove subgoal "'+node.name+'"');
     goal.dagNodes=(goal.dagNodes||[]).filter(n=>n.id!==node.id);
     goal.dagEdges=(goal.dagEdges||[]).filter(e=>e.from!==node.id&&e.to!==node.id);
-    renderBoard();
+    autoLayout(goal); renderBoard();
     try{await saveData();toast('Removed — ↩ Undo available','success');}catch{}
   });
   el.appendChild(rm);
@@ -1932,7 +1948,7 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
         if(!goal.dagEdges) goal.dagEdges=[];
         if(!goal.dagEdges.some(e=>e.from===srcId&&e.to===node.id)){
           goal.dagEdges.push({id:makeNodeId(),from:srcId,to:node.id});
-          renderBoard();
+          autoLayout(goal); renderBoard();
           try{await saveData();toast('Linked — arrow flows down to dependency','success');}catch{}
         }
       } else toast('Would create a cycle','error');
@@ -1986,7 +2002,7 @@ function drawEdges(svg,goal,allTasks,cvs){
       if(!confirm('Remove this dependency link?')) return;
       pushGoalUndo('remove dependency link');
       goal.dagEdges=(goal.dagEdges||[]).filter(x=>x.id!==edge.id);
-      renderBoard();
+      autoLayout(goal); renderBoard();
       try{await saveData();toast('Link removed — ↩ Undo available','success');}catch{}
     });
     svg.appendChild(hit);
@@ -2058,10 +2074,9 @@ async function addSgNode(goalId){
   migrateGoal(goal);
   const name=prompt('Subgoal name (e.g. "Get Drivetrain Complete"):');
   if(!name?.trim()) return;
-  const maxY=Math.max(40,...(goal.dagNodes||[]).map(n=>n.y+160));
-  goal.dagNodes.push({id:makeNodeId(),type:'subgoal',name:name.trim(),taskIds:[],x:40,y:maxY});
-  renderBoard();
-  try{await saveData();toast('Subgoal added — drag to position, Shift+drag to link','success');}catch{}
+  goal.dagNodes.push({id:makeNodeId(),type:'subgoal',name:name.trim(),taskIds:[],x:40,y:40});
+  autoLayout(goal); renderBoard();
+  try{await saveData();toast('Subgoal added','success');}catch{}
 }
 
 function openLinkModal(goalId, nodeId) {
@@ -2104,7 +2119,7 @@ async function confirmLinks(goalId, nodeId) {
       } else toast('Skipped cycle: '+toId,'error');
     }
   }
-  closeModal(); renderBoard();
+  closeModal(); autoLayout(goal); renderBoard();
   try{await saveData();toast('Links saved','success');}catch{toast('Save failed','error');}
 }
 
