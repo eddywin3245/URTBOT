@@ -390,6 +390,7 @@ async function loadData() {
     pendingNudges:       r.pendingNudges       || [],
     meetings:            r.meetings            || [],
     goals:               r.goals               || [],
+    _rev:                r._rev                || 0,
   };
   for (const sub of SUBSYSTEMS) {
     if (!store.tasks[sub.id]) store.tasks[sub.id] = [];
@@ -441,7 +442,10 @@ const saveData = limiter.wrap(async () => {
     if (latest.milestones)    store.milestones    = latest.milestones;
     if (latest.adminNotes)    store.adminNotes    = latest.adminNotes;
     if (latest.adminReminders) store.adminReminders = latest.adminReminders;
+    store._rev = latest._rev || 0;
   } catch (e) { console.error("Merge check failed:", e.message); }
+  // Bump the revision so kanban page clients detect this write instead of clobbering it
+  store._rev = (store._rev || 0) + 1;
   await jsonbinRequest("PUT", store);
 });
 
