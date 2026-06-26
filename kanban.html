@@ -3064,8 +3064,8 @@ function renderFinanceView(area) {
 
   const table = document.createElement('div');
   table.className = 'expense-table';
-  const hGrid = financeUnlocked ? 'grid-template-columns:90px 1fr 110px 140px 85px 70px' : 'grid-template-columns:90px 1fr 110px 140px 85px';
-  const hCols = financeUnlocked ? '<div>RECEIPT</div><div>ITEM</div><div>GROUP</div><div>STATUS</div><div>DATE</div><div>ACTIONS</div>' : '<div>RECEIPT</div><div>ITEM</div><div>GROUP</div><div>STATUS</div><div>DATE</div>';
+  const hGrid = financeUnlocked ? 'grid-template-columns:90px 1fr 75px 110px 140px 85px 70px' : 'grid-template-columns:90px 1fr 75px 110px 140px 85px';
+  const hCols = financeUnlocked ? '<div>RECEIPT</div><div>ITEM</div><div>AMOUNT</div><div>GROUP</div><div>STATUS</div><div>DATE</div><div>ACTIONS</div>' : '<div>RECEIPT</div><div>ITEM</div><div>AMOUNT</div><div>GROUP</div><div>STATUS</div><div>DATE</div>';
   table.innerHTML = '<div class="expense-row header" style="' + hGrid + '">' + hCols + '</div>';
 
   [...expenses].reverse().forEach(e => {
@@ -3078,11 +3078,16 @@ function renderFinanceView(area) {
 
     // receipt
     const c1 = document.createElement('div'); c1.className='expense-receipt'; c1.textContent=e.receiptId||''; row.appendChild(c1);
-    // item + amount
+    // item
     const c2 = document.createElement('div'); c2.className='expense-item';
-    c2.innerHTML = esc(e.item||'') + (amt ? ' <span style="font-size:.8em;color:var(--muted)">$'+amt.toFixed(2)+'</span>' : '') +
-      ((e.purchasedBy||e.submittedBy&&e.submittedBy!=='Kanban'&&e.submittedBy!=='Bot') ? '<div style="font-size:.7em;color:var(--dim);font-family:JetBrains Mono,monospace;margin-top:.1rem">👤 '+ esc(e.purchasedBy||e.submittedBy)+'</div>' : '');
+    c2.innerHTML = esc(e.item||'') +
+      ((e.purchasedBy||(e.submittedBy&&e.submittedBy!=='Kanban'&&e.submittedBy!=='Bot')) ? '<div style="font-size:.7em;color:var(--dim);font-family:JetBrains Mono,monospace;margin-top:.1rem">👤 '+ esc(e.purchasedBy||e.submittedBy)+'</div>' : '');
     row.appendChild(c2);
+    // amount
+    const cAmt = document.createElement('div');
+    cAmt.style.cssText = 'font-family:\'JetBrains Mono\',monospace;font-size:.85em;color:' + (amt ? '#2ecc71' : 'var(--dim)') + ';font-weight:600;white-space:nowrap';
+    cAmt.textContent = amt ? '$' + amt.toFixed(2) : '—';
+    row.appendChild(cAmt);
     // group
     const c3 = document.createElement('div'); c3.className='expense-group'; c3.textContent = sub?sub.label:(e.groupId||''); row.appendChild(c3);
     // status - dropdown if unlocked
