@@ -91,24 +91,6 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .pri-low{background:rgba(46,204,113,.12);color:var(--pri-low);border:1px solid rgba(46,204,113,.2)}
 .card-notes{font-size:.66em;color:var(--muted);line-height:1.5;margin-bottom:.35rem;font-family:'JetBrains Mono',monospace;word-break:break-word}
 .card-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.2rem;margin-top:.3rem;padding-top:.3rem;border-top:1px solid var(--border)}
-.card-progress{height:3px;border-radius:2px;overflow:hidden;margin:.35rem 0 .1rem;background:var(--surface2)}
-.card-progress-fill{height:100%;border-radius:2px;background:#3498db;transition:width .4s ease}
-.card-progress-label{display:flex;justify-content:space-between;align-items:center;font-size:.58em;font-family:'JetBrains Mono',monospace;color:var(--muted);margin-bottom:.1rem}
-.card-history{font-size:.57em;color:var(--dim);font-family:'JetBrains Mono',monospace;margin-top:.3rem;padding-top:.25rem;border-top:1px solid var(--border)}
-
-/* USER CHIP */
-.user-chip{display:flex;align-items:center;gap:.3rem;padding:.28rem .6rem;border-radius:20px;background:var(--surface);border:1px solid var(--border2);cursor:pointer;font-size:.65em;color:var(--text);font-family:'JetBrains Mono',monospace;white-space:nowrap;transition:border-color .2s}
-.user-chip:hover{border-color:#3498db;color:#3498db}
-.user-chip-avatar{width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,#3498db,#9b59b6);display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;font-weight:700;flex-shrink:0}
-
-/* LOGIN OVERLAY */
-#login-overlay{position:fixed;inset:0;background:rgba(8,12,20,.93);backdrop-filter:blur(10px);z-index:9000;display:flex;align-items:center;justify-content:center}
-.login-box{background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:2rem 2.5rem;width:min(400px,90vw);text-align:center}
-.login-title{font-size:1.05em;font-weight:800;color:var(--text);margin-bottom:.2rem}
-.login-sub{font-size:.68em;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:1.5rem;line-height:1.6}
-.login-select,.login-freetext{width:100%;padding:.55rem .8rem;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:.83em;outline:none;margin-bottom:.75rem;box-sizing:border-box;font-family:inherit}
-.login-select:focus,.login-freetext:focus{border-color:#3498db}
-.login-freetext{display:none}
 .card-assignees{display:flex;align-items:center;gap:.2rem;flex-wrap:wrap}
 .achip{font-size:.58em;padding:.1rem .38rem;border-radius:8px;background:var(--surface2);color:var(--muted);font-family:'JetBrains Mono',monospace;white-space:nowrap}
 .uchip{font-size:.58em;color:var(--dim);font-family:'JetBrains Mono',monospace;font-style:italic}
@@ -302,14 +284,13 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
 .goal-progress-bar{height:4px;background:var(--bg);border-radius:2px;overflow:hidden;margin:.2rem 0}
 .goal-progress-fill{height:100%;border-radius:2px;transition:width .6s}
 .goal-progress-nums{display:flex;justify-content:space-between;font-size:.58em;font-family:'JetBrains Mono',monospace;color:var(--muted)}
-.dag-vp{position:relative;height:680px;overflow:hidden;background:var(--bg);cursor:grab;touch-action:none}
+.dag-vp{position:relative;height:680px;overflow:hidden;background:var(--bg);cursor:grab}
 .dag-vp-ports{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:50}
 .dag-vp.panning{cursor:grabbing}
 .dag-cvs{position:absolute;top:0;left:0;transform-origin:0 0;overflow:visible}
 .dag-overlay{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
 .dag-hint{padding:.25rem 1rem;font-size:.6em;font-family:'JetBrains Mono',monospace;color:var(--dim);background:var(--surface2);border-bottom:1px solid var(--border);display:flex;gap:1.5rem;flex-wrap:wrap}
 .sgn{position:absolute;width:220px;background:var(--surface);border:2px solid rgba(230,126,34,.4);border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,.3);cursor:default;box-sizing:border-box;overflow:visible}
-.sgn.sg-critical{border-color:rgba(231,76,60,.8);box-shadow:0 0 14px rgba(231,76,60,.3)}
 .sgn:hover{border-color:rgba(230,126,34,.7);box-shadow:0 4px 18px rgba(0,0,0,.4)}
 .sgn.sg-root{border-color:rgba(231,76,60,.5);background:rgba(231,76,60,.04)}
 .sgn.sg-blocked{border-color:rgba(241,196,15,.5)}
@@ -352,7 +333,6 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
       </div>
     </div>
     <div class="header-right">
-      <div class="user-chip" id="user-chip" onclick="changeUser()" title="Click to change name"><div class="user-chip-avatar" id="user-chip-avatar">?</div><span id="user-chip-label">Set name</span></div>
       <div class="sync-info" id="sync-info">Connecting...</div>
       <button class="hbtn green" onclick="openMembersModal()">👥 Members</button>
       <button class="hbtn" style="color:#9b59b6;border-color:rgba(155,89,182,.3)" onclick="openAddMilestoneModal()">🏁 Add Milestone</button>
@@ -372,21 +352,6 @@ body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-he
   <div class="modal" id="modal-content"></div>
 </div>
 <div class="toast" id="toast"></div>
-
-<div id="login-overlay" style="display:none">
-  <div class="login-box">
-    <div class="login-title">👋 Who are you?</div>
-    <div class="login-sub">Your name is saved in this browser and used to<br>auto-fill purchases and track task changes.</div>
-    <select id="login-select" class="login-select" onchange="loginSelectChange()">
-      <option value="">Select your name...</option>
-    </select>
-    <input type="text" id="login-freetext" class="login-freetext" placeholder="Type your name..." maxlength="50">
-    <div style="display:flex;gap:.6rem">
-      <button id="login-cancel-btn" onclick="document.getElementById('login-overlay').style.display='none'" class="mbtn secondary" style="display:none;font-size:.8em">Cancel</button>
-      <button onclick="confirmLogin()" class="mbtn primary" style="font-size:.85em;flex:1">Let's go →</button>
-    </div>
-  </div>
-</div>
 
 <script>
 const SB_URL = 'https://atiomabdvepihloypwlm.supabase.co';
@@ -417,78 +382,6 @@ let dragData = null;
 let calMonth = new Date().getMonth();
 let calYear  = new Date().getFullYear();
 let calFilter = 'all'; // 'all' or a sub id
-let currentUser = localStorage.getItem('urt_user_name') || null;
-
-// ── USER IDENTITY ──
-function timeAgo(ts) {
-  const d = Date.now() - ts;
-  if (d < 60000) return 'just now';
-  if (d < 3600000) return Math.floor(d / 60000) + 'm ago';
-  if (d < 86400000) return Math.floor(d / 3600000) + 'h ago';
-  if (d < 604800000) return Math.floor(d / 86400000) + 'd ago';
-  return new Date(ts).toLocaleDateString('en-AU', { day:'numeric', month:'short' });
-}
-
-function renderUserChip() {
-  const label  = document.getElementById('user-chip-label');
-  const avatar = document.getElementById('user-chip-avatar');
-  if (!label) return;
-  if (currentUser) {
-    label.textContent  = currentUser + ' ▾';
-    avatar.textContent = currentUser.charAt(0).toUpperCase();
-  } else {
-    label.textContent  = 'Set name ▾';
-    avatar.textContent = '?';
-  }
-}
-
-function setUser(name) {
-  currentUser = name;
-  localStorage.setItem('urt_user_name', name);
-  renderUserChip();
-}
-
-function changeUser() { showLoginOverlay(true); }
-
-function checkUserIdentity() {
-  renderUserChip();
-  if (!currentUser) showLoginOverlay(false);
-}
-
-function showLoginOverlay(allowClose) {
-  const ov  = document.getElementById('login-overlay');
-  const sel = document.getElementById('login-select');
-  const inp = document.getElementById('login-freetext');
-  const cancelBtn = document.getElementById('login-cancel-btn');
-  if (!ov) return;
-  const members = Object.values(store.members || {}).filter(Boolean).sort();
-  sel.innerHTML = '<option value="">Select your name...</option>' +
-    members.map(n => `<option value="${esc(n)}"${currentUser === n ? ' selected' : ''}>${esc(n)}</option>`).join('') +
-    '<option value="__other__">Other (type name)</option>';
-  inp.style.display = 'none';
-  inp.value = '';
-  if (cancelBtn) cancelBtn.style.display = allowClose ? '' : 'none';
-  ov.style.display = 'flex';
-  setTimeout(() => sel.focus(), 80);
-}
-
-function loginSelectChange() {
-  const sel = document.getElementById('login-select');
-  const inp = document.getElementById('login-freetext');
-  const isOther = sel.value === '__other__';
-  inp.style.display = isOther ? 'block' : 'none';
-  if (isOther) inp.focus();
-}
-
-function confirmLogin() {
-  const sel  = document.getElementById('login-select');
-  const inp  = document.getElementById('login-freetext');
-  const name = sel.value === '__other__' ? inp.value.trim() : sel.value.trim();
-  if (!name || name === '__other__') { toast('Please choose or enter your name', 'error'); return; }
-  setUser(name);
-  document.getElementById('login-overlay').style.display = 'none';
-  toast('Welcome, ' + name + '! 👋', 'success');
-}
 
 // ── DATE HELPERS ──
 function dmyToYmd(dmy) {
@@ -641,8 +534,6 @@ function makeTab(id, label, color, remaining, total) {
 
 // ── BOARD ROUTER ──
 function renderBoard() {
-  // Drop window-level listeners from the previous goals render (they re-register each render)
-  if (goalsAbort) { goalsAbort.abort(); goalsAbort = null; }
   const allTasks = Object.values(store.tasks).flat();
   const total    = allTasks.length;
   const done     = allTasks.filter(t => t.status === 'done').length;
@@ -1018,13 +909,6 @@ function buildCard(task, sub, compact) {
   const startHtml = (!compact && task.startDate) ? `<span class="card-start">▶ ${esc(task.startDate)}</span>` : '';
   const noteHtml  = (!compact && task.notes) ? `<div class="card-notes">${esc(task.notes)}</div>` : '';
   const priHtml   = task.priority ? `<span class="card-priority pri-${task.priority}">${PRI_LABELS[task.priority]}</span>` : '';
-  const prgVal    = task.progress || 0;
-  const progHtml  = (task.status === 'inprogress' && prgVal > 0) ? `
-    <div class="card-progress-label"><span>progress</span><span>${prgVal}%</span></div>
-    <div class="card-progress"><div class="card-progress-fill" style="width:${prgVal}%"></div></div>` : '';
-  const lastH     = task.history?.length ? task.history[task.history.length - 1] : null;
-  const histIcon  = lastH ? (lastH.to === 'done' ? '✓' : lastH.to === 'inprogress' ? '◑' : '○') : '';
-  const histHtml  = lastH ? `<div class="card-history">${histIcon} ${esc(lastH.by)} · ${timeAgo(lastH.at)}</div>` : '';
 
   // Dependency info
   let depHtml = '';
@@ -1051,12 +935,10 @@ function buildCard(task, sub, compact) {
     </div>
     ${noteHtml}
     ${depHtml}
-    ${progHtml}
     <div class="card-footer">
       <div class="card-assignees">${aHtml}</div>
       <div class="card-dates">${startHtml}${dueHtml}</div>
     </div>
-    ${histHtml}
   `;
 
   card.querySelector('.card-status').addEventListener('click', e => {
@@ -1081,12 +963,8 @@ async function cycleStatus(subId, taskId) {
   if (!task) return;
   const order = ['todo','inprogress','done'];
   const cur   = order.indexOf(task.status || 'todo');
-  const prev  = task.status || 'todo';
   task.status = order[(cur + 1) % order.length];
   task.done   = task.status === 'done';
-  if (!task.history) task.history = [];
-  task.history.push({ by: currentUser || 'unknown', at: Date.now(), from: prev, to: task.status });
-  if (task.history.length > 30) task.history = task.history.slice(-30);
   renderTabs(); renderBoard();
   try {
     await saveData();
@@ -1239,7 +1117,7 @@ async function addTask(subId) {
   const dueDate   = ymdToDmy(document.getElementById('m-due').value);
   const notes     = document.getElementById('m-notes').value.trim();
   const assignees = getCheckedMembers();
-  store.tasks[subId].push({ id:makeId(), name, status, done:status==='done', priority, assignees, startDate:startDate||null, dueDate:dueDate||null, notes:notes||null, dependsOn:[], addedAt:Date.now(), history:[{by:currentUser||'unknown',at:Date.now(),from:null,to:status}] });
+  store.tasks[subId].push({ id:makeId(), name, status, done:status==='done', priority, assignees, startDate:startDate||null, dueDate:dueDate||null, notes:notes||null, dependsOn:[], addedAt:Date.now() });
   closeModal(); renderTabs(); renderBoard();
   try { await saveData(); toast('Task added', 'success'); }
   catch { toast('Save failed', 'error'); }
@@ -1264,7 +1142,7 @@ function openEditModal(subId, taskId) {
         </select>
       </div>
       <div class="mfield"><label>STATUS</label>
-        <select id="m-status" onchange="document.getElementById('m-progress-wrap').style.display=this.value==='inprogress'?'':'none'">
+        <select id="m-status">
           <option value="todo" ${task.status==='todo'?'selected':''}>To Do</option>
           <option value="inprogress" ${task.status==='inprogress'?'selected':''}>In Progress</option>
           <option value="done" ${task.status==='done'?'selected':''}>Done</option>
@@ -1276,13 +1154,6 @@ function openEditModal(subId, taskId) {
       <div class="mfield"><label>DUE DATE</label><input type="date" id="m-due" value="${esc(dmyToYmd(task.dueDate||''))}"></div>
     </div>
     <div class="mfield"><label>NOTES</label><textarea id="m-notes" rows="2">${esc(task.notes||'')}</textarea></div>
-    <div class="mfield" id="m-progress-wrap" style="${task.status!=='inprogress'?'display:none':''}">
-      <label>PROGRESS — <span id="m-prog-val">${task.progress||0}%</span></label>
-      <input type="range" id="m-progress" min="0" max="100" step="5" value="${task.progress||0}"
-        style="width:100%;accent-color:#3498db;cursor:pointer;margin-top:.3rem"
-        oninput="document.getElementById('m-prog-val').textContent=this.value+'%'">
-      <div style="display:flex;justify-content:space-between;font-size:.6em;font-family:'JetBrains Mono',monospace;color:var(--dim);margin-top:.1rem"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
-    </div>
     <div class="mfield"><label>ASSIGN TO</label>
       <input type="text" id="m-assign-search" placeholder="Search members..." oninput="filterMembers()" style="width:100%;padding:.45rem .7rem;background:var(--bg);border:1px solid var(--border2);border-bottom:none;border-radius:7px 7px 0 0;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.78em;outline:none;margin-bottom:0">
       <div id="m-assign-list" style="max-height:120px;overflow-y:auto;background:var(--bg);border:1px solid var(--border2);border-top:none;border-radius:0 0 7px 7px;padding:.25rem">${memberCheckboxList(task.assignees||[])}</div>
@@ -1332,13 +1203,7 @@ async function saveEdit(subId, taskId) {
   task.startDate = ymdToDmy(document.getElementById('m-start').value) || null;
   task.dueDate   = ymdToDmy(document.getElementById('m-due').value) || null;
   task.notes     = document.getElementById('m-notes').value.trim() || null;
-  task.progress  = task.status === 'inprogress' ? parseInt(document.getElementById('m-progress')?.value || 0, 10) : (task.status === 'done' ? 100 : 0);
   task.assignees = getCheckedMembers();
-  if (task.status !== prevStatus) {
-    if (!task.history) task.history = [];
-    task.history.push({ by: currentUser || 'unknown', at: Date.now(), from: prevStatus, to: task.status });
-    if (task.history.length > 30) task.history = task.history.slice(-30);
-  }
   closeModal(); renderTabs(); renderBoard();
   try {
     await saveData();
@@ -1395,9 +1260,6 @@ const COL_GAP = 60;      // horizontal gap between columns
 const ROW_GAP = 220;     // vertical gap between rows
 
 let sgLinkSrc = null;    // {nodeId, goalId} shift+drag linking
-let goalsAbort = null;   // aborts window-level listeners from the previous goals render
-const goalUndoStack = []; // snapshots of store.goals, for undoing destructive actions
-const critState = {};    // per-goal critical-path node/edge sets (transient, never saved)
 const fcState = {};
 function getFcState(id){ if(!fcState[id]) fcState[id]={scale:.8,panX:60,panY:40}; return fcState[id]; }
 
@@ -1480,168 +1342,133 @@ function wouldCycle(goal,from,to){
   return false;
 }
 
-// ─── Undo (destructive goal actions) ───
-function pushGoalUndo(label){
-  goalUndoStack.push({label,json:JSON.stringify(store.goals||[])});
-  if(goalUndoStack.length>15) goalUndoStack.shift();
-}
-async function undoGoalAction(){
-  const u=goalUndoStack.pop(); if(!u) return;
-  store.goals=JSON.parse(u.json);
-  renderBoard();
-  try{await saveData();toast('Undid: '+u.label,'success');}catch{toast('Save failed','error');}
-}
-
-// ─── Collapse ───
-function isNodeCollapsed(node,allTasks){
-  if(node.collapsed!==undefined) return node.collapsed;
-  // Auto-collapse nodes whose own tasks are all done
-  const ids=node.taskIds||[];
-  return ids.length>0&&ids.every(id=>{const t=allTasks.find(x=>x.id===id);return t&&t.status==='done';});
-}
-
-// ─── Critical path: chain of subgoals with the most remaining open tasks ───
-function computeCritical(goal,allTasks){
-  const nodes=goal.dagNodes||[],edges=goal.dagEdges||[];
-  const open={},kids={},byId={};
-  nodes.forEach(n=>{
-    byId[n.id]=n;kids[n.id]=[];
-    open[n.id]=(n.taskIds||[]).filter(id=>{const t=allTasks.find(x=>x.id===id);return !t||t.status!=='done';}).length;
-  });
-  edges.forEach(e=>{ if(byId[e.from]&&byId[e.to]) kids[e.from].push(e); });
-  const memo={};
-  function longest(id,stack){
-    if(memo[id]) return memo[id];
-    if(stack.has(id)) return{len:0,nodes:[],edges:[]};
-    stack.add(id);
-    let best={len:0,nodes:[],edges:[]};
-    kids[id].forEach(e=>{
-      const r=longest(e.to,stack);
-      if(r.len>best.len||(r.len===best.len&&r.nodes.length>best.nodes.length))
-        best={len:r.len,nodes:r.nodes,edges:[e.id,...r.edges]};
-    });
-    stack.delete(id);
-    return memo[id]={len:open[id]+best.len,nodes:[id,...best.nodes],edges:best.edges};
-  }
-  let top=null;
-  nodes.forEach(n=>{ const r=longest(n.id,new Set()); if(!top||r.len>top.len) top=r; });
-  if(!top||top.len===0) return{nodes:new Set(),edges:new Set()};
-  return{nodes:new Set(top.nodes),edges:new Set(top.edges)};
-}
-function toggleCritical(goalId){
-  const s=getFcState(goalId);
-  s.showCrit=!s.showCrit;
-  renderBoard();
-}
-
-// ─── Auto layout (layered top-down: roots at top, dependencies below) ───
+// ─── Auto layout (top-down, goal as root at top) ───
 function autoLayout(goal){
-  const nodes=goal.dagNodes||[], edges=goal.dagEdges||[];
+  const nodes=goal.dagNodes||[]; const edges=goal.dagEdges||[];
   if(!nodes.length) return;
-  const H_GAP=60, V_GAP=120, TOP=40, LEFT=40;
-  const allTasks=getAllTasks();
-  const byId={}; nodes.forEach(n=>byId[n.id]=n);
 
-  // Adjacency (edge from→to means "from depends on to"; to is drawn below from)
-  const dependsOn={}, dependents={};
+  const H_GAP=80;
+  const V_GAP=240;
+  const TOP=40;
+  const NODE_W=SG_W+H_GAP;
+
+  // Build relationship maps
+  // edge.from = dependent (higher), edge.to = dependency (lower)
+  const dependsOn={};   // id -> [ids this node depends on]
+  const dependents={};  // id -> [ids that depend on this node]
   nodes.forEach(n=>{ dependsOn[n.id]=[]; dependents[n.id]=[]; });
   edges.forEach(e=>{
-    if(!byId[e.from]||!byId[e.to]) return;
-    if(!dependsOn[e.from].includes(e.to)) dependsOn[e.from].push(e.to);
-    if(!dependents[e.to].includes(e.from)) dependents[e.to].push(e.from);
+    if(dependsOn[e.from]&&!dependsOn[e.from].includes(e.to)) dependsOn[e.from].push(e.to);
+    if(dependents[e.to]&&!dependents[e.to].includes(e.from))  dependents[e.to].push(e.from);
   });
 
-  // Layer = longest path down from any root, so every edge points to a strictly lower row
+  // Assign depth (roots = top, no dependents)
   const depth={};
-  function calcDepth(id,stack){
-    if(depth[id]!==undefined) return depth[id];
-    if(stack.has(id)) return 0;
-    stack.add(id);
-    const parents=dependents[id];
-    const d=parents.length?Math.max(...parents.map(p=>calcDepth(p,stack)))+1:0;
-    stack.delete(id);
-    return depth[id]=d;
-  }
-  nodes.forEach(n=>calcDepth(n.id,new Set()));
-
-  const maxDepth=Math.max(...Object.values(depth));
-  const rows=[]; for(let d=0;d<=maxDepth;d++) rows[d]=[];
-  // Initial within-row order: DFS from roots so related nodes start adjacent
-  const seen=new Set();
-  function dfs(id){
+  nodes.forEach(n=>depth[n.id]=0);
+  const roots=nodes.filter(n=>dependents[n.id].length===0).map(n=>n.id);
+  if(!roots.length) roots.push(nodes[0].id);
+  function assignDepth(id,d,seen=new Set()){
     if(seen.has(id)) return; seen.add(id);
-    rows[depth[id]].push(id);
-    dependsOn[id].forEach(dfs);
+    depth[id]=Math.max(depth[id]||0,d);
+    (dependsOn[id]||[]).forEach(c=>assignDepth(c,d+1,seen));
   }
-  nodes.filter(n=>!dependents[n.id].length).forEach(n=>dfs(n.id));
-  nodes.forEach(n=>dfs(n.id));
+  roots.forEach(r=>assignDepth(r,0));
 
-  // Crossing reduction: sort each row by average position of its neighbors (barycenter sweeps)
-  const order={};
-  const reindex=()=>rows.forEach(r=>r.forEach((id,i)=>order[id]=i));
-  reindex();
-  const bary=(id,neighbors)=>{
-    const ns=neighbors[id].filter(x=>order[x]!==undefined);
-    return ns.length?ns.reduce((s,x)=>s+order[x],0)/ns.length:order[id];
-  };
-  for(let it=0;it<4;it++){
-    const down=it%2===0;
-    for(let d=down?1:maxDepth-1; down?d<=maxDepth:d>=0; down?d++:d--){
-      rows[d].sort((a,b)=>bary(a,down?dependents:dependsOn)-bary(b,down?dependents:dependsOn));
-      reindex();
+  const maxDepth=Math.max(0,...Object.values(depth));
+  const byDepth=[];
+  for(let d=0;d<=maxDepth;d++) byDepth[d]=(nodes.filter(n=>depth[n.id]===d));
+
+  // Compute minimum subtree width needed (for nodes not yet placed)
+  const placed=new Set();
+  function subtreeW(id,seen=new Set()){
+    if(seen.has(id)) return 0; seen.add(id);
+    const unplacedKids=(dependsOn[id]||[]).filter(k=>!placed.has(k));
+    if(!unplacedKids.length) return SG_W;
+    const w=unplacedKids.reduce((s,k)=>s+subtreeW(k,new Set(seen)),0)+(unplacedKids.length-1)*H_GAP;
+    return Math.max(SG_W,w);
+  }
+
+  // Place each node once, centering over its unplaced children
+  function place(id,cx,d,seen=new Set()){
+    if(seen.has(id)||placed.has(id)) return;
+    seen.add(id); placed.add(id);
+    const n=nodes.find(x=>x.id===id); if(!n) return;
+    n.x=cx-SG_W/2; n.y=TOP+d*V_GAP;
+    const kids=(dependsOn[id]||[]).filter(k=>!placed.has(k));
+    if(!kids.length) return;
+    const totalW=kids.reduce((s,k)=>s+subtreeW(k,new Set()),0)+(kids.length-1)*H_GAP;
+    let curX=cx-totalW/2;
+    kids.forEach(k=>{
+      const kw=subtreeW(k,new Set());
+      place(k,curX+kw/2,d+1,seen);
+      curX+=kw+H_GAP;
+    });
+  }
+
+  // Place all roots
+  let rx=40+SG_W/2;
+  roots.forEach(r=>{
+    const rw=subtreeW(r,new Set());
+    place(r,rx+rw/2,0);
+    rx+=rw+H_GAP;
+  });
+
+// Shift a node AND all its single-parent descendants together
+  function shiftSubtreeDesc(id, dx, visited=new Set()){
+    if(visited.has(id)||Math.abs(dx)<0.5) return;
+    visited.add(id);
+    const n=nodes.find(x=>x.id===id); if(n) n.x+=dx;
+    (dependsOn[id]||[]).forEach(childId=>{
+      if((dependents[childId]||[]).length===1) shiftSubtreeDesc(childId,dx,visited);
+    });
+  }
+
+  // Center shared nodes between parents, bring their children with them
+  for(let d=1;d<=maxDepth;d++){
+    (byDepth[d]||[]).forEach(n=>{
+      const parents=(dependents[n.id]||[]).map(id=>nodes.find(x=>x.id===id)).filter(x=>x&&!isNaN(x.x));
+      if(parents.length>1){
+        const targetCx=parents.reduce((s,p)=>s+p.x+SG_W/2,0)/parents.length;
+        const dx=targetCx-(n.x+SG_W/2);
+        if(Math.abs(dx)>0.5) shiftSubtreeDesc(n.id,dx);
+      }
+    });
+  }
+
+  // Fix overlaps, shifting descendants along too
+  for(let d=0;d<=maxDepth;d++){
+    const row=(byDepth[d]||[]).slice().sort((a,b)=>a.x-b.x);
+    for(let i=1;i<row.length;i++){
+      const prev=row[i-1], cur=row[i];
+      const minX=prev.x+SG_W+H_GAP;
+      if(cur.x<minX) shiftSubtreeDesc(cur.id, minX-cur.x);
     }
   }
-
-  // Row Y positions stack on the tallest node of each row, so tall nodes never overlap the next row
-  const rowY=[];
-  let yCur=TOP;
-  for(let d=0;d<=maxDepth;d++){
-    rowY[d]=yCur;
-    yCur+=Math.max(100,...rows[d].map(id=>sgHeight(byId[id],allTasks)))+V_GAP;
+    // Then re-center any shared nodes that got pushed
+    // (a simple left-to-right sweep is enough to prevent overlap)
   }
 
-  // X positions: pack rows, then pull each node toward the centre of its neighbours.
-  // Overlaps are resolved twice (left-anchored and right-anchored) and averaged so rows stay centred.
-  rows.forEach(r=>r.forEach((id,i)=>{ byId[id].x=LEFT+i*(SG_W+H_GAP); }));
-  const center=id=>byId[id].x+SG_W/2;
-  function alignRow(d,neighbors){
-    const want=rows[d].map(id=>{
-      const ns=neighbors[id];
-      return ns.length?ns.reduce((s,x)=>s+center(x),0)/ns.length:center(id);
-    });
-    const a=want.map(w=>w-SG_W/2);
-    for(let i=1;i<a.length;i++) a[i]=Math.max(a[i],a[i-1]+SG_W+H_GAP);
-    const b=want.map(w=>w-SG_W/2);
-    for(let i=b.length-2;i>=0;i--) b[i]=Math.min(b[i],b[i+1]-SG_W-H_GAP);
-    rows[d].forEach((id,i)=>byId[id].x=(a[i]+b[i])/2);
-  }
-  for(let it=0;it<3;it++){
-    for(let d=1;d<=maxDepth;d++) alignRow(d,dependents);
-    for(let d=maxDepth-1;d>=0;d--) alignRow(d,dependsOn);
-  }
+  // Float unplaced nodes
+  let floatX = (typeof rx !== 'undefined' ? rx : 40 + SG_W/2); let floatY = TOP;
+  nodes.filter(n=>!placed.has(n.id)||isNaN(n.x)).forEach(n=>{
+    n.x=floatX; n.y=floatY; floatY+=V_GAP;
+  });
 
-  // Normalize onto the canvas
-  const minX=Math.min(...nodes.map(n=>n.x));
-  nodes.forEach(n=>{ n.x=Math.round(n.x-minX+LEFT); n.y=rowY[depth[n.id]]; });
-}
+
 // ─── Subgoal node height ───
 function sgHeight(node,allTasks){
-  if(isNodeCollapsed(node,allTasks)) return SG_HDR_H+4+SG_PAD; // hdr+prog only
   const tasks=(node.taskIds||[]).filter(id=>{const t=allTasks.find(x=>x.id===id);return !t||t.status!=='done';});
   return SG_HDR_H+4+(tasks.length*SG_TASK_H)+SG_PAD+28+28; // hdr+prog+tasks+addBtn+actionRow
 }
 
 // ─── Main render ───
 function renderGoalsView(area){
-  goalsAbort=new AbortController();
   area.className='goals-area'; area.innerHTML='';
   if(!store.goals) store.goals=[];
   const hdr=document.createElement('div');
   hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem';
   hdr.innerHTML='<div style="font-size:.85em;font-weight:700;color:var(--text)">🎯 Goals</div>'+
-    '<div style="display:flex;gap:.4rem;align-items:center">'+
-    (goalUndoStack.length?'<button onclick="undoGoalAction()" class="mbtn secondary" style="font-size:.72em" title="Ctrl+Z">↩ Undo: '+esc(goalUndoStack[goalUndoStack.length-1].label)+'</button>':'')+
-    '<button onclick="openAddGoalModal()" class="mbtn primary" style="font-size:.72em">+ New Goal</button></div>';
+    '<button onclick="openAddGoalModal()" class="mbtn primary" style="font-size:.72em">+ New Goal</button>';
   area.appendChild(hdr);
   if(!store.goals.length){
     const e=document.createElement('div');
@@ -1677,7 +1504,6 @@ function renderGoalCard(goal,allTasks,area){
       (blockingGoals.length?'<span style="color:#f1c40f">⏳ blocked by: '+blockingGoals.map(g=>esc(g.name)).join(', ')+'</span>':'')+
     '</div></div>'+
     '<div style="display:flex;gap:.35rem;align-items:center">'+
-      '<button data-gid="'+goal.id+'" onclick="toggleCritical(this.dataset.gid)" class="admin-nudge-btn" style="color:'+(s.showCrit?'#e74c3c':'var(--muted)')+';border-color:'+(s.showCrit?'rgba(231,76,60,.5)':'var(--border2)')+'" title="Highlight the chain of subgoals with the most remaining work">⚡ Critical</button>'+
       '<button data-gid="'+goal.id+'" onclick="openGoalDepsModal(this.dataset.gid)" class="admin-nudge-btn" style="color:#9b59b6;border-color:rgba(155,89,182,.3)">🔗 Goal Deps</button>'+
       '<button data-gid="'+goal.id+'" onclick="addSgNode(this.dataset.gid)" class="admin-nudge-btn" style="color:#e67e22;border-color:rgba(230,126,34,.3)">+ Subgoal</button>'+
       '<button data-gid="'+goal.id+'" onclick="doLayout(this.dataset.gid)" class="admin-nudge-btn" style="color:var(--muted);border-color:var(--border2)">⟳ Layout</button>'+
@@ -1693,13 +1519,10 @@ function renderGoalCard(goal,allTasks,area){
 
   // Hint
   const hint=document.createElement('div'); hint.className='dag-hint';
-  hint.innerHTML='<span>🖱 Drag background to pan · scroll or pinch to zoom</span>'+
+  hint.innerHTML='<span>🖱 Drag background to pan · scroll to zoom</span>'+
     '<span>🔴 Click right circle on a node, then left circle on another to link</span>'+
-    '<span>Click arrow to remove dependency · ↩ Undo reverses removals</span>';
+    '<span>Click arrow to remove dependency</span>';
   card.appendChild(hint);
-
-  // Critical path (computed fresh each render, never saved)
-  critState[goal.id]=s.showCrit?computeCritical(goal,allTasks):{nodes:new Set(),edges:new Set()};
 
   // Viewport
   const vp=document.createElement('div'); vp.className='dag-vp';
@@ -1716,9 +1539,6 @@ function renderGoalCard(goal,allTasks,area){
     '</marker>'+
     '<marker id="sg-arr-h" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">'+
       '<polygon points="0 0,10 4,0 8" fill="#e67e22"/>'+
-    '</marker>'+
-    '<marker id="sg-arr-crit" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">'+
-      '<polygon points="0 0,10 4,0 8" fill="#e74c3c"/>'+
     '</marker>'+
     '</defs>';
   cvs.appendChild(svg);
@@ -1741,67 +1561,29 @@ function renderGoalCard(goal,allTasks,area){
     });
   }
 
-  const applyTransform=()=>{ cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`; };
-  const setZoomLabel=()=>{ const el=vp.querySelector('.dag-zoom-pct'); if(el) el.textContent=Math.round(s.scale*100)+'%'; };
-
-  // Pan + pinch zoom (pointer events: works for mouse AND touch)
-  const pinchPts=new Map(); let lastPinch=null;
-  vp.addEventListener('pointerdown',e=>{
+  vp.addEventListener('mousedown',e=>{
     if(sgLinkSrc&&!e.target.closest('.sgn-port-in,.sgn-port-out')){
       sgLinkSrc=null;
       if(portsLayer) portsLayer.querySelectorAll('.sgn-port').forEach(p=>p.classList.remove('port-active'));
       cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-can-link','sg-linking'));
       vp.classList.remove('linking');
     }
-    if(e.target.closest('.sgn,button,input,select,.sgn-port')||sgLinkSrc) return;
-    pinchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    if(pinchPts.size===1){
-      isPanning=true; vp.classList.add('panning');
-      ps={x:e.clientX-s.panX,y:e.clientY-s.panY};
-    } else {
-      isPanning=false; lastPinch=null; vp.classList.remove('panning');
-    }
-    e.preventDefault();
+    if(e.target.closest('.sgn,button,input,select')||sgLinkSrc) return;
+    isPanning=true; vp.classList.add('panning');
+    ps={x:e.clientX-s.panX,y:e.clientY-s.panY}; e.preventDefault();
   });
-  window.addEventListener('pointermove',e=>{
-    if(pinchPts.has(e.pointerId)) pinchPts.set(e.pointerId,{x:e.clientX,y:e.clientY});
-    if(pinchPts.size===2){
-      const [a,b]=[...pinchPts.values()];
-      const dist=Math.hypot(a.x-b.x,a.y-b.y);
-      const rect=vp.getBoundingClientRect();
-      const mx=(a.x+b.x)/2-rect.left, my=(a.y+b.y)/2-rect.top;
-      if(lastPinch&&lastPinch.dist>0){
-        const target=Math.min(3,Math.max(.1,s.scale*(dist/lastPinch.dist)));
-        const k=target/s.scale;
-        s.panX=mx-(mx-s.panX)*k+(mx-lastPinch.mx);
-        s.panY=my-(my-s.panY)*k+(my-lastPinch.my);
-        s.scale=target;
-        applyTransform(); setZoomLabel(); updateAllPorts();
-      }
-      lastPinch={dist,mx,my};
-    } else if(isPanning){
-      s.panX=e.clientX-ps.x; s.panY=e.clientY-ps.y;
-      applyTransform();
-      updateAllPorts();
-    }
-  },{signal:goalsAbort.signal});
-  const endPointer=e=>{
-    pinchPts.delete(e.pointerId);
-    if(pinchPts.size<2&&lastPinch){ lastPinch=null; setTimeout(()=>{redrawEdges(goal,allTasks);updateAllPorts();},30); }
-    if(!pinchPts.size){ isPanning=false; vp.classList.remove('panning'); }
-  };
-  window.addEventListener('pointerup',endPointer,{signal:goalsAbort.signal});
-  window.addEventListener('pointercancel',endPointer,{signal:goalsAbort.signal});
-
-  // Wheel zoom, centred on the cursor
+  window.addEventListener('mousemove',e=>{
+    if(!isPanning) return;
+    s.panX=e.clientX-ps.x; s.panY=e.clientY-ps.y;
+    cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
+    updateAllPorts();
+  });
+  window.addEventListener('mouseup',()=>{isPanning=false;vp.classList.remove('panning');});
   vp.addEventListener('wheel',e=>{
     e.preventDefault();
-    const rect=vp.getBoundingClientRect();
-    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
-    const target=Math.min(3,Math.max(.1,+(s.scale*(e.deltaY>0?.9:1.1)).toFixed(3)));
-    const k=target/s.scale;
-    s.panX=mx-(mx-s.panX)*k; s.panY=my-(my-s.panY)*k; s.scale=target;
-    applyTransform(); setZoomLabel();
+    s.scale=Math.min(3,Math.max(.1,+(s.scale*(e.deltaY>0?.9:1.1)).toFixed(2)));
+    cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
+    vp.querySelector('.dag-zoom-pct')&&(vp.querySelector('.dag-zoom-pct').textContent=Math.round(s.scale*100)+'%');
     setTimeout(()=>{redrawEdges(goal,allTasks);updateAllPorts();},30);
   },{passive:false});
 
@@ -1822,13 +1604,13 @@ function renderGoalCard(goal,allTasks,area){
   const applyScale=()=>{
     cvs.style.transform=`translate(${s.panX}px,${s.panY}px) scale(${s.scale})`;
     pctEl.textContent=Math.round(s.scale*100)+'%';
-    setTimeout(()=>{redrawEdges(goal,allTasks);updateAllPorts();},50);
+    setTimeout(()=>redrawEdges(goal,allTasks),50);
   };
   const mkZ=(t,fn)=>{const b=document.createElement('button');b.textContent=t;b.onclick=fn;return b;};
   zc.appendChild(mkZ('＋',()=>{s.scale=Math.min(3,+(s.scale+0.1).toFixed(2));applyScale();}));
   zc.appendChild(pctEl);
   zc.appendChild(mkZ('－',()=>{s.scale=Math.max(.1,+(s.scale-0.1).toFixed(2));applyScale();}));
-  zc.appendChild(mkZ('⌂',()=>{fitGoalView(goal);applyScale();}));
+  zc.appendChild(mkZ('⌂',()=>{s.scale=.8;s.panX=60;s.panY=40;applyScale();}));
   vp.appendChild(cvs); vp.appendChild(portsLayer); vp.appendChild(zc);
   card.appendChild(vp); area.appendChild(card);
 }
@@ -1842,10 +1624,7 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
   const isRoot=(goal.dagEdges||[]).filter(e=>e.to===node.id).length===0;
   const fill=isDone?'#2ecc71':pct>50?'#3498db':pct>0?'#f1c40f':'rgba(230,126,34,.4)';
 
-  const collapsed=isNodeCollapsed(node,allTasks);
-  const isCritNode=critState[goal.id]?.nodes.has(node.id);
-
-  const el=document.createElement('div'); el.className='sgn'+(isRoot?' sg-root':'')+(blocked?' sg-blocked':'')+(isDone?' sg-done':'')+(isCritNode?' sg-critical':'');
+  const el=document.createElement('div'); el.className='sgn'+(isRoot?' sg-root':'')+(blocked?' sg-blocked':'')+(isDone?' sg-done':'');
   el.dataset.nodeId=node.id;
   el.style.left=node.x+'px'; el.style.top=node.y+'px';
 
@@ -1856,21 +1635,10 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
   const countEl=document.createElement('span');
   countEl.style.cssText='font-size:.65em;color:var(--muted);font-family:JetBrains Mono,monospace;flex-shrink:0';
   countEl.textContent=done+'/'+total;
-  const collBtn=document.createElement('span');
-  collBtn.textContent=collapsed?'▸':'▾';
-  collBtn.title=collapsed?'Expand':'Collapse';
-  collBtn.style.cssText='cursor:pointer;color:var(--muted);font-size:.8em;flex-shrink:0;padding:0 .2rem';
-  collBtn.addEventListener('pointerdown',e=>e.stopPropagation());
-  collBtn.addEventListener('click',async e=>{
-    e.stopPropagation();
-    node.collapsed=!collapsed;
-    renderBoard();
-    try{await saveData();}catch{}
-  });
   const dragHandle=document.createElement('span');
   dragHandle.style.cssText='color:rgba(230,126,34,.4);font-size:.85em;flex-shrink:0;cursor:grab';
   dragHandle.textContent='⠿';
-  hdr.appendChild(dragHandle); hdr.appendChild(titleEl); hdr.appendChild(countEl); hdr.appendChild(collBtn);
+  hdr.appendChild(dragHandle); hdr.appendChild(titleEl); hdr.appendChild(countEl);
   el.appendChild(hdr);
 
   // Progress bar
@@ -1895,7 +1663,6 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
     tc.addEventListener('mouseleave',()=>tc.querySelector('.sgn-task-rm').style.display='none');
     tc.querySelector('.sgn-task-rm').addEventListener('click',async ev=>{
       ev.stopPropagation();
-      pushGoalUndo('remove "'+task.name+'" from '+node.name);
       node.taskIds=(node.taskIds||[]).filter(id=>id!==task.id);
       renderBoard();
       try{await saveData();toast('Removed from subgoal','success');}catch{}
@@ -1903,14 +1670,14 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
     tc.onclick=e=>{if(e.target.classList.contains('sgn-task-rm'))return;e.stopPropagation();if(!sgLinkSrc)openEditModal(task.subId,task.id);};
     taskList.appendChild(tc);
   });
-  if(!collapsed) el.appendChild(taskList);
+  el.appendChild(taskList);
 
   // Add task button
   const addT=document.createElement('div'); addT.className='sgn-add-task';
   addT.textContent='+ Add tasks';
   addT.dataset.gid=goal.id; addT.dataset.nid=node.id;
   addT.onclick=e=>{e.stopPropagation();openAddTasksToNode(addT.dataset.gid,addT.dataset.nid);};
-  if(!collapsed) el.appendChild(addT);
+  el.appendChild(addT);
 
   // Action row
   const actions=document.createElement('div'); actions.className='sgn-actions';
@@ -1933,7 +1700,7 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
     g.dagNodes.push(newNode);
     if(!g.dagEdges) g.dagEdges=[];
     g.dagEdges.push({id:makeNodeId(),from:parent.id,to:newNode.id});
-    autoLayout(g); renderBoard();
+    renderBoard();
     try{await saveData();toast('Sub-subgoal added','success');}catch{}
   };
 
@@ -1948,7 +1715,7 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
   };
 
   actions.appendChild(editBtn); actions.appendChild(addSgBtn); actions.appendChild(linkBtn);
-  if(!collapsed) el.appendChild(actions);
+  el.appendChild(actions);
 
   // Ports appended directly to cvs so they're never clipped
   function makePorts(){
@@ -1997,7 +1764,7 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
         if(!goal.dagEdges) goal.dagEdges=[];
         if(!goal.dagEdges.some(x=>x.from===srcId&&x.to===node.id)){
           goal.dagEdges.push({id:makeNodeId(),from:srcId,to:node.id});
-          autoLayout(goal); renderBoard();
+          renderBoard();
           try{await saveData();toast('Linked ✓','success');}catch{}
           return;
         } else toast('Already linked','error');
@@ -2020,18 +1787,17 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
   rm.addEventListener('click',async e=>{
     e.stopPropagation();
     if(!confirm('Remove this subgoal? Tasks stay in the system.')) return;
-    pushGoalUndo('remove subgoal "'+node.name+'"');
     goal.dagNodes=(goal.dagNodes||[]).filter(n=>n.id!==node.id);
     goal.dagEdges=(goal.dagEdges||[]).filter(e=>e.from!==node.id&&e.to!==node.id);
-    autoLayout(goal); renderBoard();
-    try{await saveData();toast('Removed — ↩ Undo available','success');}catch{}
+    renderBoard();
+    try{await saveData();toast('Removed','success');}catch{}
   });
   el.appendChild(rm);
 
-  // Drag to move (pointer events: mouse + touch)
+  // Drag to move
   let dragging=false,ds={x:0,y:0},ns={x:0,y:0};
 
-  hdr.addEventListener('pointerdown',e=>{
+  hdr.addEventListener('mousedown',e=>{
     if(e.target.closest('button')||sgLinkSrc) return;
 
     dragging=true; ds={x:e.clientX,y:e.clientY}; ns={x:node.x,y:node.y};
@@ -2064,7 +1830,7 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
         if(!goal.dagEdges) goal.dagEdges=[];
         if(!goal.dagEdges.some(e=>e.from===srcId&&e.to===node.id)){
           goal.dagEdges.push({id:makeNodeId(),from:srcId,to:node.id});
-          autoLayout(goal); renderBoard();
+          renderBoard();
           try{await saveData();toast('Linked — arrow flows down to dependency','success');}catch{}
         }
       } else toast('Would create a cycle','error');
@@ -2073,10 +1839,11 @@ function buildSgNode(node,goal,allTasks,s,cvs,svg,redraw,portsLayer,vp){
       cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-linking','sg-can-link'));
     }
   };
-  window.addEventListener('pointermove',onMove,{signal:goalsAbort.signal});
-  window.addEventListener('pointerup',onUp,{signal:goalsAbort.signal});
+  window.addEventListener('mousemove',onMove);
+  window.addEventListener('mouseup',onUp);
   // Also handle drop on the node body (not just header)
-  el.addEventListener('pointerup', onUp);
+  el.addEventListener('mouseup', onUp);
+  window.addEventListener('keydown',e=>{ if(e.key==='Escape'&&sgLinkSrc){ sgLinkSrc=null; cvs.querySelectorAll('.sgn').forEach(n=>n.classList.remove('sg-linking','sg-can-link')); } });
 
   // Hover: highlight edges
   el.addEventListener('mouseenter',()=>{ if(svg) highlightEdges(svg,node.id,true); });
@@ -2102,12 +1869,10 @@ function drawEdges(svg,goal,allTasks,cvs){
     const cp=Math.max(dy*0.55,60);
     const d=`M${sx},${sy} C${sx},${sy-cp} ${ex},${ey+cp} ${ex},${ey}`;
 
-    const isCrit=critState[goal.id]?.edges.has(edge.id);
     const path=document.createElementNS('http://www.w3.org/2000/svg','path');
     path.setAttribute('d',d); path.setAttribute('class','dag-e');
     path.setAttribute('data-from',edge.from); path.setAttribute('data-to',edge.to); path.setAttribute('data-eid',edge.id);
-    if(isCrit) path.setAttribute('data-crit','1');
-    path.style.cssText='fill:none;stroke:'+(isCrit?'rgba(231,76,60,.85)':'rgba(230,126,34,.55)')+';stroke-width:'+(isCrit?'3.5':'2.5')+';marker-end:url(#'+(isCrit?'sg-arr-crit':'sg-arr')+')';
+    path.style.cssText='fill:none;stroke:rgba(230,126,34,.55);stroke-width:2.5;marker-end:url(#sg-arr)';
     svg.appendChild(path);
 
     // Hit area for clicking to remove
@@ -2116,10 +1881,9 @@ function drawEdges(svg,goal,allTasks,cvs){
     hit.style.cssText='fill:none;stroke:transparent;stroke-width:18;cursor:pointer;pointer-events:stroke';
     hit.addEventListener('click',async e=>{
       if(!confirm('Remove this dependency link?')) return;
-      pushGoalUndo('remove dependency link');
       goal.dagEdges=(goal.dagEdges||[]).filter(x=>x.id!==edge.id);
-      autoLayout(goal); renderBoard();
-      try{await saveData();toast('Link removed — ↩ Undo available','success');}catch{}
+      renderBoard();
+      try{await saveData();toast('Link removed','success');}catch{}
     });
     svg.appendChild(hit);
   });
@@ -2156,10 +1920,9 @@ function redrawEdges(goal,allTasks){
 function highlightEdges(svg,nodeId,on){
   svg.querySelectorAll('.dag-e').forEach(el=>{
     if(el.dataset.from===nodeId||el.dataset.to===nodeId){
-      const crit=el.dataset.crit==='1';
-      el.style.stroke=on?(crit?'#e74c3c':'#e67e22'):(crit?'rgba(231,76,60,.85)':'rgba(230,126,34,.55)');
-      el.style.strokeWidth=on?(crit?'4':'3.5'):(crit?'3.5':'2.5');
-      el.setAttribute('marker-end',crit?'url(#sg-arr-crit)':(on?'url(#sg-arr-h)':'url(#sg-arr)'));
+      el.style.stroke=on?'#e67e22':'rgba(230,126,34,.55)';
+      el.style.strokeWidth=on?'3.5':'2.5';
+      el.setAttribute('marker-end',on?'url(#sg-arr-h)':'url(#sg-arr)');
     }
   });
 }
@@ -2168,21 +1931,8 @@ function highlightEdges(svg,nodeId,on){
 async function doLayout(goalId){
   const goal=(store.goals||[]).find(g=>g.id===goalId); if(!goal) return;
   autoLayout(goal);
-  fitGoalView(goal);
   renderBoard();
   try{await saveData();toast('Layout applied & saved','success');}catch{}
-}
-
-function fitGoalView(goal){
-  const nodes=goal.dagNodes||[]; if(!nodes.length) return;
-  const allTasks=getAllTasks();
-  const minX=Math.min(...nodes.map(n=>n.x)), maxX=Math.max(...nodes.map(n=>n.x+SG_W));
-  const minY=Math.min(...nodes.map(n=>n.y)), maxY=Math.max(...nodes.map(n=>n.y+sgHeight(n,allTasks)));
-  const vpW=document.querySelector('.dag-vp')?.clientWidth||1100, vpH=680, MARGIN=60;
-  const s=getFcState(goal.id);
-  s.scale=Math.max(.25,Math.min(1,+Math.min(vpW/(maxX-minX+MARGIN*2),vpH/(maxY-minY+MARGIN*2)).toFixed(2)));
-  s.panX=Math.max(20,(vpW-(maxX-minX)*s.scale)/2-minX*s.scale);
-  s.panY=30-minY*s.scale;
 }
 
 async function addSgNode(goalId){
@@ -2190,9 +1940,10 @@ async function addSgNode(goalId){
   migrateGoal(goal);
   const name=prompt('Subgoal name (e.g. "Get Drivetrain Complete"):');
   if(!name?.trim()) return;
-  goal.dagNodes.push({id:makeNodeId(),type:'subgoal',name:name.trim(),taskIds:[],x:40,y:40});
-  autoLayout(goal); renderBoard();
-  try{await saveData();toast('Subgoal added','success');}catch{}
+  const maxY=Math.max(40,...(goal.dagNodes||[]).map(n=>n.y+160));
+  goal.dagNodes.push({id:makeNodeId(),type:'subgoal',name:name.trim(),taskIds:[],x:40,y:maxY});
+  renderBoard();
+  try{await saveData();toast('Subgoal added — drag to position, Shift+drag to link','success');}catch{}
 }
 
 function openLinkModal(goalId, nodeId) {
@@ -2235,7 +1986,7 @@ async function confirmLinks(goalId, nodeId) {
       } else toast('Skipped cycle: '+toId,'error');
     }
   }
-  closeModal(); autoLayout(goal); renderBoard();
+  closeModal(); renderBoard();
   try{await saveData();toast('Links saved','success');}catch{toast('Save failed','error');}
 }
 
@@ -2405,11 +2156,9 @@ async function saveGoal(goalId){
 }
 async function deleteGoal(goalId){
   if(!confirm('Delete this goal?')) return;
-  const g=(store.goals||[]).find(x=>x.id===goalId);
-  pushGoalUndo('delete goal "'+(g?.name||'')+'"');
   store.goals=(store.goals||[]).filter(g=>g.id!==goalId);
   closeModal(); renderBoard();
-  try{await saveData();toast('Deleted — ↩ Undo available','success');}catch{}
+  try{await saveData();toast('Deleted','success');}catch{}
 }
 
 
@@ -2908,8 +2657,8 @@ async function resetSpentKanban(subId) {
 }
 
 function openAddExpenseModal() {
+  if (!financeUnlocked) { toast('Unlock finance first', 'error'); return; }
   const subOpts = SUBS.map(s => '<option value="' + s.id + '">' + esc(s.label) + '</option>').join('');
-  const memberOpts = Object.values(store.members || {}).map(n => '<option value="' + esc(n) + '">').join('');
   showModal(
     '<div class="modal-title">+ Add Expense</div>' +
     '<div class="mfield"><label>SUBSYSTEM</label>' +
@@ -2926,10 +2675,6 @@ function openAddExpenseModal() {
       '<div><label>DATE</label><input type="date" id="exp-date" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none;color-scheme:dark" value="' + new Date().toISOString().slice(0,10) + '"></div>' +
       '<div><label>REIMBURSEMENT</label><select id="exp-reimb" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"><option value="No">No</option><option value="Pending">Pending</option><option value="Yes">Yes</option></select></div>' +
     '</div>' +
-    '<div class="mfield"><label>PURCHASED BY</label>' +
-      '<input type="text" id="exp-purchaser" list="exp-members-list" placeholder="Who made the purchase?" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none">' +
-      '<datalist id="exp-members-list">' + memberOpts + '</datalist>' +
-    '</div>' +
     '<div class="mfield"><label>JUSTIFICATION / NOTES (optional)</label>' +
       '<textarea id="exp-notes" rows="2" placeholder="What is this for?" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none;resize:vertical"></textarea>' +
     '</div>' +
@@ -2941,10 +2686,7 @@ function openAddExpenseModal() {
       '<button class="mbtn primary" onclick="confirmAddExpense()">Add Expense</button>' +
     '</div>'
   );
-  setTimeout(() => {
-    document.getElementById('exp-item')?.focus();
-    if (currentUser) { const p = document.getElementById('exp-purchaser'); if (p && !p.value) p.value = currentUser; }
-  }, 50);
+  setTimeout(() => document.getElementById('exp-item')?.focus(), 50);
 }
 
 async function confirmAddExpense() {
@@ -2954,7 +2696,6 @@ async function confirmAddExpense() {
   const cost    = parseFloat(document.getElementById('exp-cost').value) || 0;
   const date    = document.getElementById('exp-date').value;
   const reimb   = document.getElementById('exp-reimb').value;
-  const purchaser = document.getElementById('exp-purchaser').value.trim();
   const notes   = document.getElementById('exp-notes').value.trim();
   const receipt = document.getElementById('exp-receipt').value.trim();
 
@@ -2973,7 +2714,7 @@ async function confirmAddExpense() {
     receiptId, subId, groupId: subId,
     item, qty, estCost: cost, estTotal: total,
     finalCost: cost, finalTotal: total,
-    date: dateStr, submittedBy: purchaser || 'Kanban', purchasedBy: purchaser || null,
+    date: dateStr, submittedBy: 'Kanban',
     approved: true, reimbursement: reimb,
     justification: notes, receipt,
     addedAt: Date.now()
@@ -3000,13 +2741,13 @@ function renderFinanceView(area) {
   // PIN bar
   const pinBar = document.createElement('div');
   pinBar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem';
-  pinBar.innerHTML = '<div style="display:flex;gap:.4rem;align-items:center">' +
-      '<button onclick="openAddExpenseModal()" class="mbtn primary" style="font-size:.68em">+ Add Expense</button>' +
-      (financeUnlocked
-        ? '<span style="font-size:.65em;font-family:JetBrains Mono,monospace;color:#2ecc71;margin-left:.5rem">🔓 Admin unlocked</span>' +
-          '<button onclick="lockFinance()" style="padding:.3rem .7rem;background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">🔒 Lock</button>'
-        : '<button onclick="checkFinancePin()" style="padding:.3rem .7rem;background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">🔓 Admin unlock</button>') +
-    '</div>';
+  pinBar.innerHTML = financeUnlocked
+    ? '<span style="font-size:.65em;font-family:JetBrains Mono,monospace;color:#2ecc71">🔓 Editing enabled</span>' +
+      '<div style="display:flex;gap:.4rem">' +
+        '<button onclick="openAddExpenseModal()" class="mbtn primary" style="font-size:.68em">+ Add Expense</button>' +
+        '<button onclick="lockFinance()" style="padding:.3rem .7rem;background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">🔒 Lock</button>' +
+      '</div>'
+    : '<span style="font-size:.65em;font-family:JetBrains Mono,monospace;color:var(--dim)">🔒 Read-only mode — unlock to add expenses</span><button onclick="checkFinancePin()" style="padding:.3rem .7rem;background:transparent;border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-size:.65em;font-family:JetBrains Mono,monospace;cursor:pointer">🔓 Unlock</button>';
   area.appendChild(pinBar);
 
   // Budget overview
@@ -3064,8 +2805,8 @@ function renderFinanceView(area) {
 
   const table = document.createElement('div');
   table.className = 'expense-table';
-  const hGrid = financeUnlocked ? 'grid-template-columns:90px 1fr 110px 140px 85px 70px' : 'grid-template-columns:90px 1fr 110px 140px 85px';
-  const hCols = financeUnlocked ? '<div>RECEIPT</div><div>ITEM</div><div>GROUP</div><div>STATUS</div><div>DATE</div><div>ACTIONS</div>' : '<div>RECEIPT</div><div>ITEM</div><div>GROUP</div><div>STATUS</div><div>DATE</div>';
+  const hGrid = financeUnlocked ? 'grid-template-columns:90px 1fr 90px 110px 140px 85px 70px' : 'grid-template-columns:90px 1fr 90px 110px 140px 85px';
+  const hCols = financeUnlocked ? '<div>RECEIPT</div><div>ITEM</div><div>AMOUNT</div><div>GROUP</div><div>STATUS</div><div>DATE</div><div>ACTIONS</div>' : '<div>RECEIPT</div><div>ITEM</div><div>AMOUNT</div><div>GROUP</div><div>STATUS</div><div>DATE</div>';
   table.innerHTML = '<div class="expense-row header" style="' + hGrid + '">' + hCols + '</div>';
 
   [...expenses].reverse().forEach(e => {
@@ -3078,11 +2819,16 @@ function renderFinanceView(area) {
 
     // receipt
     const c1 = document.createElement('div'); c1.className='expense-receipt'; c1.textContent=e.receiptId||''; row.appendChild(c1);
-    // item + amount
+    // item
     const c2 = document.createElement('div'); c2.className='expense-item';
-    c2.innerHTML = esc(e.item||'') + (amt ? ' <span style="font-size:.8em;color:var(--muted)">$'+amt.toFixed(2)+'</span>' : '') +
-      ((e.purchasedBy||e.submittedBy&&e.submittedBy!=='Kanban'&&e.submittedBy!=='Bot') ? '<div style="font-size:.7em;color:var(--dim);font-family:JetBrains Mono,monospace;margin-top:.1rem">👤 '+ esc(e.purchasedBy||e.submittedBy)+'</div>' : '');
+    c2.title = e.item||'';
+    c2.textContent = e.item||'';
     row.appendChild(c2);
+    // amount - dedicated column, always visible
+    const cAmt = document.createElement('div');
+    cAmt.style.cssText = 'font-family:JetBrains Mono,monospace;font-weight:600;color:#2ecc71;font-size:.85em;white-space:nowrap';
+    cAmt.textContent = amt ? '$' + amt.toFixed(2) : '—';
+    row.appendChild(cAmt);
     // group
     const c3 = document.createElement('div'); c3.className='expense-group'; c3.textContent = sub?sub.label:(e.groupId||''); row.appendChild(c3);
     // status - dropdown if unlocked
@@ -3419,21 +3165,8 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
-// Goals-view shortcuts: Escape cancels link mode, Ctrl/Cmd+Z undoes destructive actions
-window.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && sgLinkSrc) {
-    sgLinkSrc = null;
-    document.querySelectorAll('.sgn').forEach(n => n.classList.remove('sg-linking', 'sg-can-link'));
-    document.querySelectorAll('.sgn-port').forEach(p => p.classList.remove('port-active'));
-    document.querySelectorAll('.dag-vp').forEach(v => v.classList.remove('linking'));
-  }
-  if (activeTab === 'goals' && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.target.closest('input,textarea,select')) {
-    e.preventDefault(); undoGoalAction();
-  }
-});
-
 // ── INIT ──
-loadData().then(() => { startAutoRefresh(); checkUserIdentity(); }).catch(() => {
+loadData().then(startAutoRefresh).catch(() => {
   document.getElementById('sync-info').textContent = 'CONNECTION ERROR';
   document.getElementById('main-area').innerHTML = `<div class="loading" style="color:#e74c3c">Failed to connect</div>`;
 });
