@@ -2856,10 +2856,11 @@ function openSubsystemExpenses(subId) {
   const sub = SUBS.find(s => s.id === subId);
   const expenses = (store.expenses || []).filter(e => e.groupId === subId);
   const rows = expenses.length ? expenses.map((e, i) => {
-    const statusCls = e.status === 'Paid' ? 'status-paid' : e.status === 'Pending' ? 'status-pending' : 'status-other';
-    return '<div style="display:grid;grid-template-columns:90px 1fr 90px 80px;gap:.5rem;padding:.45rem .5rem;border-bottom:1px solid var(--border);align-items:center;font-size:.75em">' +
+    const amt = e.finalTotal || e.estTotal || e.amount || 0;
+    return '<div style="display:grid;grid-template-columns:90px 1fr 70px 90px 70px;gap:.5rem;padding:.45rem .5rem;border-bottom:1px solid var(--border);align-items:center;font-size:.75em">' +
       '<div style="font-family:JetBrains Mono,monospace;color:var(--muted);font-size:.85em">' + esc(e.receiptId) + '</div>' +
-      '<div style="color:var(--text)">' + esc(e.item) + '</div>' +
+      '<div style="color:var(--text)">' + esc(e.item) + (e.date ? '<div style="font-size:.75em;color:var(--dim);font-family:JetBrains Mono,monospace;margin-top:.1rem">📅 ' + esc(e.date) + '</div>' : '') + '</div>' +
+      '<div style="font-family:JetBrains Mono,monospace;font-weight:600;color:' + (amt ? '#2ecc71' : 'var(--dim)') + ';font-size:.85em;white-space:nowrap">' + (amt ? '$' + amt.toFixed(2) : '—') + '</div>' +
       '<div><select data-id="' + e.receiptId + '" onchange="updateExpenseStatus(this.dataset.id,this.value)" style="width:100%;padding:.2rem .3rem;background:var(--bg);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:.8em;font-family:JetBrains Mono,monospace">' +
         '<option value="Pending"' + (e.status==='Pending'?' selected':'') + '>Pending</option>' +
         '<option value="Paid"' + (e.status==='Paid'?' selected':'') + '>Paid</option>' +
@@ -2871,8 +2872,8 @@ function openSubsystemExpenses(subId) {
 
   showModal(
     '<div class="modal-title">' + esc(sub.label) + ' — Expenses</div>' +
-    '<div style="display:grid;grid-template-columns:90px 1fr 90px 80px;gap:.5rem;padding:.35rem .5rem;background:var(--surface2);border-radius:6px;font-size:.6em;letter-spacing:.1em;color:var(--muted);font-family:JetBrains Mono,monospace;margin-bottom:.25rem">' +
-      '<div>RECEIPT</div><div>ITEM</div><div>STATUS</div><div></div>' +
+    '<div style="display:grid;grid-template-columns:90px 1fr 70px 90px 70px;gap:.5rem;padding:.35rem .5rem;background:var(--surface2);border-radius:6px;font-size:.6em;letter-spacing:.1em;color:var(--muted);font-family:JetBrains Mono,monospace;margin-bottom:.25rem">' +
+      '<div>RECEIPT</div><div>ITEM</div><div>AMOUNT</div><div>STATUS</div><div></div>' +
     '</div>' +
     rows +
     '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Close</button></div>'
@@ -3064,8 +3065,8 @@ function renderFinanceView(area) {
 
   const table = document.createElement('div');
   table.className = 'expense-table';
-  const hGrid = financeUnlocked ? 'grid-template-columns:90px 1fr 75px 110px 140px 85px 70px' : 'grid-template-columns:90px 1fr 75px 110px 140px 85px';
-  const hCols = financeUnlocked ? '<div>RECEIPT</div><div>ITEM</div><div>AMOUNT</div><div>GROUP</div><div>STATUS</div><div>DATE</div><div>ACTIONS</div>' : '<div>RECEIPT</div><div>ITEM</div><div>AMOUNT</div><div>GROUP</div><div>STATUS</div><div>DATE</div>';
+  const hGrid = financeUnlocked ? 'grid-template-columns:90px 1fr 75px 110px 140px 70px' : 'grid-template-columns:90px 1fr 75px 110px 140px';
+  const hCols = financeUnlocked ? '<div>RECEIPT</div><div>ITEM</div><div>AMOUNT</div><div>GROUP</div><div>STATUS</div><div>ACTIONS</div>' : '<div>RECEIPT</div><div>ITEM</div><div>AMOUNT</div><div>GROUP</div><div>STATUS</div>';
   table.innerHTML = '<div class="expense-row header" style="' + hGrid + '">' + hCols + '</div>';
 
   [...expenses].reverse().forEach(e => {
@@ -3078,10 +3079,11 @@ function renderFinanceView(area) {
 
     // receipt
     const c1 = document.createElement('div'); c1.className='expense-receipt'; c1.textContent=e.receiptId||''; row.appendChild(c1);
-    // item
+    // item — date shown as sub-line to avoid a dedicated date column
     const c2 = document.createElement('div'); c2.className='expense-item';
     c2.innerHTML = esc(e.item||'') +
-      ((e.purchasedBy||(e.submittedBy&&e.submittedBy!=='Kanban'&&e.submittedBy!=='Bot')) ? '<div style="font-size:.7em;color:var(--dim);font-family:JetBrains Mono,monospace;margin-top:.1rem">👤 '+ esc(e.purchasedBy||e.submittedBy)+'</div>' : '');
+      ((e.purchasedBy||(e.submittedBy&&e.submittedBy!=='Kanban'&&e.submittedBy!=='Bot')) ? '<div style="font-size:.7em;color:var(--dim);font-family:JetBrains Mono,monospace;margin-top:.1rem">👤 '+ esc(e.purchasedBy||e.submittedBy)+'</div>' : '') +
+      (e.date ? '<div style="font-size:.68em;color:var(--dim);font-family:JetBrains Mono,monospace;margin-top:.05rem">📅 '+esc(e.date)+'</div>' : '');
     row.appendChild(c2);
     // amount
     const cAmt = document.createElement('div');
@@ -3108,8 +3110,6 @@ function renderFinanceView(area) {
       c4.innerHTML='<span class="expense-status '+statusCls+'">'+esc(statusVal)+'</span>';
     }
     row.appendChild(c4);
-    // date
-    const c5=document.createElement('div'); c5.className='expense-date'; c5.textContent=e.date||''; row.appendChild(c5);
     // actions
     if(financeUnlocked){
       const c6=document.createElement('div'); c6.style.cssText='display:flex;gap:.3rem;align-items:center';
