@@ -5,6 +5,7 @@ const {
   ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder,
   TextInputStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder,
   UserSelectMenuBuilder, PermissionsBitField, ChannelType, MessageFlags,
+  AttachmentBuilder,
 } = require("discord.js");
 const Bottleneck = require("bottleneck");
 const https = require("https");
@@ -550,6 +551,55 @@ async function postAdmin(guild, embed, components) {
   } catch (e) { console.error("Admin post failed:", e.message); }
 }
 
+async function getBackupChannel(guild, botUserId) {
+  if (store.backupChannelId) {
+    try { return await guild.channels.fetch(store.backupChannelId); } catch { store.backupChannelId = null; }
+  }
+  const existing = guild.channels.cache.find(c => c.name === 'data-backups');
+  if (existing) { store.backupChannelId = existing.id; return existing; }
+  const ch = await guild.channels.create({
+    name: 'data-backups',
+    type: ChannelType.GuildText,
+    topic: '🗄️ Warp — automated daily store backups',
+    permissionOverwrites: [
+      { id: guild.roles.everyone, deny: [PermissionsBitField.Flags.ViewChannel] },
+      { id: botUserId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory, PermissionsBitField.Flags.EmbedLinks, PermissionsBitField.Flags.AttachFiles] },
+    ],
+  });
+  store.backupChannelId = ch.id;
+  await saveData();
+  return ch;
+}
+
+async function postBackup(guild, trigger = 'daily') {
+  try {
+    const ch = await getBackupChannel(guild, client.user.id);
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Australia/Perth' });
+    const timeStr = now.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Perth' });
+    const filename = `warp-backup-${now.toISOString().slice(0,10)}-${now.toISOString().slice(11,16).replace(':','-')}.json`;
+    const json = JSON.stringify(store, null, 2);
+    const attachment = new AttachmentBuilder(Buffer.from(json, 'utf-8'), { name: filename });
+    const taskCount    = Object.values(store.tasks || {}).flat().length;
+    const expenseCount = (store.expenses || []).length;
+    const memberCount  = Object.keys(store.members || {}).length;
+    const embed = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle('🗄️ Store Backup')
+      .addFields(
+        { name: 'Trigger',   value: trigger === 'manual' ? '👤 Manual (`/backup`)' : '⏰ Scheduled (daily)', inline: true },
+        { name: 'Date',      value: `${dateStr} ${timeStr} AWST`, inline: true },
+        { name: '​',    value: '​', inline: true },
+        { name: 'Tasks',     value: String(taskCount),    inline: true },
+        { name: 'Expenses',  value: String(expenseCount), inline: true },
+        { name: 'Members',   value: String(memberCount),  inline: true },
+      )
+      .setFooter({ text: 'To restore: paste the JSON into Supabase SQL editor as the `data` column value for id=main' });
+    await ch.send({ embeds: [embed], files: [attachment] });
+    console.log(`✅ Backup posted (${trigger}): ${filename}`);
+  } catch (e) { console.error('Backup failed:', e.message); }
+}
+
 async function dmAssigned(guild, userId, task, sub) {
   try {
     const member = await guild.members.fetch(userId);
@@ -943,7 +993,7 @@ async function setupLeadChannels(guild, botUserId) {
   if (!botCat) botCat = await guild.channels.create({ name: "Bot-channels", type: ChannelType.GuildCategory });
 
   // Move bot utility channels into Bot-channels category
-  const botChannelNames = ["rover-status","budget-status","purchase-approvals","urt-admin","task-logs","finance-logs","rover-logs"];
+  const botChannelNames = ["rover-status","budget-status","purchase-approvals","urt-admin","task-logs","finance-logs","rover-logs","data-backups"];
   for (const name of botChannelNames) {
     const ch = guild.channels.cache.find(c => c.name === name && c.type === ChannelType.GuildText);
     if (ch && ch.parentId !== botCat.id) { try { await ch.setParent(botCat.id, { lockPermissions: false }); } catch {} }
@@ -1076,6 +1126,10 @@ client.once("clientReady", async () => {
       {
         name: 'leads',
         description: 'List all current team leads',
+      },
+      {
+        name: 'backup',
+        description: 'Post a manual store backup to #data-backups right now',
       },
       {
         name: 'checkin',
@@ -1217,6 +1271,16 @@ client.once("clientReady", async () => {
         if (changed) await saveData();
       } catch (e) { console.error("Hourly poll error:", e.message); }
     }, 60 * 60 * 1000);
+
+    // Daily backup — posts full store JSON to #data-backups
+    setInterval(async () => {
+      try {
+        await loadData();
+        await postBackup(guild, 'daily');
+      } catch (e) { console.error('Daily backup error:', e.message); }
+    }, 24 * 60 * 60 * 1000);
+    // Post an immediate backup on startup so there's always a fresh snapshot
+    try { await postBackup(guild, 'startup'); } catch {}
 
     // Poll JSONBin every 30s — refresh embeds only, never write back
     setInterval(async () => {
@@ -1411,6 +1475,12 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.isChatInputCommand()) {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const cmd = interaction.commandName;
+
+      if (cmd === 'backup') {
+        await loadData();
+        await postBackup(guild, 'manual');
+        return replyAndDelete(interaction, '🗄️ Backup posted to **#data-backups**!');
+      }
 
       if (cmd === 'task') {
         const subId    = interaction.options.getString('subsystem');
