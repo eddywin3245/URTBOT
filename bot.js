@@ -308,35 +308,61 @@ async function syncBudgetSheet() {
   } catch (e) { console.error("Budget sheet sync error:", e.message); }
 }
 
-// Diffs Supabase expense statuses against Sheet1 and patches any that changed.
-// Called in the hourly poll so web-UI status changes are reflected in the sheet.
+// Diffs Supabase expenses against Sheet1:
+//   - Adds rows that exist in Supabase but are missing from the sheet
+//     (expenses logged via the web kanban never hit appendExpenseRow)
+//   - Updates col L (Reimbursement Status) for any row whose status changed
+// Called in the hourly poll so web-UI changes propagate without a Discord interaction.
 async function syncExpenseStatusesToSheet() {
   try {
     const sheets = getSheets();
     const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A:L"
+      spreadsheetId: GOOGLE_SHEET_ID, range: 'Sheet1!A:L'
     });
     const rows = res.data.values || [];
-    // Map receiptId → { rowNum (1-based sheet row), sheetStatus }
+    // Map receiptId → { rowNum (1-based), sheetStatus (col L) }
     const byReceipt = {};
     for (let i = 1; i < rows.length; i++) {
       if (rows[i][0]) byReceipt[rows[i][0]] = { rowNum: i + 1, sheetStatus: rows[i][11] || '' };
     }
-    let updated = 0;
+    let updated = 0, added = 0;
     for (const exp of (store.expenses || [])) {
       if (!exp.receiptId) continue;
       const storeStatus = exp.status || exp.reimbursement || 'Pending';
       const entry = byReceipt[exp.receiptId];
-      if (!entry || storeStatus === entry.sheetStatus) continue;
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: GOOGLE_SHEET_ID,
-        range: `Sheet1!L${entry.rowNum}`,
-        valueInputOption: 'RAW',
-        requestBody: { values: [[storeStatus]] },
-      });
-      updated++;
+      if (!entry) {
+        // Missing from sheet — add the full row (web-kanban expenses land here)
+        const sub = SUBSYSTEMS.find(s => s.id === (exp.subId || exp.groupId));
+        await appendExpenseRow([
+          exp.receiptId,
+          exp.date || '',
+          exp.submittedBy || exp.purchasedBy || '',
+          sub?.label || exp.groupId || '',
+          exp.item || '',
+          exp.qty || 1,
+          exp.estCost  ? fmtAUD(exp.estCost)  : (exp.amount ? fmtAUD(exp.amount) : ''),
+          exp.estTotal ? fmtAUD(exp.estTotal) : (exp.amount ? fmtAUD(exp.amount) : ''),
+          exp.finalCost  ? fmtAUD(exp.finalCost)  : '',
+          exp.finalTotal ? fmtAUD(exp.finalTotal) : '',
+          exp.approved ? 'Yes' : '',
+          storeStatus,
+          exp.receipt || '',
+          exp.justification || exp.notes || '',
+          '',
+        ]);
+        added++;
+      } else if (storeStatus !== entry.sheetStatus) {
+        // Already in sheet but status changed — patch col L only
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: GOOGLE_SHEET_ID,
+          range: `Sheet1!L${entry.rowNum}`,
+          valueInputOption: 'RAW',
+          requestBody: { values: [[storeStatus]] },
+        });
+        updated++;
+      }
     }
-    if (updated) console.log(`✅ Synced ${updated} expense status(es) from Supabase → sheet`);
+    if (updated || added) console.log(`✅ Sheet sync: ${updated} status(es) updated, ${added} expense(s) added`);
   } catch (e) { console.error('Expense status sync error:', e.message); }
 }
 
