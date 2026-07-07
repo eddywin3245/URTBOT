@@ -307,6 +307,38 @@ async function syncBudgetSheet() {
   } catch (e) { console.error("Budget sheet sync error:", e.message); }
 }
 
+// Diffs Supabase expense statuses against Sheet1 and patches any that changed.
+// Called in the hourly poll so web-UI status changes are reflected in the sheet.
+async function syncExpenseStatusesToSheet() {
+  try {
+    const sheets = getSheets();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A:L"
+    });
+    const rows = res.data.values || [];
+    // Map receiptId → { rowNum (1-based sheet row), sheetStatus }
+    const byReceipt = {};
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0]) byReceipt[rows[i][0]] = { rowNum: i + 1, sheetStatus: rows[i][11] || '' };
+    }
+    let updated = 0;
+    for (const exp of (store.expenses || [])) {
+      if (!exp.receiptId) continue;
+      const storeStatus = exp.status || exp.reimbursement || 'Pending';
+      const entry = byReceipt[exp.receiptId];
+      if (!entry || storeStatus === entry.sheetStatus) continue;
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: GOOGLE_SHEET_ID,
+        range: `Sheet1!L${entry.rowNum}`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [[storeStatus]] },
+      });
+      updated++;
+    }
+    if (updated) console.log(`✅ Synced ${updated} expense status(es) from Supabase → sheet`);
+  } catch (e) { console.error('Expense status sync error:', e.message); }
+}
+
 async function updateSheetRow(receiptId, colLetter, value) {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A:A" });
@@ -1070,6 +1102,9 @@ client.once("clientReady", async () => {
         const now = nowLocal();
         const todayDmy = todayDmyLocal();
         let changed = false;
+
+        // Sync any expense status changes made via the web kanban to the sheet
+        await syncExpenseStatusesToSheet();
 
         // Check-in reminders
         for (const sub of SUBSYSTEMS) {
