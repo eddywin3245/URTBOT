@@ -1,4 +1,4 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 
 const {
   Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder,
@@ -430,6 +430,7 @@ async function loadData() {
     members:             r.members             || {},
     leads:               r.leads               || {},
     messageId:           r.messageId           || null,
+    messageId2:          r.messageId2          || null,
     leadMessageIds:      r.leadMessageIds      || {},
     leadChannelIds:      r.leadChannelIds      || {},
     logChannelId:        r.logChannelId        || null,
@@ -773,7 +774,7 @@ async function updateBudgetDashboard(guild) {
 // ─────────────────────────────────────────
 //  TASK EMBEDS
 // ─────────────────────────────────────────
-function buildOverviewEmbed(tasks) {
+function buildOverviewEmbeds(tasks) {
   let td = 0, ta = 0;
   const sections = SUBSYSTEMS.map((sub) => {
     const list = tasks[sub.id] || [];
@@ -790,27 +791,36 @@ function buildOverviewEmbed(tasks) {
       const statusIcon = t.status === 'inprogress' ? '◑' : '–';
       return `> ${statusIcon} ${t.name}${pri}${who}${due}`;
     }).join("\n");
-
     return sub.emoji + " **" + sub.label + "**\n`" + bar + "` " + String(pct).padStart(3) + "%  (" + done + "/" + total + ")" + (pct === 100 && total > 0 ? "  ✅" : "") + "\n" + (taskLines || "> *No pending tasks*");
-
-
-
-
   });
   const op = ta === 0 ? 0 : Math.round((td / ta) * 100);
   const ob = "█".repeat(Math.round(op / 10)) + "░".repeat(10 - Math.round(op / 10));
-  const fullDesc = "**Overall**\n`" + ob + "` " + op + "%  (" + td + "/" + ta + " tasks)\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n" + sections.join("\n\n");
-  const desc = fullDesc.length > 4000 ? fullDesc.slice(0, 3997) + "…" : fullDesc;
-  return new EmbedBuilder().setTitle("🛸  WARP — BUILD STATUS").setColor(0x38bdf8)
-    .setDescription(desc)
+  const header = "**Overall**\n`" + ob + "` " + op + "%  (" + td + "/" + ta + " tasks)\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n";
 
+  const LIMIT = 3900;
+  const pages = [];
+  let current = header;
+  for (const section of sections) {
+    const sep = current === header ? '' : '\n\n';
+    if (current !== header && current.length + sep.length + section.length > LIMIT) {
+      pages.push(current);
+      current = section;
+    } else {
+      current += sep + section;
+    }
+  }
+  if (current) pages.push(current);
 
-
-
-
-
-
-    .setTimestamp().setFooter({ text: `Kanban: ${KANBAN_URL}  |  Click 🙋 I want to help to volunteer for a task` });
+  return pages.map((desc, idx) =>
+    new EmbedBuilder()
+      .setTitle(idx === 0 ? "🛸  WARP — BUILD STATUS" : "🛸  WARP — BUILD STATUS (cont.)")
+      .setColor(0x38bdf8)
+      .setDescription(desc)
+      .setTimestamp()
+      .setFooter({ text: idx === 0 && pages.length > 1
+        ? `Continued below  |  Kanban: ${KANBAN_URL}`
+        : `Kanban: ${KANBAN_URL}  |  Click 🙋 I want to help to volunteer for a task` })
+  );
 }
 
 function buildLeadEmbed(sub, tasks) {
@@ -969,18 +979,45 @@ function addMemberModal() {
 //  UPDATE ALL
 // ─────────────────────────────────────────
 async function updateOverview(channel) {
-  const payload = { embeds: [buildOverviewEmbed(store.tasks)], components: buildOverviewButtons() };
+  const embeds = buildOverviewEmbeds(store.tasks);
+  const buttons = buildOverviewButtons();
+
   if (store.messageId) {
-    try { const m = await channel.messages.fetch(store.messageId); await m.edit(payload); return; }
-    catch { store.messageId = null; }
+    try {
+      const m1 = await channel.messages.fetch(store.messageId);
+      await m1.edit({ embeds: [embeds[0]], components: embeds.length === 1 ? buttons : [] });
+      if (embeds.length === 2) {
+        if (store.messageId2) {
+          try {
+            const m2 = await channel.messages.fetch(store.messageId2);
+            await m2.edit({ embeds: [embeds[1]], components: buttons });
+            return;
+          } catch { store.messageId2 = null; }
+        }
+        const m2 = await channel.send({ embeds: [embeds[1]], components: buttons });
+        store.messageId2 = m2.id;
+        return;
+      }
+      if (store.messageId2) {
+        try { const m2 = await channel.messages.fetch(store.messageId2); await m2.delete(); } catch {}
+        store.messageId2 = null;
+      }
+      return;
+    } catch { store.messageId = null; store.messageId2 = null; }
   }
-  // Clean up any stale bot messages before posting fresh
+
   try {
     const old = await channel.messages.fetch({ limit: 20 });
     for (const msg of old.filter(m => m.author.id === client.user.id).values()) { try { await msg.delete(); } catch {} }
   } catch {}
-  const m = await channel.send(payload);
-  store.messageId = m.id;
+
+  const m1 = await channel.send({ embeds: [embeds[0]], components: embeds.length === 1 ? buttons : [] });
+  store.messageId = m1.id;
+  store.messageId2 = null;
+  if (embeds.length === 2) {
+    const m2 = await channel.send({ embeds: [embeds[1]], components: buttons });
+    store.messageId2 = m2.id;
+  }
 }
 
 async function updateLeadChannel(channel, sub) {
@@ -1085,6 +1122,7 @@ client.once("clientReady", async () => {
     await saveData();
 
     store.messageId = null;
+    store.messageId2 = null;
     store.budgetMessageId = null;
     store.budgetChannelId = null;
 
