@@ -799,8 +799,10 @@ function buildOverviewEmbed(tasks) {
   });
   const op = ta === 0 ? 0 : Math.round((td / ta) * 100);
   const ob = "█".repeat(Math.round(op / 10)) + "░".repeat(10 - Math.round(op / 10));
+  const fullDesc = "**Overall**\n`" + ob + "` " + op + "%  (" + td + "/" + ta + " tasks)\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n" + sections.join("\n\n");
+  const desc = fullDesc.length > 4000 ? fullDesc.slice(0, 3997) + "…" : fullDesc;
   return new EmbedBuilder().setTitle("🛸  WARP — BUILD STATUS").setColor(0x38bdf8)
-    .setDescription("**Overall**\n`" + ob + "` " + op + "%  (" + td + "/" + ta + " tasks)\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n" + sections.join("\n\n"))
+    .setDescription(desc)
 
 
 
@@ -832,9 +834,10 @@ function buildLeadEmbed(sub, tasks) {
   };
 
   const fields = [];
-  if (inp.length > 0) fields.push({ name: `◑ In Progress (${inp.length})`, value: inp.map(fmt).join("\n\n").slice(0, 1024) });
-  fields.push({ name: `📋 To Do (${todo.length})`, value: (todo.length > 0 ? todo.map(fmt).join("\n\n") : "*No tasks*").slice(0, 1024) });
-  fields.push({ name: `✅ Done (${done.length})`, value: (done.length > 0 ? done.map(fmt).join("\n\n") : "*None yet*").slice(0, 1024) });
+  const cap = (s) => s.length > 1024 ? s.slice(0, 1021) + "…" : s;
+  if (inp.length > 0) fields.push({ name: `◑ In Progress (${inp.length})`, value: cap(inp.map(fmt).join("\n\n")) || "*None*" });
+  fields.push({ name: `📋 To Do (${todo.length})`, value: cap(todo.length > 0 ? todo.map(fmt).join("\n\n") : "*No tasks*") });
+  fields.push({ name: `✅ Done (${done.length})`, value: cap(done.length > 0 ? done.map(fmt).join("\n\n") : "*None yet*") });
 
   return new EmbedBuilder().setTitle(`${sub.emoji}  ${sub.label} — Task Board`).setColor(sub.color)
     .setDescription(`\`${bar}\` ${pct}%  (${done.length}/${list.length} tasks complete)`)
@@ -998,12 +1001,12 @@ async function updateLeadChannel(channel, sub) {
 
 async function updateAll(client) {
   try { const ch = await client.channels.fetch(STATUS_CHANNEL_ID); await updateOverview(ch); }
-  catch (e) { console.error("Overview update failed:", e.message); }
+  catch (e) { console.error("Overview update failed:", e.message, e.rawError?.message || ''); }
   for (const sub of SUBSYSTEMS) {
     const chId = store.leadChannelIds[sub.id];
     if (!chId) continue;
     try { const ch = await client.channels.fetch(chId); await updateLeadChannel(ch, sub); }
-    catch (e) { console.error(`Lead update failed for ${sub.id}:`, e.message); }
+    catch (e) { console.error(`Lead update failed for ${sub.id}:`, e.message, e.rawError?.message || ''); }
   }
   await saveData();
 }
