@@ -1093,20 +1093,31 @@ function expenseModalBasic(groupId, isRequest = false) {
     .setTitle(`${isRequest ? "📝 Request" : "💸 Expense"} — ${group.label}`)
     .addComponents(
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("item").setLabel("Item description").setStyle(TextInputStyle.Short).setPlaceholder("e.g. Motor Driver Board").setMaxLength(100).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("cost").setLabel(isRequest ? "Estimated cost (AUD)" : "Cost (AUD)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 23.50").setRequired(true))
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("cost").setLabel(isRequest ? "Estimated cost (AUD)" : "Cost (AUD)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 23.50").setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("receipt").setLabel("Receipt link (SharePoint) — optional").setStyle(TextInputStyle.Short).setPlaceholder("Paste your SharePoint link here").setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("justification").setLabel("Justification for purchase — optional").setStyle(TextInputStyle.Paragraph).setPlaceholder("Why is this purchase needed?").setRequired(false))
     );
 }
 
-function expenseModalDetails(groupId, isRequest, tempId) {
-  return new ModalBuilder()
-    .setCustomId(`modal_expense2_${groupId}_${isRequest ? "req" : "log"}_${tempId}`)
-    .setTitle("Receipt & Details")
-    .addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("receipt").setLabel("Receipt link (SharePoint)").setStyle(TextInputStyle.Short).setPlaceholder("Paste your SharePoint link here").setRequired(false)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("reimbursement").setLabel("Paid by yourself? (blank = Rover)").setStyle(TextInputStyle.Short).setPlaceholder("Type 'yourself' if you fronted it — blank = Rover").setRequired(false)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("paymentSource").setLabel("Payment source (which account)").setStyle(TextInputStyle.Short).setPlaceholder("Altronics Credit / UWA Account / Team Account / Personal").setRequired(false)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("justification").setLabel("Justification for purchase").setStyle(TextInputStyle.Paragraph).setPlaceholder("Why is this purchase needed?").setRequired(false))
-    );
+// Finalize a logged expense once the "Paid By" dropdown is chosen.
+// Payment source (which purse) is deliberately NOT set here — that is edited
+// only in the Account Balances / Payment Source dropdown on the sheet.
+async function finalizeExpenseLog(guild, uid, data, paidBy) {
+  const { groupId, item, cost, receipt, justification } = data;
+  const group    = FINANCE_GROUPS.find((g) => g.id === groupId);
+  const member   = await guild.members.fetch(uid);
+  const userName = member.displayName;
+  const receiptId = makeReceiptId();
+  store.spent[groupId] = (store.spent[groupId] || 0) + cost;
+  const exp = { receiptId, item, groupId, submittedBy: userName, status: paidBy, qty: 1, finalCost: cost, finalTotal: cost, amount: cost, approved: false, receipt, justification, date: new Date().toLocaleDateString("en-AU") };
+  store.expenses.push(exp);
+  await appendExpenseRow(expenseSheetRow(exp));
+  await updateBudgetDashboard(guild);
+  await syncBudgetSheet();
+  await postFinanceLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
+    [`**${item}**`, `Cost: ${fmtAUD(cost)}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `${paidBy}`, justification ? `Justification: ${justification}` : null].filter(Boolean)));
+  await saveData();
+  return { receiptId, group };
 }
 
 function setBudgetModal(groupId) {
@@ -1840,15 +1851,6 @@ ${desc ? `**Description:** ${desc}` : ''}`)
       if (id.startsWith("open_form_add_")) return interaction.showModal(addTaskModal(id.replace("open_form_add_", "")));
       if (id === "add_member")             return interaction.showModal(addMemberModal());
 
-      if (id.startsWith("open_expense2_")) {
-        const tempId  = id.replace("open_expense2_", "");
-        const expData = pending.get(`${uid}_expense_${tempId}`);
-        if (!expData) return interaction.reply({ content: "Session expired — please start again.", flags: MessageFlags.Ephemeral });
-        await interaction.showModal(expenseModalDetails(expData.groupId, expData.isRequest, tempId));
-        setTimeout(() => interaction.deleteReply().catch(() => {}), 500);
-        return;
-      }
-
       if (id === "refresh") {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         await updateAll(client);
@@ -2092,6 +2094,18 @@ Feel free to pick a different task!`);
     if (interaction.isStringSelectMenu()) {
       const id    = interaction.customId;
       const value = interaction.values[0];
+
+      if (id.startsWith("paidby_")) {
+        await interaction.deferUpdate();
+        const tempId = id.replace("paidby_", "");
+        const data   = pending.get(`${uid}_expense_${tempId}`);
+        if (!data) { await interaction.editReply({ content: "Session expired — please start again.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 4000); return; }
+        pending.delete(`${uid}_expense_${tempId}`);
+        const { receiptId, group } = await finalizeExpenseLog(guild, uid, data, value);
+        await interaction.editReply({ content: `💸 **${receiptId}** logged!\n${data.item} — ${fmtAUD(data.cost)} charged to **${group.label}**  ·  **${value}**`, components: [] });
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
+        return;
+      }
 
       if (id === "volunteer_task") {
         const [subId, taskId] = value.split("::");
@@ -2342,37 +2356,16 @@ Feel free to pick a different task!`);
         const rest      = interaction.customId.replace("modal_expense1_", "");
         const isRequest = rest.endsWith("_req");
         const groupId   = rest.replace("_req", "");
+        const group     = FINANCE_GROUPS.find((g) => g.id === groupId);
         const item      = interaction.fields.getTextInputValue("item").trim();
         const cost      = parseFloat(interaction.fields.getTextInputValue("cost").replace(/[^0-9.]/g, "")) || 0;
-        const tempId    = makeId();
-        pending.set(`${uid}_expense_${tempId}`, { groupId, isRequest, item, cost });
-        await interaction.editReply({
-          content: `✅ Basic info saved! Now add receipt details:`,
-          components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`open_expense2_${tempId}`).setLabel("📋 Add Receipt Details").setStyle(ButtonStyle.Primary))],
-        });
-        setTimeout(() => interaction.deleteReply().catch(() => {}), 300000);
-        return;
-      }
-
-      if (interaction.customId.startsWith("modal_expense2_")) {
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-        const parts     = interaction.customId.replace("modal_expense2_", "").split("_");
-        const tempId    = parts[parts.length - 1];
-        const expData   = pending.get(`${uid}_expense_${tempId}`);
-        if (!expData) return replyAndDelete(interaction, "Session expired — please start again.");
-        pending.delete(`${uid}_expense_${tempId}`);
-        const { groupId, isRequest, item, cost } = expData;
-        const group         = FINANCE_GROUPS.find((g) => g.id === groupId);
-        const receipt       = interaction.fields.getTextInputValue("receipt").trim();
-        const reimbursement = normalizePaidBy(interaction.fields.getTextInputValue("reimbursement").trim());
-        const paymentSource = interaction.fields.getTextInputValue("paymentSource").trim();
+        const receipt   = interaction.fields.getTextInputValue("receipt").trim();
         const justification = interaction.fields.getTextInputValue("justification").trim();
-        const member        = await guild.members.fetch(uid);
-        const userName      = member.displayName;
 
         if (isRequest) {
-          const reqId = makeId();
-          store.pendingRequests.push({ id: reqId, groupId, item, cost, receipt, reimbursement, justification, userName, userId: uid });
+          const member = await guild.members.fetch(uid);
+          const reqId  = makeId();
+          store.pendingRequests.push({ id: reqId, groupId, item, cost, receipt, justification, userName: member.displayName, userId: uid });
           await postApprovalRequest(guild,
             new EmbedBuilder().setTitle(`📝 Purchase Request — ${group.emoji} ${group.label}`).setColor(group.color)
               .setDescription(`**${item}**\nEst. Cost: ${fmtAUD(cost)}\n${justification ? `Justification: ${justification}\n` : ""}Receipt: ${receipt || "*none yet*"}\nRequested by: <@${uid}>`)
@@ -2385,19 +2378,22 @@ Feel free to pick a different task!`);
           );
           await saveData();
           return replyAndDelete(interaction, `📝 Purchase request submitted for **${item}** (${fmtAUD(cost)}) — awaiting approval in #purchase-approvals!`);
-        } else {
-          const receiptId  = makeReceiptId();
-          store.spent[groupId] = (store.spent[groupId] || 0) + cost;
-          const exp = { receiptId, item, groupId, submittedBy: userName, status: reimbursement, paymentSource, qty: 1, finalCost: cost, finalTotal: cost, amount: cost, approved: false, receipt, justification, date: new Date().toLocaleDateString("en-AU") };
-          store.expenses.push(exp);
-          await appendExpenseRow(expenseSheetRow(exp));
-          await updateBudgetDashboard(guild);
-          await syncBudgetSheet();
-          await postFinanceLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
-            [`**${item}**`, `Cost: ${fmtAUD(cost)}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `${reimbursement}`, paymentSource ? `Paid from: ${paymentSource}` : null, justification ? `Justification: ${justification}` : null].filter(Boolean)));
-          await saveData();
-          return replyAndDelete(interaction, `💸 **${receiptId}** logged!\n${item} — ${fmtAUD(cost)} charged to **${group.label}**`);
         }
+
+        // Expense log → ask "Paid By" via a dropdown, then finalize
+        const tempId = makeId();
+        pending.set(`${uid}_expense_${tempId}`, { groupId, item, cost, receipt, justification });
+        await interaction.editReply({
+          content: `💸 **${item}** — ${fmtAUD(cost)}\nWho paid for this?`,
+          components: [new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder().setCustomId(`paidby_${tempId}`).setPlaceholder("Who paid?").addOptions(
+              new StringSelectMenuOptionBuilder().setLabel("Paid by Rover").setValue("Paid by Rover").setEmoji("🛸").setDescription("The team covered it"),
+              new StringSelectMenuOptionBuilder().setLabel("Paid by Yourself").setValue("Paid by Yourself").setEmoji("🙋").setDescription("You fronted it — awaiting reimbursement"),
+            )
+          )],
+        });
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 300000);
+        return;
       }
     }
 
