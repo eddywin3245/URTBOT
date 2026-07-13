@@ -1258,7 +1258,8 @@ client.once("clientReady", async () => {
     await saveData();
     console.log("✅ All done!");
 
-    // Register slash commands
+    // Clear any lingering global commands, then register guild-level ones (instant)
+    await client.application.commands.set([]);
     await guild.commands.set([
       {
         name: 'task',
@@ -1662,7 +1663,6 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       if (cmd === 'setup-sheets') {
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const result = await setupAccountBalancesSheet();
         await interaction.editReply(result.ok
           ? `✅ **Account Balances** sheet ready!\n\n**Accounts tracked (${result.accounts.length}):**\n${result.accounts.map(a => `• ${a}`).join('\n')}\n\n**To add a purse:** add a row to the **Account Balances** sheet (col A = name, col B = starting balance), then run \`/setup-sheets\` again to refresh the dropdown.\n**To change a balance:** edit column B directly in the sheet.`
