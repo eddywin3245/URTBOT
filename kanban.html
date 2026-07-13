@@ -2919,10 +2919,8 @@ function openAddExpenseModal() {
     '<div class="mfield"><label>ITEM DESCRIPTION</label>' +
       '<input type="text" id="exp-item" placeholder="e.g. Stepper motors x4" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none">' +
     '</div>' +
-    '<div class="mfield" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">' +
-      '<div><label>QTY</label><input type="number" id="exp-qty" value="1" min="1" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"></div>' +
-      '<div><label>UNIT COST (AUD)</label><input type="number" id="exp-cost" placeholder="0.00" step="0.01" min="0" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"></div>' +
-    '</div>' +
+    '<div class="mfield"><label>COST (AUD)</label>' +
+      '<input type="number" id="exp-cost" placeholder="0.00" step="0.01" min="0" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"></div>' +
     '<div class="mfield" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">' +
       '<div><label>DATE</label><input type="date" id="exp-date" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none;color-scheme:dark" value="' + new Date().toISOString().slice(0,10) + '"></div>' +
       '<div><label>REIMBURSEMENT</label><select id="exp-reimb" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"><option value="No">No</option><option value="Pending">Pending</option><option value="Yes">Yes</option></select></div>' +
@@ -2951,7 +2949,6 @@ function openAddExpenseModal() {
 async function confirmAddExpense() {
   const subId   = document.getElementById('exp-sub').value;
   const item    = document.getElementById('exp-item').value.trim();
-  const qty     = parseFloat(document.getElementById('exp-qty').value) || 1;
   const cost    = parseFloat(document.getElementById('exp-cost').value) || 0;
   const date    = document.getElementById('exp-date').value;
   const reimb   = document.getElementById('exp-reimb').value;
@@ -2963,7 +2960,6 @@ async function confirmAddExpense() {
   if (!cost)  { alert('Cost required'); return; }
 
   const sub = SUBS.find(s => s.id === subId);
-  const total = qty * cost;
   // Same RCP-XXXX convention as the Discord bot — shared counter lives in the store
   store.receiptCounter = store.receiptCounter || 1;
   const receiptId = 'RCP-' + String(store.receiptCounter).padStart(4, '0');
@@ -2975,21 +2971,21 @@ async function confirmAddExpense() {
 
   store.expenses.push({
     receiptId, subId, groupId: subId,
-    item, qty, estCost: cost, estTotal: total,
-    finalCost: cost, finalTotal: total,
+    item, qty: 1,
+    finalCost: cost, finalTotal: cost, amount: cost,
     date: dateStr, submittedBy: purchaser || 'Kanban', purchasedBy: purchaser || null,
     approved: true, reimbursement: reimb,
     justification: notes, receipt,
     addedAt: Date.now()
   });
 
-  store.spent[subId] = (store.spent[subId] || 0) + total;
+  store.spent[subId] = (store.spent[subId] || 0) + cost;
 
   closeModal();
   renderBoard();
   try {
     await saveData();
-    toast('Expense added — $' + total.toFixed(2) + ' logged for ' + esc(sub?.label || subId), 'success');
+    toast('Expense added — $' + cost.toFixed(2) + ' logged for ' + esc(sub?.label || subId), 'success');
   } catch { toast('Save failed', 'error'); }
 }
 
@@ -3136,10 +3132,8 @@ function openEditExpenseModal(receiptId) {
     '<div class="modal-title">✎ Edit — '+esc(e.receiptId)+'</div>'+
     '<div class="mfield"><label>ITEM</label><input type="text" id="ee-item" value="'+esc(e.item||'')+'" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"></div>'+
     '<div class="mfield"><label>SUBSYSTEM</label><select id="ee-sub" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none">'+subOpts+'</select></div>'+
-    '<div class="mfield" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">'+
-      '<div><label>QTY</label><input type="number" id="ee-qty" value="'+(e.qty||1)+'" min="1" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"></div>'+
-      '<div><label>UNIT COST</label><input type="number" id="ee-cost" value="'+(e.estCost||e.amount||0)+'" step="0.01" min="0" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"></div>'+
-    '</div>'+
+    '<div class="mfield"><label>COST (AUD)</label>'+
+      '<input type="number" id="ee-cost" value="'+(e.finalCost||e.estCost||e.amount||0)+'" step="0.01" min="0" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"></div>'+
     '<div class="mfield" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">'+
       '<div><label>DATE</label><input type="date" id="ee-date" value="'+esc(e.date?dmyToYmd(e.date):'')+'" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none;color-scheme:dark"></div>'+
       '<div><label>STATUS</label><select id="ee-status" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none">'+statOpts+'</select></div>'+
@@ -3159,16 +3153,14 @@ async function confirmEditExpense(receiptId) {
   const oldAmt=e.finalTotal||e.estTotal||e.amount||0;
   const oldSubId=e.subId||e.groupId;
   const newSubId=document.getElementById('ee-sub').value;
-  const qty=parseFloat(document.getElementById('ee-qty').value)||1;
   const cost=parseFloat(document.getElementById('ee-cost').value)||0;
-  const total=qty*cost;
   // Update spent
   if(oldSubId) store.spent[oldSubId]=Math.max(0,(store.spent[oldSubId]||0)-oldAmt);
   if(!store.spent[newSubId]) store.spent[newSubId]=0;
-  store.spent[newSubId]+=total;
+  store.spent[newSubId]+=cost;
   e.item=document.getElementById('ee-item').value.trim()||e.item;
   e.subId=newSubId; e.groupId=newSubId;
-  e.qty=qty; e.estCost=cost; e.estTotal=total; e.finalCost=cost; e.finalTotal=total; e.amount=total;
+  e.qty=1; e.finalCost=cost; e.finalTotal=cost; e.amount=cost; delete e.estCost; delete e.estTotal;
   e.status=document.getElementById('ee-status').value;
   e.reimbursement=e.status;
   const dr=document.getElementById('ee-date').value;

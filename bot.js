@@ -187,10 +187,10 @@ async function fullResyncSheet() {
           sub?.label || exp.groupId || "",
           exp.item || "",
           exp.qty || 1,
-          exp.estCost ? fmtAUD(exp.estCost) : (exp.amount ? fmtAUD(exp.amount) : ""),
-          exp.estTotal ? fmtAUD(exp.estTotal) : (exp.amount ? fmtAUD(exp.amount) : ""),
-          exp.finalCost ? fmtAUD(exp.finalCost) : "",
-          exp.finalTotal ? fmtAUD(exp.finalTotal) : "",
+          exp.estCost ? fmtAUD(exp.estCost) : "",
+          exp.estTotal ? fmtAUD(exp.estTotal) : "",
+          exp.finalCost ? fmtAUD(exp.finalCost) : (exp.amount ? fmtAUD(exp.amount) : ""),
+          exp.finalTotal ? fmtAUD(exp.finalTotal) : (exp.amount ? fmtAUD(exp.amount) : ""),
           exp.approved ? "Yes" : "No",
           exp.status || exp.reimbursement || "Pending",
           exp.receipt || "",
@@ -267,10 +267,10 @@ async function fullResyncExpenseSheet() {
         sub?.label || exp.groupId || "",
         exp.item || "",
         exp.qty || 1,
-        exp.estCost ? fmtAUD(exp.estCost) : (exp.amount ? fmtAUD(exp.amount) : ""),
-        exp.estTotal ? fmtAUD(exp.estTotal) : (exp.amount ? fmtAUD(exp.amount) : ""),
-        exp.finalCost ? fmtAUD(exp.finalCost) : "",
-        exp.finalTotal ? fmtAUD(exp.finalTotal) : "",
+        exp.estCost ? fmtAUD(exp.estCost) : "",
+        exp.estTotal ? fmtAUD(exp.estTotal) : "",
+        exp.finalCost ? fmtAUD(exp.finalCost) : (exp.amount ? fmtAUD(exp.amount) : ""),
+        exp.finalTotal ? fmtAUD(exp.finalTotal) : (exp.amount ? fmtAUD(exp.amount) : ""),
         exp.approved ? "Yes" : (exp.status || "Pending"),
         exp.reimbursement || "",
         exp.receipt || "",
@@ -449,10 +449,10 @@ async function syncExpenseStatusesToSheet() {
           sub?.label || exp.groupId || '',
           exp.item || '',
           exp.qty || 1,
-          exp.estCost  ? fmtAUD(exp.estCost)  : (exp.amount ? fmtAUD(exp.amount) : ''),
-          exp.estTotal ? fmtAUD(exp.estTotal) : (exp.amount ? fmtAUD(exp.amount) : ''),
-          exp.finalCost  ? fmtAUD(exp.finalCost)  : '',
-          exp.finalTotal ? fmtAUD(exp.finalTotal) : '',
+          exp.estCost  ? fmtAUD(exp.estCost)  : '',
+          exp.estTotal ? fmtAUD(exp.estTotal) : '',
+          exp.finalCost  ? fmtAUD(exp.finalCost)  : (exp.amount ? fmtAUD(exp.amount) : ''),
+          exp.finalTotal ? fmtAUD(exp.finalTotal) : (exp.amount ? fmtAUD(exp.amount) : ''),
           exp.approved ? 'Yes' : '',
           storeStatus,
           exp.receipt || '',
@@ -1060,10 +1060,8 @@ function expenseModalBasic(groupId, isRequest = false) {
     .setCustomId(`modal_expense1_${groupId}${isRequest ? "_req" : ""}`)
     .setTitle(`${isRequest ? "📝 Request" : "💸 Expense"} — ${group.label}`)
     .addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("item").setLabel("Item description").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 4x Motor Driver Boards").setMaxLength(100).setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("qty").setLabel("Quantity").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 4").setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("est_cost").setLabel("Est. unit cost (AUD)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 25.00").setRequired(true)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("final_cost").setLabel("Final unit cost AUD (blank = estimate)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 23.50 — leave blank if unknown").setRequired(false))
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("item").setLabel("Item description").setStyle(TextInputStyle.Short).setPlaceholder("e.g. Motor Driver Board").setMaxLength(100).setRequired(true)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("cost").setLabel(isRequest ? "Estimated cost (AUD)" : "Cost (AUD)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 23.50").setRequired(true))
     );
 }
 
@@ -1630,8 +1628,8 @@ ${nudge.message}
                   exp.qty || 1,
                   exp.estCost ? fmtAUD(exp.estCost) : "",
                   exp.estTotal ? fmtAUD(exp.estTotal) : "",
-                  exp.finalCost ? fmtAUD(exp.finalCost) : "",
-                  exp.finalTotal ? fmtAUD(exp.finalTotal) : "",
+                  exp.finalCost ? fmtAUD(exp.finalCost) : (exp.amount ? fmtAUD(exp.amount) : ""),
+                  exp.finalTotal ? fmtAUD(exp.finalTotal) : (exp.amount ? fmtAUD(exp.amount) : ""),
                   exp.approved ? "Yes" : "No",
                   exp.reimbursement || "",
                   exp.receipt || "",
@@ -2029,18 +2027,18 @@ Feel free to pick a different task!`);
         const group = FINANCE_GROUPS.find((g) => g.id === req.groupId);
         try { await interaction.message.delete(); } catch {}
         if (approved) {
-          const estTotal  = req.qty * req.estCost;
-          store.spent[req.groupId] = (store.spent[req.groupId] || 0) + estTotal;
+          const cost = req.cost ?? (req.qty && req.estCost ? req.qty * req.estCost : 0);
+          store.spent[req.groupId] = (store.spent[req.groupId] || 0) + cost;
           const receiptId = makeReceiptId();
-          store.expenses.push({ receiptId, item: req.item, groupId: req.groupId, status: req.reimbursement || "Pending", amount: estTotal, date: new Date().toLocaleDateString("en-AU") });
-          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), req.userName, group.label, req.item, req.qty, fmtAUD(req.estCost), fmtAUD(estTotal), "", "", "Yes", req.reimbursement || "Pending", req.receipt || "", req.justification || "", "", ""]); // no paymentSource on requests
+          store.expenses.push({ receiptId, item: req.item, groupId: req.groupId, status: req.reimbursement || "Pending", qty: 1, finalCost: cost, finalTotal: cost, amount: cost, date: new Date().toLocaleDateString("en-AU") });
+          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), req.userName, group.label, req.item, 1, "", "", fmtAUD(cost), fmtAUD(cost), "Yes", req.reimbursement || "Pending", req.receipt || "", req.justification || "", "", ""]);
           await updateBudgetDashboard(guild);
           await postFinanceLog(guild, logEmbed(0x2ecc71, `✅ Request Approved — ${group.emoji} ${group.label}`,
-            [`**${req.item}** x${req.qty}`, `Est. Total: ${fmtAUD(estTotal)}`, `Approved by <@${uid}>`, `Receipt ID: ${receiptId}`, req.justification ? `Justification: ${req.justification}` : null]));
+            [`**${req.item}**`, `Cost: ${fmtAUD(cost)}`, `Approved by <@${uid}>`, `Receipt ID: ${receiptId}`, req.justification ? `Justification: ${req.justification}` : null]));
           await saveData();
-          return replyAndDelete(interaction, `✅ Approved! **${receiptId}** — ${fmtAUD(estTotal)} charged to ${group.label}.`);
+          return replyAndDelete(interaction, `✅ Approved! **${receiptId}** — ${fmtAUD(cost)} charged to ${group.label}.`);
         } else {
-          await postFinanceLog(guild, logEmbed(0xe74c3c, `❌ Request Rejected — ${group.emoji} ${group.label}`, [`**${req.item}** x${req.qty}`, `Rejected by <@${uid}>`]));
+          await postFinanceLog(guild, logEmbed(0xe74c3c, `❌ Request Rejected — ${group.emoji} ${group.label}`, [`**${req.item}**`, `Rejected by <@${uid}>`]));
           await saveData();
           return replyAndDelete(interaction, "❌ Request rejected.");
         }
@@ -2324,12 +2322,9 @@ Feel free to pick a different task!`);
         const isRequest = rest.endsWith("_req");
         const groupId   = rest.replace("_req", "");
         const item      = interaction.fields.getTextInputValue("item").trim();
-        const qty       = parseFloat(interaction.fields.getTextInputValue("qty")) || 1;
-        const estCost   = parseFloat(interaction.fields.getTextInputValue("est_cost").replace(/[^0-9.]/g, "")) || 0;
-        const finalRaw  = interaction.fields.getTextInputValue("final_cost").trim();
-        const finalCost = finalRaw ? parseFloat(finalRaw.replace(/[^0-9.]/g, "")) : null;
+        const cost      = parseFloat(interaction.fields.getTextInputValue("cost").replace(/[^0-9.]/g, "")) || 0;
         const tempId    = makeId();
-        pending.set(`${uid}_expense_${tempId}`, { groupId, isRequest, item, qty, estCost, finalCost });
+        pending.set(`${uid}_expense_${tempId}`, { groupId, isRequest, item, cost });
         await interaction.editReply({
           content: `✅ Basic info saved! Now add receipt details:`,
           components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`open_expense2_${tempId}`).setLabel("📋 Add Receipt Details").setStyle(ButtonStyle.Primary))],
@@ -2345,23 +2340,21 @@ Feel free to pick a different task!`);
         const expData   = pending.get(`${uid}_expense_${tempId}`);
         if (!expData) return replyAndDelete(interaction, "Session expired — please start again.");
         pending.delete(`${uid}_expense_${tempId}`);
-        const { groupId, isRequest, item, qty, estCost, finalCost } = expData;
+        const { groupId, isRequest, item, cost } = expData;
         const group         = FINANCE_GROUPS.find((g) => g.id === groupId);
         const receipt       = interaction.fields.getTextInputValue("receipt").trim();
         const reimbursement = normalizeStatus(interaction.fields.getTextInputValue("reimbursement").trim());
         const paymentSource = interaction.fields.getTextInputValue("paymentSource").trim();
         const justification = interaction.fields.getTextInputValue("justification").trim();
-        const estTotal      = qty * estCost;
-        const finalTotal    = finalCost !== null ? qty * finalCost : null;
         const member        = await guild.members.fetch(uid);
         const userName      = member.displayName;
 
         if (isRequest) {
           const reqId = makeId();
-          store.pendingRequests.push({ id: reqId, groupId, item, qty, estCost, receipt, reimbursement, justification, userName, userId: uid });
+          store.pendingRequests.push({ id: reqId, groupId, item, cost, receipt, reimbursement, justification, userName, userId: uid });
           await postApprovalRequest(guild,
             new EmbedBuilder().setTitle(`📝 Purchase Request — ${group.emoji} ${group.label}`).setColor(group.color)
-              .setDescription(`**${item}** x${qty}\nEst. Unit: ${fmtAUD(estCost)}  |  Est. Total: ${fmtAUD(estTotal)}\n${justification ? `Justification: ${justification}\n` : ""}Receipt: ${receipt || "*none yet*"}\nRequested by: <@${uid}>`)
+              .setDescription(`**${item}**\nEst. Cost: ${fmtAUD(cost)}\n${justification ? `Justification: ${justification}\n` : ""}Receipt: ${receipt || "*none yet*"}\nRequested by: <@${uid}>`)
               .setTimestamp(),
             [new ActionRowBuilder().addComponents(
               new ButtonBuilder().setCustomId(`approve_req_${reqId}`).setLabel("✅ Approve").setStyle(ButtonStyle.Success),
@@ -2370,20 +2363,18 @@ Feel free to pick a different task!`);
             client.user.id
           );
           await saveData();
-          return replyAndDelete(interaction, `📝 Purchase request submitted for **${item}** x${qty} (${fmtAUD(estTotal)}) — awaiting approval in #purchase-approvals!`);
+          return replyAndDelete(interaction, `📝 Purchase request submitted for **${item}** (${fmtAUD(cost)}) — awaiting approval in #purchase-approvals!`);
         } else {
           const receiptId  = makeReceiptId();
-          const costToLog  = finalTotal !== null ? finalTotal : estTotal;
-          store.spent[groupId] = (store.spent[groupId] || 0) + costToLog;
-          const expAmount = finalTotal !== null ? finalTotal : estTotal;
-          store.expenses.push({ receiptId, item, groupId, status: reimbursement, paymentSource, amount: expAmount, date: new Date().toLocaleDateString("en-AU") });
-          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), userName, group.label, item, qty, fmtAUD(estCost), fmtAUD(estTotal), finalCost !== null ? fmtAUD(finalCost) : "", finalTotal !== null ? fmtAUD(finalTotal) : "", "No", reimbursement, receipt, justification, "", paymentSource]);
+          store.spent[groupId] = (store.spent[groupId] || 0) + cost;
+          store.expenses.push({ receiptId, item, groupId, status: reimbursement, paymentSource, qty: 1, finalCost: cost, finalTotal: cost, amount: cost, date: new Date().toLocaleDateString("en-AU") });
+          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), userName, group.label, item, 1, "", "", fmtAUD(cost), fmtAUD(cost), "No", reimbursement, receipt, justification, "", paymentSource]);
           await updateBudgetDashboard(guild);
           await syncBudgetSheet();
           await postFinanceLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
-            [`**${item}** x${qty}`, `Est: ${fmtAUD(estTotal)}${finalTotal !== null ? `  |  Final: ${fmtAUD(finalTotal)}` : ""}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `Reimbursement: ${reimbursement}`, justification ? `Justification: ${justification}` : null].filter(Boolean)));
+            [`**${item}**`, `Cost: ${fmtAUD(cost)}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `Reimbursement: ${reimbursement}`, paymentSource ? `Paid from: ${paymentSource}` : null, justification ? `Justification: ${justification}` : null].filter(Boolean)));
           await saveData();
-          return replyAndDelete(interaction, `💸 **${receiptId}** logged!\n${item} x${qty} — ${fmtAUD(costToLog)} charged to **${group.label}**`);
+          return replyAndDelete(interaction, `💸 **${receiptId}** logged!\n${item} — ${fmtAUD(cost)} charged to **${group.label}**`);
         }
       }
     }
