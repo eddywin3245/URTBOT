@@ -241,9 +241,13 @@ async function fullResyncExpenseSheet() {
   // Clears Sheet1 (except header) and rewrites all expenses from store
   try {
     const sheets = getSheets();
-    // Get current rows count
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A:A" });
+    // Snapshot receiptId → Payment Source (col P) so sheet-only purse picks survive the rewrite
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A:P" });
     const rowCount = (res.data.values || []).length;
+    const sheetSourceById = {};
+    for (const r of (res.data.values || []).slice(1)) {
+      if (r[0] && r[15]) sheetSourceById[r[0]] = r[15];
+    }
     if (rowCount > 1) {
       // Clear all data rows
       await sheets.spreadsheets.values.clear({ spreadsheetId: GOOGLE_SHEET_ID, range: `Sheet1!A2:Z${rowCount + 5}` });
@@ -272,7 +276,7 @@ async function fullResyncExpenseSheet() {
         exp.receipt || "",
         exp.justification || "",
         "",
-        exp.paymentSource || ""
+        exp.paymentSource || sheetSourceById[exp.receiptId] || ""
       ]);
     }
     console.log(`✅ Full sheet resync: ${expenses.length} expenses written`);
@@ -414,6 +418,8 @@ async function setupAccountBalancesSheet() {
 //   - Adds rows that exist in Supabase but are missing from the sheet
 //     (expenses logged via the web kanban never hit appendExpenseRow)
 //   - Updates col L (Reimbursement Status) for any row whose status changed
+//   - Col P (Payment Source): sheet dropdown wins — pulled INTO the store,
+//     only written out when the sheet cell is blank
 // Called in the hourly poll so web-UI changes propagate without a Discord interaction.
 async function syncExpenseStatusesToSheet() {
   try {
@@ -427,7 +433,7 @@ async function syncExpenseStatusesToSheet() {
     for (let i = 1; i < rows.length; i++) {
       if (rows[i][0]) byReceipt[rows[i][0]] = { rowNum: i + 1, sheetStatus: rows[i][11] || '', sheetSource: rows[i][15] || '' };
     }
-    let updated = 0, added = 0;
+    let updated = 0, added = 0, pulled = 0;
     for (const exp of (store.expenses || [])) {
       if (!exp.receiptId) continue;
       const storeStatus = exp.status || exp.reimbursement || 'Pending';
@@ -457,8 +463,17 @@ async function syncExpenseStatusesToSheet() {
         added++;
       } else {
         const patches = [];
+        // Status (col L): the store (kanban/Discord) is the source of truth — push to sheet
         if (storeStatus !== entry.sheetStatus) patches.push({ range: `Sheet1!L${entry.rowNum}`, value: storeStatus });
-        if (storeSource !== entry.sheetSource) patches.push({ range: `Sheet1!P${entry.rowNum}`, value: storeSource });
+        // Payment source (col P): the SHEET dropdown is the source of truth.
+        // Pull sheet → store when the sheet has a value; only push store → sheet
+        // when the sheet cell is blank. Never blank out a sheet value.
+        if (entry.sheetSource && entry.sheetSource !== storeSource) {
+          exp.paymentSource = entry.sheetSource;
+          pulled++;
+        } else if (!entry.sheetSource && storeSource) {
+          patches.push({ range: `Sheet1!P${entry.rowNum}`, value: storeSource });
+        }
         for (const p of patches) {
           await sheets.spreadsheets.values.update({
             spreadsheetId: GOOGLE_SHEET_ID, range: p.range,
@@ -468,7 +483,8 @@ async function syncExpenseStatusesToSheet() {
         if (patches.length) updated++;
       }
     }
-    if (updated || added) console.log(`✅ Sheet sync: ${updated} row(s) patched, ${added} expense(s) added`);
+    if (pulled) await saveData();
+    if (updated || added || pulled) console.log(`✅ Sheet sync: ${updated} row(s) patched, ${added} expense(s) added, ${pulled} purse value(s) pulled from sheet`);
   } catch (e) { console.error('Expense status sync error:', e.message); }
 }
 
