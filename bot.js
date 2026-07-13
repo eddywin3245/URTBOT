@@ -157,18 +157,95 @@ function getSheets() {
   return sheetsClient;
 }
 
+// ── Sheet1 schema (12 columns) ───────────────────────────────────────────────
+//  A Receipt ID | B Date | C Who Paid | D Finance Group | E Item | F Cost |
+//  G Pre-Approved? | H Paid By | I Receipt Link | J Justification | K Notes | L Payment Source
+const SHEET_HEADERS = ["Receipt ID","Date","Who Paid","Finance Group","Item Description","Cost (AUD)","Pre-Approved?","Paid By","Receipt Link","Justification","Notes","Payment Source"];
+const SHEET_COL_PAIDBY = "H";  // Paid By / status column
+const SHEET_COL_SOURCE = "L";  // Payment Source column
+const SHEET_IDX_PAIDBY = 7;    // 0-based index of Paid By
+const SHEET_IDX_SOURCE = 11;   // 0-based index of Payment Source
+
+function expenseCostValue(exp) {
+  const c = exp.finalTotal ?? exp.amount ?? exp.estTotal ?? exp.finalCost ?? exp.estCost;
+  return (c === 0 || c) ? c : null;
+}
+// Single source of truth for a Sheet1 row — every sync path uses this
+function expenseSheetRow(exp) {
+  const sub = SUBSYSTEMS.find(s => s.id === (exp.subId || exp.groupId));
+  const cost = expenseCostValue(exp);
+  return [
+    exp.receiptId || "",
+    exp.date || "",
+    exp.submittedBy || exp.purchasedBy || "",
+    sub?.label || exp.groupId || "",
+    exp.item || "",
+    cost != null ? fmtAUD(cost) : "",
+    exp.approved ? "Yes" : "",
+    exp.status || exp.reimbursement || "Paid by Rover",
+    exp.receipt || "",
+    exp.justification || exp.notes || "",
+    "",
+    exp.paymentSource || "",
+  ];
+}
+
 async function ensureSheetHeaders() {
   const sheets  = getSheets();
-  const headers = ["Receipt ID","Date","Who Paid","Finance Group","Item Description","Qty",
-    "Est. Unit Cost (AUD)","Est. Total (AUD)","Final Unit Cost (AUD)","Final Total (AUD)",
-    "Pre-Approved?","Paid By","Receipt Link","Justification","Notes","Payment Source"];
   try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1:P1" });
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1:L1" });
     if (!res.data.values?.length) {
-      await sheets.spreadsheets.values.update({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1", valueInputOption: "RAW", requestBody: { values: [headers] } });
+      await sheets.spreadsheets.values.update({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1", valueInputOption: "RAW", requestBody: { values: [SHEET_HEADERS] } });
       console.log("✅ Sheet headers written");
     }
   } catch (e) { console.error("Sheet header error:", e.message); }
+}
+
+// One-time migration: old 16-col schema (Qty + Est/Final Unit/Total, Reimbursement
+// Status) → new 12-col schema (single Cost, Paid By). Reads the SHEET directly so
+// nothing sheet-only (SharePoint links, old rows not in the store) is lost.
+async function migrateSheet1Schema() {
+  try {
+    const sheets = getSheets();
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1:P2000" });
+    const rows = res.data.values || [];
+    const header = rows[0] || [];
+    // Already migrated if col F header is the single Cost column
+    if ((header[5] || "").toLowerCase().startsWith("cost")) {
+      return { migrated: false, already: true };
+    }
+    const firstNonEmpty = (...vals) => { for (const v of vals) { if (v != null && String(v).trim() !== "") return v; } return ""; };
+    const out = [SHEET_HEADERS.slice()];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r || !r[0]) continue; // skip blank rows
+      // old indices: F(5)Qty G(6)EstUnit H(7)EstTotal I(8)FinalUnit J(9)FinalTotal
+      //              K(10)PreApproved L(11)Reimbursement M(12)Link N(13)Justif O(14)Notes P(15)Source
+      const cost = firstNonEmpty(r[9], r[7], r[8], r[6]); // finalTotal → estTotal → finalUnit → estUnit
+      out.push([
+        r[0] || "",                 // Receipt ID
+        r[1] || "",                 // Date
+        r[2] || "",                 // Who Paid
+        r[3] || "",                 // Finance Group
+        r[4] || "",                 // Item
+        cost,                       // Cost (keep original $ string)
+        r[10] || "",                // Pre-Approved?
+        normalizePaidBy(r[11]),     // Paid By  (Paid→Rover, Pending→Yourself)
+        r[12] || "",                // Receipt Link
+        r[13] || "",                // Justification
+        r[14] || "",                // Notes
+        r[15] || "",                // Payment Source
+      ]);
+    }
+    // Clear the whole old region (through col P) then write the new 12-col layout
+    await sheets.spreadsheets.values.clear({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1:P2000" });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1",
+      valueInputOption: "USER_ENTERED", requestBody: { values: out }
+    });
+    console.log(`✅ Sheet1 migrated to 12-col schema — ${out.length - 1} rows`);
+    return { migrated: true, count: out.length - 1 };
+  } catch (e) { console.error("migrateSheet1Schema error:", e.message); return { migrated: false, error: e.message }; }
 }
 
 // Full resync - ensures every expense in store is in the sheet
@@ -183,25 +260,7 @@ async function fullResyncSheet() {
     for (const exp of store.expenses || []) {
       if (!sheetIds.has(exp.receiptId)) {
         console.log(`📋 Resyncing missing expense to sheet: ${exp.receiptId}`);
-        const sub = SUBSYSTEMS.find(s => s.id === (exp.subId || exp.groupId));
-        await appendExpenseRow([
-          exp.receiptId,
-          exp.date || new Date().toLocaleDateString("en-AU"),
-          exp.submittedBy || "",
-          sub?.label || exp.groupId || "",
-          exp.item || "",
-          exp.qty || 1,
-          exp.estCost ? fmtAUD(exp.estCost) : "",
-          exp.estTotal ? fmtAUD(exp.estTotal) : "",
-          exp.finalCost ? fmtAUD(exp.finalCost) : (exp.amount ? fmtAUD(exp.amount) : ""),
-          exp.finalTotal ? fmtAUD(exp.finalTotal) : (exp.amount ? fmtAUD(exp.amount) : ""),
-          exp.approved ? "Yes" : "No",
-          exp.status || exp.reimbursement || "Paid by Rover",
-          exp.receipt || "",
-          exp.justification || "",
-          "",
-          exp.paymentSource || ""
-        ]);
+        await appendExpenseRow(expenseSheetRow(exp));
       }
     }
     // Remove orphans (in sheet but not in store) - skip header row
@@ -245,12 +304,12 @@ async function fullResyncExpenseSheet() {
   // Clears Sheet1 (except header) and rewrites all expenses from store
   try {
     const sheets = getSheets();
-    // Snapshot receiptId → Payment Source (col P) so sheet-only purse picks survive the rewrite
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A:P" });
+    // Snapshot receiptId → Payment Source (col L) so sheet-only purse picks survive the rewrite
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A:L" });
     const rowCount = (res.data.values || []).length;
     const sheetSourceById = {};
     for (const r of (res.data.values || []).slice(1)) {
-      if (r[0] && r[15]) sheetSourceById[r[0]] = r[15];
+      if (r[0] && r[SHEET_IDX_SOURCE]) sheetSourceById[r[0]] = r[SHEET_IDX_SOURCE];
     }
     if (rowCount > 1) {
       // Clear all data rows
@@ -263,25 +322,7 @@ async function fullResyncExpenseSheet() {
       return false;
     }
     for (const exp of expenses) {
-      const sub = SUBSYSTEMS.find(s => s.id === (exp.subId || exp.groupId));
-      await appendExpenseRow([
-        exp.receiptId || "",
-        exp.date || "",
-        exp.submittedBy || "",
-        sub?.label || exp.groupId || "",
-        exp.item || "",
-        exp.qty || 1,
-        exp.estCost ? fmtAUD(exp.estCost) : "",
-        exp.estTotal ? fmtAUD(exp.estTotal) : "",
-        exp.finalCost ? fmtAUD(exp.finalCost) : (exp.amount ? fmtAUD(exp.amount) : ""),
-        exp.finalTotal ? fmtAUD(exp.finalTotal) : (exp.amount ? fmtAUD(exp.amount) : ""),
-        exp.approved ? "Yes" : (exp.status || "Paid by Rover"),
-        exp.reimbursement || "",
-        exp.receipt || "",
-        exp.justification || "",
-        "",
-        exp.paymentSource || sheetSourceById[exp.receiptId] || ""
-      ]);
+      await appendExpenseRow(expenseSheetRow({ ...exp, paymentSource: exp.paymentSource || sheetSourceById[exp.receiptId] || "" }));
     }
     console.log(`✅ Full sheet resync: ${expenses.length} expenses written`);
     return true;
@@ -345,7 +386,7 @@ async function setupAccountBalancesSheet() {
         ["Account", "Starting Balance (AUD)", "Total Spent (AUD)", "Remaining (AUD)", "Notes"],
         ...PAYMENT_ACCOUNTS.map((a, i) => [
           a.name, a.startingBalance,
-          `=IFERROR(SUMPRODUCT((Sheet1!P$2:P$2000="${a.name}")*IFERROR(VALUE(SUBSTITUTE(Sheet1!J$2:J$2000,"$","")),0)),0)`,
+          `=IFERROR(SUMPRODUCT((Sheet1!L$2:L$2000="${a.name}")*IFERROR(VALUE(SUBSTITUTE(Sheet1!F$2:F$2000,"$","")),0)),0)`,
           `=B${i + 2}-C${i + 2}`, ""
         ]),
         [],
@@ -372,7 +413,7 @@ async function setupAccountBalancesSheet() {
         const name = r[0];
         const bal  = r[1] || 0;
         return [name, bal,
-          `=IFERROR(SUMPRODUCT((Sheet1!P$2:P$2000="${name}")*IFERROR(VALUE(SUBSTITUTE(Sheet1!J$2:J$2000,"$","")),0)),0)`,
+          `=IFERROR(SUMPRODUCT((Sheet1!L$2:L$2000="${name}")*IFERROR(VALUE(SUBSTITUTE(Sheet1!F$2:F$2000,"$","")),0)),0)`,
           `=B${i + 2}-C${i + 2}`, ""];
       });
       const totalRow = existingRows.length + 2;
@@ -399,7 +440,7 @@ async function setupAccountBalancesSheet() {
         requests: [
           {
             setDataValidation: {
-              range: { sheetId: sheet1Id, startRowIndex: 1, endRowIndex: 2000, startColumnIndex: 15, endColumnIndex: 16 },
+              range: { sheetId: sheet1Id, startRowIndex: 1, endRowIndex: 2000, startColumnIndex: 11, endColumnIndex: 12 },
               rule: {
                 condition: { type: "ONE_OF_LIST", values: accountNames.map(n => ({ userEnteredValue: n })) },
                 showCustomUi: true, strict: false
@@ -413,7 +454,7 @@ async function setupAccountBalancesSheet() {
         ]
       }
     });
-    console.log(`✅ Account Balances sheet set up — ${accountNames.length} accounts, dropdown refreshed on Sheet1!P`);
+    console.log(`✅ Account Balances sheet set up — ${accountNames.length} accounts, dropdown refreshed on Sheet1!L`);
     return { ok: true, accounts: accountNames };
   } catch (e) { console.error("setupAccountBalancesSheet error:", e.message); return { ok: false }; }
 }
@@ -421,21 +462,21 @@ async function setupAccountBalancesSheet() {
 // Diffs Supabase expenses against Sheet1:
 //   - Adds rows that exist in Supabase but are missing from the sheet
 //     (expenses logged via the web kanban never hit appendExpenseRow)
-//   - Updates col L (Reimbursement Status) for any row whose status changed
-//   - Col P (Payment Source): sheet dropdown wins — pulled INTO the store,
+//   - Updates col H (Paid By) for any row whose status changed
+//   - Col L (Payment Source): sheet dropdown wins — pulled INTO the store,
 //     only written out when the sheet cell is blank
 // Called in the hourly poll so web-UI changes propagate without a Discord interaction.
 async function syncExpenseStatusesToSheet() {
   try {
     const sheets = getSheets();
     const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: GOOGLE_SHEET_ID, range: 'Sheet1!A:P'
+      spreadsheetId: GOOGLE_SHEET_ID, range: 'Sheet1!A:L'
     });
     const rows = res.data.values || [];
-    // Map receiptId → { rowNum (1-based), sheetStatus (col L) }
+    // Map receiptId → { rowNum (1-based), sheetStatus (col H), sheetSource (col L) }
     const byReceipt = {};
     for (let i = 1; i < rows.length; i++) {
-      if (rows[i][0]) byReceipt[rows[i][0]] = { rowNum: i + 1, sheetStatus: rows[i][11] || '', sheetSource: rows[i][15] || '' };
+      if (rows[i][0]) byReceipt[rows[i][0]] = { rowNum: i + 1, sheetStatus: rows[i][SHEET_IDX_PAIDBY] || '', sheetSource: rows[i][SHEET_IDX_SOURCE] || '' };
     }
     let updated = 0, added = 0, pulled = 0;
     for (const exp of (store.expenses || [])) {
@@ -445,38 +486,20 @@ async function syncExpenseStatusesToSheet() {
       const entry = byReceipt[exp.receiptId];
       if (!entry) {
         // Missing from sheet — add the full row (web-kanban expenses land here)
-        const sub = SUBSYSTEMS.find(s => s.id === (exp.subId || exp.groupId));
-        await appendExpenseRow([
-          exp.receiptId,
-          exp.date || '',
-          exp.submittedBy || exp.purchasedBy || '',
-          sub?.label || exp.groupId || '',
-          exp.item || '',
-          exp.qty || 1,
-          exp.estCost  ? fmtAUD(exp.estCost)  : '',
-          exp.estTotal ? fmtAUD(exp.estTotal) : '',
-          exp.finalCost  ? fmtAUD(exp.finalCost)  : (exp.amount ? fmtAUD(exp.amount) : ''),
-          exp.finalTotal ? fmtAUD(exp.finalTotal) : (exp.amount ? fmtAUD(exp.amount) : ''),
-          exp.approved ? 'Yes' : '',
-          storeStatus,
-          exp.receipt || '',
-          exp.justification || exp.notes || '',
-          '',
-          exp.paymentSource || '',
-        ]);
+        await appendExpenseRow(expenseSheetRow(exp));
         added++;
       } else {
         const patches = [];
-        // Status (col L): the store (kanban/Discord) is the source of truth — push to sheet
-        if (storeStatus !== entry.sheetStatus) patches.push({ range: `Sheet1!L${entry.rowNum}`, value: storeStatus });
-        // Payment source (col P): the SHEET dropdown is the source of truth.
+        // Paid By (col H): the store (kanban/Discord) is the source of truth — push to sheet
+        if (storeStatus !== entry.sheetStatus) patches.push({ range: `Sheet1!${SHEET_COL_PAIDBY}${entry.rowNum}`, value: storeStatus });
+        // Payment source (col L): the SHEET dropdown is the source of truth.
         // Pull sheet → store when the sheet has a value; only push store → sheet
         // when the sheet cell is blank. Never blank out a sheet value.
         if (entry.sheetSource && entry.sheetSource !== storeSource) {
           exp.paymentSource = entry.sheetSource;
           pulled++;
         } else if (!entry.sheetSource && storeSource) {
-          patches.push({ range: `Sheet1!P${entry.rowNum}`, value: storeSource });
+          patches.push({ range: `Sheet1!${SHEET_COL_SOURCE}${entry.rowNum}`, value: storeSource });
         }
         for (const p of patches) {
           await sheets.spreadsheets.values.update({
@@ -588,6 +611,11 @@ async function loadData() {
   for (const g of FINANCE_GROUPS) {
     if (!store.budgets[g.id]) store.budgets[g.id] = DEFAULT_BUDGETS[g.id] || 1000;
     if (store.spent[g.id] === undefined) store.spent[g.id] = 0;
+  }
+  // Self-heal legacy reimbursement values (Paid/Pending/Yes/No) → Paid by Rover / Yourself
+  for (const e of (store.expenses || [])) {
+    const s = e.status || e.reimbursement;
+    if (s && !String(s).startsWith("Paid by")) { e.status = normalizePaidBy(s); e.reimbursement = e.status; }
   }
   return store;
 }
@@ -1617,26 +1645,8 @@ ${nudge.message}
           for (const exp of store.expenses) {
             if (!prevIds.has(exp.receiptId)) {
               console.log("Appending new expense to sheet:", exp.receiptId);
-              const sub = SUBSYSTEMS.find(s => s.id === exp.subId);
               try {
-                await appendExpenseRow([
-                  exp.receiptId,
-                  exp.date || new Date().toLocaleDateString("en-AU"),
-                  exp.submittedBy || "",
-                  sub?.label || exp.subId || "",
-                  exp.item || "",
-                  exp.qty || 1,
-                  exp.estCost ? fmtAUD(exp.estCost) : "",
-                  exp.estTotal ? fmtAUD(exp.estTotal) : "",
-                  exp.finalCost ? fmtAUD(exp.finalCost) : (exp.amount ? fmtAUD(exp.amount) : ""),
-                  exp.finalTotal ? fmtAUD(exp.finalTotal) : (exp.amount ? fmtAUD(exp.amount) : ""),
-                  exp.approved ? "Yes" : "No",
-                  exp.reimbursement || "",
-                  exp.receipt || "",
-                  exp.justification || "",
-                  "",
-                  exp.paymentSource || ""
-                ]);
+                await appendExpenseRow(expenseSheetRow(exp));
               } catch (e) { console.error("Sheet append error:", e.message); }
             }
           }
@@ -1677,10 +1687,21 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       if (cmd === 'setup-sheets') {
+        // 1. Migrate Sheet1 to the new single-Cost / Paid-By schema (safe if already done)
+        const mig = await migrateSheet1Schema();
+        // 2. Normalize legacy status values in the store so the sync doesn't undo the migration
+        let storeFixed = 0;
+        for (const e of (store.expenses || [])) {
+          const s = e.status || e.reimbursement;
+          if (s && !String(s).startsWith("Paid by")) { e.status = normalizePaidBy(s); e.reimbursement = e.status; storeFixed++; }
+        }
+        if (storeFixed) await saveData();
+        // 3. Set up / refresh Account Balances + payment-source dropdown
         const result = await setupAccountBalancesSheet();
+        const migLine = mig.migrated ? `🔄 Migrated **${mig.count}** expense rows to the new layout (single Cost column, Paid By).\n` : (mig.already ? `✓ Sheet already on the new layout.\n` : '');
         await interaction.editReply(result.ok
-          ? `✅ **Account Balances** sheet ready!\n\n**Accounts tracked (${result.accounts.length}):**\n${result.accounts.map(a => `• ${a}`).join('\n')}\n\n**To add a purse:** add a row to the **Account Balances** sheet (col A = name, col B = starting balance), then run \`/setup-sheets\` again to refresh the dropdown.\n**To change a balance:** edit column B directly in the sheet.`
-          : '❌ Setup failed — check bot logs for details.'
+          ? `${migLine}✅ **Account Balances** sheet ready!\n\n**Accounts tracked (${result.accounts.length}):**\n${result.accounts.map(a => `• ${a}`).join('\n')}\n\n**To add a purse:** add a row to the **Account Balances** sheet (col A = name, col B = starting balance), then run \`/setup-sheets\` again to refresh the dropdown.\n**To change a balance:** edit column B directly in the sheet.`
+          : `${migLine}❌ Account setup failed — check bot logs for details.`
         );
         return;
       }
@@ -2032,8 +2053,9 @@ Feel free to pick a different task!`);
           const cost = req.cost ?? (req.qty && req.estCost ? req.qty * req.estCost : 0);
           store.spent[req.groupId] = (store.spent[req.groupId] || 0) + cost;
           const receiptId = makeReceiptId();
-          store.expenses.push({ receiptId, item: req.item, groupId: req.groupId, status: req.reimbursement || "Paid by Rover", qty: 1, finalCost: cost, finalTotal: cost, amount: cost, date: new Date().toLocaleDateString("en-AU") });
-          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), req.userName, group.label, req.item, 1, "", "", fmtAUD(cost), fmtAUD(cost), "Yes", req.reimbursement || "Paid by Rover", req.receipt || "", req.justification || "", "", ""]);
+          const exp = { receiptId, item: req.item, groupId: req.groupId, submittedBy: req.userName, status: req.reimbursement || "Paid by Rover", qty: 1, finalCost: cost, finalTotal: cost, amount: cost, approved: true, receipt: req.receipt || "", justification: req.justification || "", paymentSource: req.paymentSource || "", date: new Date().toLocaleDateString("en-AU") };
+          store.expenses.push(exp);
+          await appendExpenseRow(expenseSheetRow(exp));
           await updateBudgetDashboard(guild);
           await postFinanceLog(guild, logEmbed(0x2ecc71, `✅ Request Approved — ${group.emoji} ${group.label}`,
             [`**${req.item}**`, `Cost: ${fmtAUD(cost)}`, `Approved by <@${uid}>`, `Receipt ID: ${receiptId}`, req.justification ? `Justification: ${req.justification}` : null]));
@@ -2147,7 +2169,7 @@ Feel free to pick a different task!`);
         const expense = store.expenses.find(e => e.receiptId === receiptId);
         if (!expense) { await interaction.editReply({ content: "Expense not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
         expense.status = "Paid by Rover"; expense.reimbursement = "Paid by Rover";
-        await updateSheetRow(receiptId, "L", "Paid by Rover");
+        await updateSheetRow(receiptId, SHEET_COL_PAIDBY, "Paid by Rover");
         await saveData();
         await postFinanceLog(guild, logEmbed(0x2ecc71, `💰 Reimbursed — ${receiptId}`, [`**${expense.item}** moved to **Paid by Rover**`, `By <@${uid}>`]));
         await interaction.editReply({ content: `💰 **${receiptId}** → **Paid by Rover** (reimbursed)!`, components: [] });
@@ -2366,8 +2388,9 @@ Feel free to pick a different task!`);
         } else {
           const receiptId  = makeReceiptId();
           store.spent[groupId] = (store.spent[groupId] || 0) + cost;
-          store.expenses.push({ receiptId, item, groupId, status: reimbursement, paymentSource, qty: 1, finalCost: cost, finalTotal: cost, amount: cost, date: new Date().toLocaleDateString("en-AU") });
-          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), userName, group.label, item, 1, "", "", fmtAUD(cost), fmtAUD(cost), "No", reimbursement, receipt, justification, "", paymentSource]);
+          const exp = { receiptId, item, groupId, submittedBy: userName, status: reimbursement, paymentSource, qty: 1, finalCost: cost, finalTotal: cost, amount: cost, approved: false, receipt, justification, date: new Date().toLocaleDateString("en-AU") };
+          store.expenses.push(exp);
+          await appendExpenseRow(expenseSheetRow(exp));
           await updateBudgetDashboard(guild);
           await syncBudgetSheet();
           await postFinanceLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
