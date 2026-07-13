@@ -2964,7 +2964,10 @@ async function confirmAddExpense() {
 
   const sub = SUBS.find(s => s.id === subId);
   const total = qty * cost;
-  const receiptId = 'K' + Date.now().toString(36).toUpperCase();
+  // Same RCP-XXXX convention as the Discord bot — shared counter lives in the store
+  store.receiptCounter = store.receiptCounter || 1;
+  const receiptId = 'RCP-' + String(store.receiptCounter).padStart(4, '0');
+  store.receiptCounter++;
   const dateStr = date ? new Date(date).toLocaleDateString('en-AU') : new Date().toLocaleDateString('en-AU');
 
   if (!store.expenses) store.expenses = [];
