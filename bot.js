@@ -323,75 +323,91 @@ async function setupAccountBalancesSheet() {
     const meta = await sheets.spreadsheets.get({ spreadsheetId: GOOGLE_SHEET_ID });
     let balSheet = meta.data.sheets.find(s => s.properties.title === "Account Balances");
     let balSheetId;
+    let accountNames = PAYMENT_ACCOUNTS.map(a => a.name);
+
     if (!balSheet) {
+      // Sheet doesn't exist yet — create it and seed with defaults from PAYMENT_ACCOUNTS
       const addRes = await sheets.spreadsheets.batchUpdate({
         spreadsheetId: GOOGLE_SHEET_ID,
         requestBody: { requests: [{ addSheet: { properties: { title: "Account Balances" } } }] }
       });
       balSheetId = addRes.data.replies[0].addSheet.properties.sheetId;
+
+      const seedRows = [
+        ["Account", "Starting Balance (AUD)", "Total Spent (AUD)", "Remaining (AUD)", "Notes"],
+        ...PAYMENT_ACCOUNTS.map((a, i) => [
+          a.name, a.startingBalance,
+          `=IFERROR(SUMPRODUCT((Sheet1!P$2:P$2000="${a.name}")*IFERROR(VALUE(SUBSTITUTE(Sheet1!J$2:J$2000,"$","")),0)),0)`,
+          `=B${i + 2}-C${i + 2}`, ""
+        ]),
+        [],
+        ["TOTAL",
+          `=SUM(B2:B${PAYMENT_ACCOUNTS.length + 1})`,
+          `=SUM(C2:C${PAYMENT_ACCOUNTS.length + 1})`,
+          `=SUM(D2:D${PAYMENT_ACCOUNTS.length + 1})`, ""]
+      ];
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: GOOGLE_SHEET_ID, range: "Account Balances!A1",
+        valueInputOption: "USER_ENTERED", requestBody: { values: seedRows }
+      });
     } else {
       balSheetId = balSheet.properties.sheetId;
+
+      // Sheet already exists — read current accounts so we preserve any the user added
+      const existing = await sheets.spreadsheets.values.get({
+        spreadsheetId: GOOGLE_SHEET_ID, range: "Account Balances!A2:B100"
+      });
+      const existingRows = (existing.data.values || []).filter(r => r[0] && r[0] !== "TOTAL");
+
+      // Rebuild formulas for all rows (preserves names + starting balances, refreshes formulas)
+      const dataRows = existingRows.map((r, i) => {
+        const name = r[0];
+        const bal  = r[1] || 0;
+        return [name, bal,
+          `=IFERROR(SUMPRODUCT((Sheet1!P$2:P$2000="${name}")*IFERROR(VALUE(SUBSTITUTE(Sheet1!J$2:J$2000,"$","")),0)),0)`,
+          `=B${i + 2}-C${i + 2}`, ""];
+      });
+      const totalRow = existingRows.length + 2;
+      const updateRows = [
+        ["Account", "Starting Balance (AUD)", "Total Spent (AUD)", "Remaining (AUD)", "Notes"],
+        ...dataRows,
+        [],
+        ["TOTAL", `=SUM(B2:B${existingRows.length + 1})`, `=SUM(C2:C${existingRows.length + 1})`, `=SUM(D2:D${existingRows.length + 1})`, ""]
+      ];
+      // Clear first then rewrite so removed rows don't linger
+      await sheets.spreadsheets.values.clear({ spreadsheetId: GOOGLE_SHEET_ID, range: "Account Balances!A1:E200" });
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: GOOGLE_SHEET_ID, range: "Account Balances!A1",
+        valueInputOption: "USER_ENTERED", requestBody: { values: updateRows }
+      });
+
+      accountNames = existingRows.map(r => r[0]);
     }
 
-    // Write headers and one row per account with live SUMIF formulas
-    const rows = [
-      ["Account", "Starting Balance (AUD)", "Total Spent (AUD)", "Remaining (AUD)", "Notes"],
-      ...PAYMENT_ACCOUNTS.map((a, i) => [
-        a.name,
-        a.startingBalance,
-        `=IFERROR(SUMPRODUCT((Sheet1!P$2:P$2000="${a.name}")*IFERROR(VALUE(SUBSTITUTE(Sheet1!J$2:J$2000,"$","")),0)),0)`,
-        `=B${i + 2}-C${i + 2}`,
-        ""
-      ]),
-      [],
-      ["TOTAL", `=SUM(B2:B${PAYMENT_ACCOUNTS.length + 1})`, `=SUM(C2:C${PAYMENT_ACCOUNTS.length + 1})`, `=SUM(D2:D${PAYMENT_ACCOUNTS.length + 1})`, ""]
-    ];
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: GOOGLE_SHEET_ID, range: "Account Balances!A1",
-      valueInputOption: "USER_ENTERED", requestBody: { values: rows }
-    });
-
-    // Add dropdown validation to Sheet1 column P (Payment Source)
     const sheet1Id = meta.data.sheets.find(s => s.properties.title === "Sheet1")?.properties.sheetId ?? 0;
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId: GOOGLE_SHEET_ID,
       requestBody: {
         requests: [
-          // Data validation dropdown for column P
           {
             setDataValidation: {
               range: { sheetId: sheet1Id, startRowIndex: 1, endRowIndex: 2000, startColumnIndex: 15, endColumnIndex: 16 },
               rule: {
-                condition: { type: "ONE_OF_LIST", values: PAYMENT_ACCOUNTS.map(a => ({ userEnteredValue: a.name })) },
-                showCustomUi: true,
-                strict: false
+                condition: { type: "ONE_OF_LIST", values: accountNames.map(n => ({ userEnteredValue: n })) },
+                showCustomUi: true, strict: false
               }
             }
           },
-          // Bold + freeze header row in Sheet1
-          {
-            repeatCell: {
-              range: { sheetId: sheet1Id, startRowIndex: 0, endRowIndex: 1 },
-              cell: { userEnteredFormat: { textFormat: { bold: true } } },
-              fields: "userEnteredFormat.textFormat.bold"
-            }
-          },
+          { repeatCell: { range: { sheetId: sheet1Id, startRowIndex: 0, endRowIndex: 1 }, cell: { userEnteredFormat: { textFormat: { bold: true } } }, fields: "userEnteredFormat.textFormat.bold" } },
           { updateSheetProperties: { properties: { sheetId: sheet1Id, gridProperties: { frozenRowCount: 1 } }, fields: "gridProperties.frozenRowCount" } },
-          // Bold header row in Account Balances sheet
-          {
-            repeatCell: {
-              range: { sheetId: balSheetId, startRowIndex: 0, endRowIndex: 1 },
-              cell: { userEnteredFormat: { textFormat: { bold: true } } },
-              fields: "userEnteredFormat.textFormat.bold"
-            }
-          },
+          { repeatCell: { range: { sheetId: balSheetId, startRowIndex: 0, endRowIndex: 1 }, cell: { userEnteredFormat: { textFormat: { bold: true } } }, fields: "userEnteredFormat.textFormat.bold" } },
           { updateSheetProperties: { properties: { sheetId: balSheetId, gridProperties: { frozenRowCount: 1 } }, fields: "gridProperties.frozenRowCount" } },
         ]
       }
     });
-    console.log("✅ Account Balances sheet set up with dropdown validation on Sheet1!P");
-    return true;
-  } catch (e) { console.error("setupAccountBalancesSheet error:", e.message); return false; }
+    console.log(`✅ Account Balances sheet set up — ${accountNames.length} accounts, dropdown refreshed on Sheet1!P`);
+    return { ok: true, accounts: accountNames };
+  } catch (e) { console.error("setupAccountBalancesSheet error:", e.message); return { ok: false }; }
 }
 
 // Diffs Supabase expenses against Sheet1:
@@ -1243,7 +1259,7 @@ client.once("clientReady", async () => {
     console.log("✅ All done!");
 
     // Register slash commands
-    await client.application.commands.set([
+    await guild.commands.set([
       {
         name: 'task',
         description: 'Add a task to a subsystem',
@@ -1647,9 +1663,9 @@ client.on("interactionCreate", async (interaction) => {
 
       if (cmd === 'setup-sheets') {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-        const ok = await setupAccountBalancesSheet();
-        await interaction.editReply(ok
-          ? '✅ **Account Balances** sheet created/updated in Google Sheets!\n\n• Column P in Sheet1 now has a **Payment Source** dropdown\n• Edit starting balances in the **Account Balances** sheet — totals update automatically'
+        const result = await setupAccountBalancesSheet();
+        await interaction.editReply(result.ok
+          ? `✅ **Account Balances** sheet ready!\n\n**Accounts tracked (${result.accounts.length}):**\n${result.accounts.map(a => `• ${a}`).join('\n')}\n\n**To add a purse:** add a row to the **Account Balances** sheet (col A = name, col B = starting balance), then run \`/setup-sheets\` again to refresh the dropdown.\n**To change a balance:** edit column B directly in the sheet.`
           : '❌ Setup failed — check bot logs for details.'
         );
         return;
