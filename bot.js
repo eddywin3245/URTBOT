@@ -64,7 +64,11 @@ const PAYMENT_ACCOUNTS = [
   { name: "Team Account",        startingBalance: 0 },
   { name: "Personal (Reimburse)", startingBalance: 0 },
 ];
-function normalizeStatus(s) { return (s || "").toLowerCase().includes("paid") ? "Paid" : "Pending"; }
+function normalizePaidBy(s) {
+  const v = (s || "").toLowerCase();
+  if (v.includes("self") || v.includes("you") || v.includes("me") || v.includes("personal") || v.includes("pending")) return "Paid by Yourself";
+  return "Paid by Rover";
+}
 
 // Role names for permission checks — update these to match your Discord server
 // Role names matching your Discord server
@@ -157,7 +161,7 @@ async function ensureSheetHeaders() {
   const sheets  = getSheets();
   const headers = ["Receipt ID","Date","Who Paid","Finance Group","Item Description","Qty",
     "Est. Unit Cost (AUD)","Est. Total (AUD)","Final Unit Cost (AUD)","Final Total (AUD)",
-    "Pre-Approved?","Reimbursement Status","Receipt Link","Justification","Notes","Payment Source"];
+    "Pre-Approved?","Paid By","Receipt Link","Justification","Notes","Payment Source"];
   try {
     const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1:P1" });
     if (!res.data.values?.length) {
@@ -192,7 +196,7 @@ async function fullResyncSheet() {
           exp.finalCost ? fmtAUD(exp.finalCost) : (exp.amount ? fmtAUD(exp.amount) : ""),
           exp.finalTotal ? fmtAUD(exp.finalTotal) : (exp.amount ? fmtAUD(exp.amount) : ""),
           exp.approved ? "Yes" : "No",
-          exp.status || exp.reimbursement || "Pending",
+          exp.status || exp.reimbursement || "Paid by Rover",
           exp.receipt || "",
           exp.justification || "",
           "",
@@ -271,7 +275,7 @@ async function fullResyncExpenseSheet() {
         exp.estTotal ? fmtAUD(exp.estTotal) : "",
         exp.finalCost ? fmtAUD(exp.finalCost) : (exp.amount ? fmtAUD(exp.amount) : ""),
         exp.finalTotal ? fmtAUD(exp.finalTotal) : (exp.amount ? fmtAUD(exp.amount) : ""),
-        exp.approved ? "Yes" : (exp.status || "Pending"),
+        exp.approved ? "Yes" : (exp.status || "Paid by Rover"),
         exp.reimbursement || "",
         exp.receipt || "",
         exp.justification || "",
@@ -436,7 +440,7 @@ async function syncExpenseStatusesToSheet() {
     let updated = 0, added = 0, pulled = 0;
     for (const exp of (store.expenses || [])) {
       if (!exp.receiptId) continue;
-      const storeStatus = exp.status || exp.reimbursement || 'Pending';
+      const storeStatus = exp.status || exp.reimbursement || 'Paid by Rover';
       const storeSource = exp.paymentSource || '';
       const entry = byReceipt[exp.receiptId];
       if (!entry) {
@@ -856,7 +860,7 @@ function buildBudgetButtons() {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("log_expense")      .setLabel("💸 Log Expense")      .setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("purchase_request") .setLabel("📝 Purchase Request") .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("update_payment")   .setLabel("💳 Update Payment")   .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("update_payment")   .setLabel("💰 Mark Reimbursed")  .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("refresh_budget")   .setLabel("🔄 Refresh")          .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("remove_expense")   .setLabel("🗑️ Remove Expense")    .setStyle(ButtonStyle.Danger),
     ),
@@ -1071,7 +1075,7 @@ function expenseModalDetails(groupId, isRequest, tempId) {
     .setTitle("Receipt & Details")
     .addComponents(
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("receipt").setLabel("Receipt link (SharePoint)").setStyle(TextInputStyle.Short).setPlaceholder("Paste your SharePoint link here").setRequired(false)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("reimbursement").setLabel('Paid? (leave blank = Pending)').setStyle(TextInputStyle.Short).setPlaceholder("Type 'paid' to mark Paid — blank = Pending").setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("reimbursement").setLabel("Paid by yourself? (blank = Rover)").setStyle(TextInputStyle.Short).setPlaceholder("Type 'yourself' if you fronted it — blank = Rover").setRequired(false)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("paymentSource").setLabel("Payment source (which account)").setStyle(TextInputStyle.Short).setPlaceholder("Altronics Credit / UWA Account / Team Account / Personal").setRequired(false)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("justification").setLabel("Justification for purchase").setStyle(TextInputStyle.Paragraph).setPlaceholder("Why is this purchase needed?").setRequired(false))
     );
@@ -1083,10 +1087,6 @@ function setBudgetModal(groupId) {
     .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("amount").setLabel("New budget amount (AUD)").setStyle(TextInputStyle.Short).setPlaceholder("e.g. 1500").setRequired(true)));
 }
 
-function updatePaymentModal(receiptId) {
-  return new ModalBuilder().setCustomId(`modal_payment_${receiptId}`).setTitle(`Update Payment — ${receiptId}`)
-    .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("status").setLabel("New reimbursement status").setStyle(TextInputStyle.Short).setPlaceholder("Paid or Pending").setRequired(true)));
-}
 
 function addMemberModal() {
   return new ModalBuilder().setCustomId("modal_add_member").setTitle("Add Member Name Mapping")
@@ -1864,12 +1864,14 @@ ${desc ? `**Description:** ${desc}` : ''}`)
       if (id === "remove_task")      return replyMenu("Which subsystem?",    [buildSubSel("sub_for_remove")]);
 
       if (id === "update_payment") {
-        if (!store.expenses.length) { await interaction.reply({ content: "No logged expenses to update.", flags: MessageFlags.Ephemeral }); scheduleDelete(interaction, 4000); return; }
-        const options = store.expenses.slice(-25).reverse().map((e) => {
-          const label = `${e.receiptId} — ${(e.item||'').slice(0,50)} (${e.status||e.reimbursement||'Pending'})`;
+        const owed = store.expenses.filter(e => (e.status || e.reimbursement || "") === "Paid by Yourself");
+        if (!owed.length) { await interaction.reply({ content: "No out-of-pocket expenses awaiting reimbursement — everything is Paid by Rover. 🎉", flags: MessageFlags.Ephemeral }); scheduleDelete(interaction, 5000); return; }
+        const options = owed.slice(-25).reverse().map((e) => {
+          const amt = e.finalTotal || e.amount || 0;
+          const label = `${e.receiptId} — ${(e.item||'').slice(0,40)} ($${Number(amt).toFixed(2)})`;
           return new StringSelectMenuOptionBuilder().setLabel(label.slice(0,100)).setValue(e.receiptId);
         });
-        await interaction.reply({ content: "Which receipt to update payment status for?", components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("expense_for_payment").setPlaceholder("Choose a receipt...").addOptions(options))], flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: "Which out-of-pocket expense has been reimbursed? (moves it to **Paid by Rover**)", components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId("expense_for_payment").setPlaceholder("Choose a receipt...").addOptions(options))], flags: MessageFlags.Ephemeral });
         scheduleDelete(interaction, 30000);
         return;
       }
@@ -2030,8 +2032,8 @@ Feel free to pick a different task!`);
           const cost = req.cost ?? (req.qty && req.estCost ? req.qty * req.estCost : 0);
           store.spent[req.groupId] = (store.spent[req.groupId] || 0) + cost;
           const receiptId = makeReceiptId();
-          store.expenses.push({ receiptId, item: req.item, groupId: req.groupId, status: req.reimbursement || "Pending", qty: 1, finalCost: cost, finalTotal: cost, amount: cost, date: new Date().toLocaleDateString("en-AU") });
-          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), req.userName, group.label, req.item, 1, "", "", fmtAUD(cost), fmtAUD(cost), "Yes", req.reimbursement || "Pending", req.receipt || "", req.justification || "", "", ""]);
+          store.expenses.push({ receiptId, item: req.item, groupId: req.groupId, status: req.reimbursement || "Paid by Rover", qty: 1, finalCost: cost, finalTotal: cost, amount: cost, date: new Date().toLocaleDateString("en-AU") });
+          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), req.userName, group.label, req.item, 1, "", "", fmtAUD(cost), fmtAUD(cost), "Yes", req.reimbursement || "Paid by Rover", req.receipt || "", req.justification || "", "", ""]);
           await updateBudgetDashboard(guild);
           await postFinanceLog(guild, logEmbed(0x2ecc71, `✅ Request Approved — ${group.emoji} ${group.label}`,
             [`**${req.item}**`, `Cost: ${fmtAUD(cost)}`, `Approved by <@${uid}>`, `Receipt ID: ${receiptId}`, req.justification ? `Justification: ${req.justification}` : null]));
@@ -2139,7 +2141,19 @@ Feel free to pick a different task!`);
         return;
       }
 
-      if (id === "expense_for_payment") { pending.set(`${uid}_payment_receipt`, value); await interaction.showModal(updatePaymentModal(value)); setTimeout(() => interaction.deleteReply().catch(() => {}), 500); return; }
+      if (id === "expense_for_payment") {
+        await interaction.deferUpdate();
+        const receiptId = value;
+        const expense = store.expenses.find(e => e.receiptId === receiptId);
+        if (!expense) { await interaction.editReply({ content: "Expense not found.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 3000); return; }
+        expense.status = "Paid by Rover"; expense.reimbursement = "Paid by Rover";
+        await updateSheetRow(receiptId, "L", "Paid by Rover");
+        await saveData();
+        await postFinanceLog(guild, logEmbed(0x2ecc71, `💰 Reimbursed — ${receiptId}`, [`**${expense.item}** moved to **Paid by Rover**`, `By <@${uid}>`]));
+        await interaction.editReply({ content: `💰 **${receiptId}** → **Paid by Rover** (reimbursed)!`, components: [] });
+        setTimeout(() => interaction.deleteReply().catch(() => {}), 4000);
+        return;
+      }
 
       if (id === "sub_for_add") {
         const sub = SUBSYSTEMS.find((s) => s.id === value);
@@ -2301,21 +2315,6 @@ Feel free to pick a different task!`);
         return replyAndDelete(interaction, `⚙️ **${group.label}** budget set to **${fmtAUD(amount)}**!`);
       }
 
-      if (interaction.customId.startsWith("modal_payment_")) {
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-        const receiptId = interaction.customId.replace("modal_payment_", "");
-        const newStatus = normalizeStatus(interaction.fields.getTextInputValue("status").trim());
-        const expense   = store.expenses.find((e) => e.receiptId === receiptId);
-        if (!expense) { await interaction.editReply("Receipt not found."); setTimeout(()=>interaction.deleteReply().catch(()=>{}),4000); return; }
-        expense.status = newStatus;
-        await updateSheetRow(receiptId, "L", newStatus);
-        await saveData();
-        await postFinanceLog(guild, logEmbed(0x38bdf8, `💳 Payment updated — ${receiptId}`, [`New status: **${newStatus}**`, `By <@${uid}>`]));
-        await interaction.editReply(`💳 **${receiptId}** updated to **${newStatus}**!`);
-        setTimeout(()=>interaction.deleteReply().catch(()=>{}),5000);
-        return;
-      }
-
       if (interaction.customId.startsWith("modal_expense1_")) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const rest      = interaction.customId.replace("modal_expense1_", "");
@@ -2343,7 +2342,7 @@ Feel free to pick a different task!`);
         const { groupId, isRequest, item, cost } = expData;
         const group         = FINANCE_GROUPS.find((g) => g.id === groupId);
         const receipt       = interaction.fields.getTextInputValue("receipt").trim();
-        const reimbursement = normalizeStatus(interaction.fields.getTextInputValue("reimbursement").trim());
+        const reimbursement = normalizePaidBy(interaction.fields.getTextInputValue("reimbursement").trim());
         const paymentSource = interaction.fields.getTextInputValue("paymentSource").trim();
         const justification = interaction.fields.getTextInputValue("justification").trim();
         const member        = await guild.members.fetch(uid);
@@ -2372,7 +2371,7 @@ Feel free to pick a different task!`);
           await updateBudgetDashboard(guild);
           await syncBudgetSheet();
           await postFinanceLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
-            [`**${item}**`, `Cost: ${fmtAUD(cost)}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `Reimbursement: ${reimbursement}`, paymentSource ? `Paid from: ${paymentSource}` : null, justification ? `Justification: ${justification}` : null].filter(Boolean)));
+            [`**${item}**`, `Cost: ${fmtAUD(cost)}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `${reimbursement}`, paymentSource ? `Paid from: ${paymentSource}` : null, justification ? `Justification: ${justification}` : null].filter(Boolean)));
           await saveData();
           return replyAndDelete(interaction, `💸 **${receiptId}** logged!\n${item} — ${fmtAUD(cost)} charged to **${group.label}**`);
         }

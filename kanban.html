@@ -2857,14 +2857,14 @@ function openSubsystemExpenses(subId) {
   const expenses = (store.expenses || []).filter(e => e.groupId === subId);
   const rows = expenses.length ? expenses.map((e, i) => {
     const amt = e.finalTotal || e.estTotal || e.amount || 0;
+    const statusVal = e.status || e.reimbursement || 'Paid by Rover';
     return '<div style="display:grid;grid-template-columns:90px 1fr 70px 90px 70px;gap:.5rem;padding:.45rem .5rem;border-bottom:1px solid var(--border);align-items:center;font-size:.75em">' +
       '<div style="font-family:JetBrains Mono,monospace;color:var(--muted);font-size:.85em">' + esc(e.receiptId) + '</div>' +
       '<div style="color:var(--text)">' + esc(e.item) + (e.date ? '<div style="font-size:.75em;color:var(--dim);font-family:JetBrains Mono,monospace;margin-top:.1rem">📅 ' + esc(e.date) + '</div>' : '') + '</div>' +
       '<div style="font-family:JetBrains Mono,monospace;font-weight:600;color:' + (amt ? '#2ecc71' : 'var(--dim)') + ';font-size:.85em;white-space:nowrap">' + (amt ? '$' + amt.toFixed(2) : '—') + '</div>' +
       '<div><select data-id="' + e.receiptId + '" onchange="updateExpenseStatus(this.dataset.id,this.value)" style="width:100%;padding:.2rem .3rem;background:var(--bg);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:.8em;font-family:JetBrains Mono,monospace">' +
-        '<option value="Pending"' + (e.status==='Pending'?' selected':'') + '>Pending</option>' +
-        '<option value="Paid"' + (e.status==='Paid'?' selected':'') + '>Paid</option>' +
-        '<option value="N/A"' + (e.status==='N/A'?' selected':'') + '>N/A</option>' +
+        '<option value="Paid by Rover"' + (statusVal==='Paid by Rover'?' selected':'') + '>Paid by Rover</option>' +
+        '<option value="Paid by Yourself"' + (statusVal==='Paid by Yourself'?' selected':'') + '>Paid by Yourself</option>' +
       '</select></div>' +
       '<div style="text-align:right"><button data-rid="' + e.receiptId + '" onclick="removeExpenseKanban(this.dataset.rid).then(()=>closeModal())" style="background:rgba(231,76,60,.15);border:1px solid rgba(231,76,60,.3);color:#e74c3c;border-radius:4px;padding:.2rem .5rem;cursor:pointer;font-size:.8em">&#x1F5D1;</button></div>' +
     '</div>';
@@ -2873,7 +2873,7 @@ function openSubsystemExpenses(subId) {
   showModal(
     '<div class="modal-title">' + esc(sub.label) + ' — Expenses</div>' +
     '<div style="display:grid;grid-template-columns:90px 1fr 70px 90px 70px;gap:.5rem;padding:.35rem .5rem;background:var(--surface2);border-radius:6px;font-size:.6em;letter-spacing:.1em;color:var(--muted);font-family:JetBrains Mono,monospace;margin-bottom:.25rem">' +
-      '<div>RECEIPT</div><div>ITEM</div><div>AMOUNT</div><div>STATUS</div><div></div>' +
+      '<div>RECEIPT</div><div>ITEM</div><div>AMOUNT</div><div>PAID BY</div><div></div>' +
     '</div>' +
     rows +
     '<div class="modal-footer"><button class="mbtn secondary" onclick="closeModal()">Close</button></div>'
@@ -2883,7 +2883,7 @@ function openSubsystemExpenses(subId) {
 async function updateExpenseStatus(receiptId, newStatus) {
   const expense = store.expenses.find(e => e.receiptId === receiptId);
   if (!expense) return;
-  expense.status = newStatus;
+  expense.status = newStatus; expense.reimbursement = newStatus;
   try { await saveData(); toast(receiptId + ' → ' + newStatus, 'success'); }
   catch { toast('Save failed', 'error'); }
 }
@@ -2923,7 +2923,7 @@ function openAddExpenseModal() {
       '<input type="number" id="exp-cost" placeholder="0.00" step="0.01" min="0" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"></div>' +
     '<div class="mfield" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">' +
       '<div><label>DATE</label><input type="date" id="exp-date" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none;color-scheme:dark" value="' + new Date().toISOString().slice(0,10) + '"></div>' +
-      '<div><label>REIMBURSEMENT</label><select id="exp-reimb" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"><option value="No">No</option><option value="Pending">Pending</option><option value="Yes">Yes</option></select></div>' +
+      '<div><label>PAID BY</label><select id="exp-reimb" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"><option value="Paid by Rover">Paid by Rover</option><option value="Paid by Yourself">Paid by Yourself</option></select></div>' +
     '</div>' +
     '<div class="mfield"><label>PURCHASED BY</label>' +
       '<input type="text" id="exp-purchaser" list="exp-members-list" placeholder="Who made the purchase?" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none">' +
@@ -2974,7 +2974,7 @@ async function confirmAddExpense() {
     item, qty: 1,
     finalCost: cost, finalTotal: cost, amount: cost,
     date: dateStr, submittedBy: purchaser || 'Kanban', purchasedBy: purchaser || null,
-    approved: true, reimbursement: reimb,
+    approved: true, status: reimb, reimbursement: reimb,
     justification: notes, receipt,
     addedAt: Date.now()
   });
@@ -3065,12 +3065,12 @@ function renderFinanceView(area) {
   const table = document.createElement('div');
   table.className = 'expense-table';
   const hGrid = financeUnlocked ? 'grid-template-columns:90px 1fr 75px 110px 140px 70px' : 'grid-template-columns:90px 1fr 75px 110px 140px';
-  const hCols = financeUnlocked ? '<div>RECEIPT</div><div>ITEM</div><div>AMOUNT</div><div>GROUP</div><div>STATUS</div><div>ACTIONS</div>' : '<div>RECEIPT</div><div>ITEM</div><div>AMOUNT</div><div>GROUP</div><div>STATUS</div>';
+  const hCols = financeUnlocked ? '<div>RECEIPT</div><div>ITEM</div><div>AMOUNT</div><div>GROUP</div><div>PAID BY</div><div>ACTIONS</div>' : '<div>RECEIPT</div><div>ITEM</div><div>AMOUNT</div><div>GROUP</div><div>PAID BY</div>';
   table.innerHTML = '<div class="expense-row header" style="' + hGrid + '">' + hCols + '</div>';
 
   [...expenses].reverse().forEach(e => {
-    const statusVal = e.status || e.reimbursement || 'Pending';
-    const statusCls = statusVal==='Paid'?'status-paid':statusVal==='Pending'?'status-pending':'status-other';
+    const statusVal = e.status || e.reimbursement || 'Paid by Rover';
+    const statusCls = statusVal==='Paid by Rover'?'status-paid':statusVal==='Paid by Yourself'?'status-pending':'status-other';
     const sub = SUBS.find(s => s.id === (e.subId||e.groupId));
     const amt = e.finalTotal || e.estTotal || e.amount || 0;
     const row = document.createElement('div');
@@ -3096,7 +3096,7 @@ function renderFinanceView(area) {
     if (financeUnlocked) {
       const sel = document.createElement('select');
       sel.style.cssText='width:100%;padding:.2rem .3rem;background:var(--bg);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-size:.75em;font-family:JetBrains Mono,monospace';
-      ['Pending','Approved','Paid','Rejected','No'].forEach(opt=>{
+      ['Paid by Rover','Paid by Yourself'].forEach(opt=>{
         const o=document.createElement('option'); o.value=opt; o.textContent=opt;
         if(statusVal===opt) o.selected=true; sel.appendChild(o);
       });
@@ -3125,9 +3125,9 @@ function renderFinanceView(area) {
 
 function openEditExpenseModal(receiptId) {
   const e=(store.expenses||[]).find(x=>x.receiptId===receiptId); if(!e) return;
-  const statusVal=e.status||e.reimbursement||'Pending';
+  const statusVal=e.status||e.reimbursement||'Paid by Rover';
   const subOpts=SUBS.map(s=>'<option value="'+s.id+'"'+((e.subId||e.groupId)===s.id?' selected':'')+'>'+esc(s.label)+'</option>').join('');
-  const statOpts=['Pending','Approved','Paid','Rejected','No'].map(s=>'<option value="'+s+'"'+(statusVal===s?' selected':'')+'>'+s+'</option>').join('');
+  const statOpts=['Paid by Rover','Paid by Yourself'].map(s=>'<option value="'+s+'"'+(statusVal===s?' selected':'')+'>'+s+'</option>').join('');
   showModal(
     '<div class="modal-title">✎ Edit — '+esc(e.receiptId)+'</div>'+
     '<div class="mfield"><label>ITEM</label><input type="text" id="ee-item" value="'+esc(e.item||'')+'" style="width:100%;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:.78em;outline:none"></div>'+
