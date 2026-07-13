@@ -58,6 +58,13 @@ const DEFAULT_BUDGETS = {
 };
 
 const PRI_EMOJI = { high: "🔴", medium: "🟡", low: "🟢" };
+const PAYMENT_ACCOUNTS = [
+  { name: "Altronics Credit",    startingBalance: 500 },
+  { name: "UWA Account",         startingBalance: 2000 },
+  { name: "Team Account",        startingBalance: 0 },
+  { name: "Personal (Reimburse)", startingBalance: 0 },
+];
+function normalizeStatus(s) { return (s || "").toLowerCase().includes("paid") ? "Paid" : "Pending"; }
 
 // Role names for permission checks — update these to match your Discord server
 // Role names matching your Discord server
@@ -150,9 +157,9 @@ async function ensureSheetHeaders() {
   const sheets  = getSheets();
   const headers = ["Receipt ID","Date","Who Paid","Finance Group","Item Description","Qty",
     "Est. Unit Cost (AUD)","Est. Total (AUD)","Final Unit Cost (AUD)","Final Total (AUD)",
-    "Pre-Approved?","Reimbursement Status","Receipt Link","Justification","Notes"];
+    "Pre-Approved?","Reimbursement Status","Receipt Link","Justification","Notes","Payment Source"];
   try {
-    const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1:O1" });
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1:P1" });
     if (!res.data.values?.length) {
       await sheets.spreadsheets.values.update({ spreadsheetId: GOOGLE_SHEET_ID, range: "Sheet1!A1", valueInputOption: "RAW", requestBody: { values: [headers] } });
       console.log("✅ Sheet headers written");
@@ -188,7 +195,8 @@ async function fullResyncSheet() {
           exp.status || exp.reimbursement || "Pending",
           exp.receipt || "",
           exp.justification || "",
-          ""
+          "",
+          exp.paymentSource || ""
         ]);
       }
     }
@@ -263,7 +271,8 @@ async function fullResyncExpenseSheet() {
         exp.reimbursement || "",
         exp.receipt || "",
         exp.justification || "",
-        ""
+        "",
+        exp.paymentSource || ""
       ]);
     }
     console.log(`✅ Full sheet resync: ${expenses.length} expenses written`);
@@ -308,6 +317,83 @@ async function syncBudgetSheet() {
   } catch (e) { console.error("Budget sheet sync error:", e.message); }
 }
 
+async function setupAccountBalancesSheet() {
+  try {
+    const sheets = getSheets();
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: GOOGLE_SHEET_ID });
+    let balSheet = meta.data.sheets.find(s => s.properties.title === "Account Balances");
+    let balSheetId;
+    if (!balSheet) {
+      const addRes = await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: GOOGLE_SHEET_ID,
+        requestBody: { requests: [{ addSheet: { properties: { title: "Account Balances" } } }] }
+      });
+      balSheetId = addRes.data.replies[0].addSheet.properties.sheetId;
+    } else {
+      balSheetId = balSheet.properties.sheetId;
+    }
+
+    // Write headers and one row per account with live SUMIF formulas
+    const rows = [
+      ["Account", "Starting Balance (AUD)", "Total Spent (AUD)", "Remaining (AUD)", "Notes"],
+      ...PAYMENT_ACCOUNTS.map((a, i) => [
+        a.name,
+        a.startingBalance,
+        `=IFERROR(SUMPRODUCT((Sheet1!P$2:P$2000="${a.name}")*IFERROR(VALUE(SUBSTITUTE(Sheet1!J$2:J$2000,"$","")),0)),0)`,
+        `=B${i + 2}-C${i + 2}`,
+        ""
+      ]),
+      [],
+      ["TOTAL", `=SUM(B2:B${PAYMENT_ACCOUNTS.length + 1})`, `=SUM(C2:C${PAYMENT_ACCOUNTS.length + 1})`, `=SUM(D2:D${PAYMENT_ACCOUNTS.length + 1})`, ""]
+    ];
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: GOOGLE_SHEET_ID, range: "Account Balances!A1",
+      valueInputOption: "USER_ENTERED", requestBody: { values: rows }
+    });
+
+    // Add dropdown validation to Sheet1 column P (Payment Source)
+    const sheet1Id = meta.data.sheets.find(s => s.properties.title === "Sheet1")?.properties.sheetId ?? 0;
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: GOOGLE_SHEET_ID,
+      requestBody: {
+        requests: [
+          // Data validation dropdown for column P
+          {
+            setDataValidation: {
+              range: { sheetId: sheet1Id, startRowIndex: 1, endRowIndex: 2000, startColumnIndex: 15, endColumnIndex: 16 },
+              rule: {
+                condition: { type: "ONE_OF_LIST", values: PAYMENT_ACCOUNTS.map(a => ({ userEnteredValue: a.name })) },
+                showCustomUi: true,
+                strict: false
+              }
+            }
+          },
+          // Bold + freeze header row in Sheet1
+          {
+            repeatCell: {
+              range: { sheetId: sheet1Id, startRowIndex: 0, endRowIndex: 1 },
+              cell: { userEnteredFormat: { textFormat: { bold: true } } },
+              fields: "userEnteredFormat.textFormat.bold"
+            }
+          },
+          { updateSheetProperties: { properties: { sheetId: sheet1Id, gridProperties: { frozenRowCount: 1 } }, fields: "gridProperties.frozenRowCount" } },
+          // Bold header row in Account Balances sheet
+          {
+            repeatCell: {
+              range: { sheetId: balSheetId, startRowIndex: 0, endRowIndex: 1 },
+              cell: { userEnteredFormat: { textFormat: { bold: true } } },
+              fields: "userEnteredFormat.textFormat.bold"
+            }
+          },
+          { updateSheetProperties: { properties: { sheetId: balSheetId, gridProperties: { frozenRowCount: 1 } }, fields: "gridProperties.frozenRowCount" } },
+        ]
+      }
+    });
+    console.log("✅ Account Balances sheet set up with dropdown validation on Sheet1!P");
+    return true;
+  } catch (e) { console.error("setupAccountBalancesSheet error:", e.message); return false; }
+}
+
 // Diffs Supabase expenses against Sheet1:
 //   - Adds rows that exist in Supabase but are missing from the sheet
 //     (expenses logged via the web kanban never hit appendExpenseRow)
@@ -317,18 +403,19 @@ async function syncExpenseStatusesToSheet() {
   try {
     const sheets = getSheets();
     const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: GOOGLE_SHEET_ID, range: 'Sheet1!A:L'
+      spreadsheetId: GOOGLE_SHEET_ID, range: 'Sheet1!A:P'
     });
     const rows = res.data.values || [];
     // Map receiptId → { rowNum (1-based), sheetStatus (col L) }
     const byReceipt = {};
     for (let i = 1; i < rows.length; i++) {
-      if (rows[i][0]) byReceipt[rows[i][0]] = { rowNum: i + 1, sheetStatus: rows[i][11] || '' };
+      if (rows[i][0]) byReceipt[rows[i][0]] = { rowNum: i + 1, sheetStatus: rows[i][11] || '', sheetSource: rows[i][15] || '' };
     }
     let updated = 0, added = 0;
     for (const exp of (store.expenses || [])) {
       if (!exp.receiptId) continue;
       const storeStatus = exp.status || exp.reimbursement || 'Pending';
+      const storeSource = exp.paymentSource || '';
       const entry = byReceipt[exp.receiptId];
       if (!entry) {
         // Missing from sheet — add the full row (web-kanban expenses land here)
@@ -349,20 +436,23 @@ async function syncExpenseStatusesToSheet() {
           exp.receipt || '',
           exp.justification || exp.notes || '',
           '',
+          exp.paymentSource || '',
         ]);
         added++;
-      } else if (storeStatus !== entry.sheetStatus) {
-        // Already in sheet but status changed — patch col L only
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: GOOGLE_SHEET_ID,
-          range: `Sheet1!L${entry.rowNum}`,
-          valueInputOption: 'RAW',
-          requestBody: { values: [[storeStatus]] },
-        });
-        updated++;
+      } else {
+        const patches = [];
+        if (storeStatus !== entry.sheetStatus) patches.push({ range: `Sheet1!L${entry.rowNum}`, value: storeStatus });
+        if (storeSource !== entry.sheetSource) patches.push({ range: `Sheet1!P${entry.rowNum}`, value: storeSource });
+        for (const p of patches) {
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: GOOGLE_SHEET_ID, range: p.range,
+            valueInputOption: 'RAW', requestBody: { values: [[p.value]] },
+          });
+        }
+        if (patches.length) updated++;
       }
     }
-    if (updated || added) console.log(`✅ Sheet sync: ${updated} status(es) updated, ${added} expense(s) added`);
+    if (updated || added) console.log(`✅ Sheet sync: ${updated} row(s) patched, ${added} expense(s) added`);
   } catch (e) { console.error('Expense status sync error:', e.message); }
 }
 
@@ -951,7 +1041,8 @@ function expenseModalDetails(groupId, isRequest, tempId) {
     .setTitle("Receipt & Details")
     .addComponents(
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("receipt").setLabel("Receipt link (SharePoint)").setStyle(TextInputStyle.Short).setPlaceholder("Paste your SharePoint link here").setRequired(false)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("reimbursement").setLabel("Reimbursement status").setStyle(TextInputStyle.Short).setPlaceholder("Pending / Paid / N/A").setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("reimbursement").setLabel('Paid? (leave blank = Pending)').setStyle(TextInputStyle.Short).setPlaceholder("Type 'paid' to mark Paid — blank = Pending").setRequired(false)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("paymentSource").setLabel("Payment source (which account)").setStyle(TextInputStyle.Short).setPlaceholder("Altronics Credit / UWA Account / Team Account / Personal").setRequired(false)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("justification").setLabel("Justification for purchase").setStyle(TextInputStyle.Paragraph).setPlaceholder("Why is this purchase needed?").setRequired(false))
     );
 }
@@ -964,7 +1055,7 @@ function setBudgetModal(groupId) {
 
 function updatePaymentModal(receiptId) {
   return new ModalBuilder().setCustomId(`modal_payment_${receiptId}`).setTitle(`Update Payment — ${receiptId}`)
-    .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("status").setLabel("New reimbursement status").setStyle(TextInputStyle.Short).setPlaceholder("Paid / Pending / N/A / Partial").setRequired(true)));
+    .addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("status").setLabel("New reimbursement status").setStyle(TextInputStyle.Short).setPlaceholder("Paid or Pending").setRequired(true)));
 }
 
 function addMemberModal() {
@@ -1197,6 +1288,10 @@ client.once("clientReady", async () => {
       {
         name: 'backup',
         description: 'Post a manual store backup to #data-backups right now',
+      },
+      {
+        name: 'setup-sheets',
+        description: 'Set up the Account Balances sheet and payment source dropdown in Google Sheets',
       },
       {
         name: 'checkin',
@@ -1508,7 +1603,8 @@ ${nudge.message}
                   exp.reimbursement || "",
                   exp.receipt || "",
                   exp.justification || "",
-                  ""
+                  "",
+                  exp.paymentSource || ""
                 ]);
               } catch (e) { console.error("Sheet append error:", e.message); }
             }
@@ -1547,6 +1643,16 @@ client.on("interactionCreate", async (interaction) => {
         await loadData();
         await postBackup(guild, 'manual');
         return replyAndDelete(interaction, '🗄️ Backup posted to **#data-backups**!');
+      }
+
+      if (cmd === 'setup-sheets') {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const ok = await setupAccountBalancesSheet();
+        await interaction.editReply(ok
+          ? '✅ **Account Balances** sheet created/updated in Google Sheets!\n\n• Column P in Sheet1 now has a **Payment Source** dropdown\n• Edit starting balances in the **Account Balances** sheet — totals update automatically'
+          : '❌ Setup failed — check bot logs for details.'
+        );
+        return;
       }
 
       if (cmd === 'task') {
@@ -1895,7 +2001,7 @@ Feel free to pick a different task!`);
           store.spent[req.groupId] = (store.spent[req.groupId] || 0) + estTotal;
           const receiptId = makeReceiptId();
           store.expenses.push({ receiptId, item: req.item, groupId: req.groupId, status: req.reimbursement || "Pending", amount: estTotal, date: new Date().toLocaleDateString("en-AU") });
-          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), req.userName, group.label, req.item, req.qty, fmtAUD(req.estCost), fmtAUD(estTotal), "", "", "Yes", req.reimbursement || "Pending", req.receipt || "", req.justification || "", ""]);
+          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), req.userName, group.label, req.item, req.qty, fmtAUD(req.estCost), fmtAUD(estTotal), "", "", "Yes", req.reimbursement || "Pending", req.receipt || "", req.justification || "", "", ""]); // no paymentSource on requests
           await updateBudgetDashboard(guild);
           await postFinanceLog(guild, logEmbed(0x2ecc71, `✅ Request Approved — ${group.emoji} ${group.label}`,
             [`**${req.item}** x${req.qty}`, `Est. Total: ${fmtAUD(estTotal)}`, `Approved by <@${uid}>`, `Receipt ID: ${receiptId}`, req.justification ? `Justification: ${req.justification}` : null]));
@@ -2168,7 +2274,7 @@ Feel free to pick a different task!`);
       if (interaction.customId.startsWith("modal_payment_")) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const receiptId = interaction.customId.replace("modal_payment_", "");
-        const newStatus = interaction.fields.getTextInputValue("status").trim();
+        const newStatus = normalizeStatus(interaction.fields.getTextInputValue("status").trim());
         const expense   = store.expenses.find((e) => e.receiptId === receiptId);
         if (!expense) { await interaction.editReply("Receipt not found."); setTimeout(()=>interaction.deleteReply().catch(()=>{}),4000); return; }
         expense.status = newStatus;
@@ -2210,7 +2316,8 @@ Feel free to pick a different task!`);
         const { groupId, isRequest, item, qty, estCost, finalCost } = expData;
         const group         = FINANCE_GROUPS.find((g) => g.id === groupId);
         const receipt       = interaction.fields.getTextInputValue("receipt").trim();
-        const reimbursement = interaction.fields.getTextInputValue("reimbursement").trim() || "Pending";
+        const reimbursement = normalizeStatus(interaction.fields.getTextInputValue("reimbursement").trim());
+        const paymentSource = interaction.fields.getTextInputValue("paymentSource").trim();
         const justification = interaction.fields.getTextInputValue("justification").trim();
         const estTotal      = qty * estCost;
         const finalTotal    = finalCost !== null ? qty * finalCost : null;
@@ -2237,8 +2344,8 @@ Feel free to pick a different task!`);
           const costToLog  = finalTotal !== null ? finalTotal : estTotal;
           store.spent[groupId] = (store.spent[groupId] || 0) + costToLog;
           const expAmount = finalTotal !== null ? finalTotal : estTotal;
-          store.expenses.push({ receiptId, item, groupId, status: reimbursement, amount: expAmount, date: new Date().toLocaleDateString("en-AU") });
-          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), userName, group.label, item, qty, fmtAUD(estCost), fmtAUD(estTotal), finalCost !== null ? fmtAUD(finalCost) : "", finalTotal !== null ? fmtAUD(finalTotal) : "", "No", reimbursement, receipt, justification, ""]);
+          store.expenses.push({ receiptId, item, groupId, status: reimbursement, paymentSource, amount: expAmount, date: new Date().toLocaleDateString("en-AU") });
+          await appendExpenseRow([receiptId, new Date().toLocaleDateString("en-AU"), userName, group.label, item, qty, fmtAUD(estCost), fmtAUD(estTotal), finalCost !== null ? fmtAUD(finalCost) : "", finalTotal !== null ? fmtAUD(finalTotal) : "", "No", reimbursement, receipt, justification, "", paymentSource]);
           await updateBudgetDashboard(guild);
           await syncBudgetSheet();
           await postFinanceLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
