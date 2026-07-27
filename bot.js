@@ -569,6 +569,23 @@ function jsonbinRequest(method, body) {
 }
 
 let store = null;
+let lastFinanceTs = null;   // last-seen store timestamp — lets the fast poll skip full downloads
+
+// Cheap timestamp-only fetch (a few bytes) — used to check if the store changed
+// before pulling the whole blob. Keeps 24/7 polling egress near zero when idle.
+function storeTimestamp() {
+  const sbHeaders = { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Accept': 'application/json' };
+  const url = new URL(SB_URL);
+  return new Promise((resolve, reject) => {
+    const req = https.request({ hostname: url.hostname, path: '/rest/v1/store?id=eq.main&select=updated_at', method: 'GET', headers: sbHeaders }, (res) => {
+      let data = '';
+      res.on('data', d => data += d);
+      res.on('end', () => { try { resolve(JSON.parse(data)[0]?.updated_at || null); } catch { resolve(null); } });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
 
 async function loadData() {
   const res = await jsonbinRequest("GET");
@@ -1514,9 +1531,15 @@ client.once("clientReady", async () => {
     // Post an immediate backup on startup so there's always a fresh snapshot
     try { await postBackup(guild, 'startup'); } catch {}
 
-    // Poll JSONBin every 30s — refresh embeds only, never write back
+    // Poll every 60s — refresh embeds only, never write back.
+    // First does a tiny timestamp check and skips the full download when nothing changed.
     setInterval(async () => {
       try {
+        let ts;
+        try { ts = await storeTimestamp(); } catch { ts = null; }
+        if (ts && ts === lastFinanceTs) return;   // store unchanged since last poll — nothing to do
+        lastFinanceTs = ts;
+
         const prevTasks    = JSON.stringify(store.tasks);
         const prevExpenses = JSON.stringify(store.expenses);
         const prevSpent    = JSON.stringify(store.spent);
@@ -1673,7 +1696,7 @@ ${nudge.message}
           await updateBudgetDashboard(guild);
         }
       } catch (e) { console.error("Poll error:", e.message); }
-    }, 30000);
+    }, 60000);
 
   } catch (e) { console.error("Startup error:", e); }
 });

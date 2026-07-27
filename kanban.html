@@ -516,19 +516,31 @@ function todayDmy() {
 
 // ── API (Supabase) ──
 const SB_HEADERS = { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+let lastUpdatedAt = null;   // last-seen row timestamp — used to skip redundant full downloads
 async function jbGet() {
-  const r = await fetch(`${SB_URL}/rest/v1/store?id=eq.main&select=data`, { headers: SB_HEADERS });
+  const r = await fetch(`${SB_URL}/rest/v1/store?id=eq.main&select=data,updated_at`, { headers: SB_HEADERS });
   if (!r.ok) throw new Error(`Supabase GET error ${r.status}`);
   const rows = await r.json();
+  lastUpdatedAt = rows[0]?.updated_at || lastUpdatedAt;
   return rows[0]?.data || {};
 }
+// Tiny fetch (just the timestamp) to check whether the store changed before pulling the whole blob
+async function jbGetTimestamp() {
+  const r = await fetch(`${SB_URL}/rest/v1/store?id=eq.main&select=updated_at`, { headers: SB_HEADERS });
+  if (!r.ok) throw new Error(`Supabase meta error ${r.status}`);
+  const rows = await r.json();
+  return rows[0]?.updated_at || null;
+}
 async function jbPut(data) {
-  const r = await fetch(`${SB_URL}/rest/v1/store?id=eq.main`, {
+  // Ask only for updated_at back (not the whole row) so saves stay cheap
+  const r = await fetch(`${SB_URL}/rest/v1/store?id=eq.main&select=updated_at`, {
     method: 'PATCH',
-    headers: { ...SB_HEADERS, 'Prefer': 'return=minimal' },
+    headers: { ...SB_HEADERS, 'Prefer': 'return=representation' },
     body: JSON.stringify({ data, updated_at: new Date().toISOString() })
   });
   if (!r.ok) throw new Error(`Supabase PATCH error ${r.status}`);
+  const rows = await r.json();
+  lastUpdatedAt = rows[0]?.updated_at || lastUpdatedAt;   // adopt canonical ts so our own write doesn't trigger a reload
 }
 
 async function loadData() {
@@ -559,9 +571,22 @@ function refresh() {
   btn.textContent = '↻ SYNCING...';
   loadData().finally(() => btn.textContent = '↻ REFRESH');
 }
+// Cheap poll: skip when the tab is hidden, and only pull the full store when the timestamp changed
+async function pollIfChanged() {
+  if (document.hidden) return;
+  try {
+    const ts = await jbGetTimestamp();
+    if (ts && ts !== lastUpdatedAt) await loadData();
+  } catch {}
+}
 function startAutoRefresh() {
   clearInterval(refreshTimer);
-  refreshTimer = setInterval(() => loadData().catch(() => {}), 30000);
+  refreshTimer = setInterval(pollIfChanged, 60000);
+  // Refresh immediately when the user returns to the tab (catches anything missed while hidden)
+  if (!window._visWired) {
+    window._visWired = true;
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) pollIfChanged(); });
+  }
 }
 function makeId() { return Math.random().toString(36).slice(2, 10); }
 
