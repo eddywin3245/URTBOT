@@ -556,7 +556,12 @@ function jsonbinRequest(method, body) {
       res.on('data', d => data += d);
       res.on('end', () => {
         try {
-          if (isWrite) { resolve({ record: body }); return; }
+          if (isWrite) {
+            // Surface real write failures instead of silently reporting success
+            if (res.statusCode >= 200 && res.statusCode < 300) resolve({ record: body });
+            else reject(new Error(`Supabase write ${res.statusCode}: ${(data || '').slice(0,150)}`));
+            return;
+          }
           const rows = JSON.parse(data);
           resolve({ record: rows[0]?.data || {} });
         } catch(e) { reject(new Error('Supabase parse error: ' + data.slice(0,100))); }
@@ -1122,18 +1127,32 @@ function expenseModalBasic(groupId, isRequest = false) {
 async function finalizeExpenseLog(guild, uid, data, paidBy) {
   const { groupId, item, cost, receipt, justification } = data;
   const group    = FINANCE_GROUPS.find((g) => g.id === groupId);
-  const member   = await guild.members.fetch(uid);
-  const userName = member.displayName;
+  const member   = await guild.members.fetch(uid).catch(() => null);
+  const userName = member?.displayName || "Unknown";
   const receiptId = makeReceiptId();
   store.spent[groupId] = (store.spent[groupId] || 0) + cost;
   const exp = { receiptId, item, groupId, submittedBy: userName, status: paidBy, qty: 1, finalCost: cost, finalTotal: cost, amount: cost, approved: false, receipt, justification, date: new Date().toLocaleDateString("en-AU") };
   store.expenses.push(exp);
-  await appendExpenseRow(expenseSheetRow(exp));
-  await updateBudgetDashboard(guild);
-  await syncBudgetSheet();
-  await postFinanceLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
-    [`**${item}**`, `Cost: ${fmtAUD(cost)}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `${paidBy}`, justification ? `Justification: ${justification}` : null].filter(Boolean)));
-  await saveData();
+
+  // 1) Persist to Supabase FIRST — the source of truth. If this fails, roll back and report.
+  try {
+    await saveData();
+  } catch (e) {
+    console.error("❌ Expense save failed:", e.message);
+    store.expenses = store.expenses.filter(x => x.receiptId !== receiptId);
+    store.spent[groupId] = Math.max(0, (store.spent[groupId] || 0) - cost);
+    store.receiptCounter--;
+    throw new Error("save-failed");
+  }
+
+  // 2) Secondary side-effects — a failure here must NOT lose the already-saved expense
+  try { await appendExpenseRow(expenseSheetRow(exp)); } catch (e) { console.error("Sheet append failed:", e.message); }
+  try { await updateBudgetDashboard(guild); } catch (e) { console.error("Budget dashboard failed:", e.message); }
+  try { await syncBudgetSheet(); } catch (e) { console.error("Budget sheet failed:", e.message); }
+  try {
+    await postFinanceLog(guild, logEmbed(group.color, `💸 Expense logged — ${group.emoji} ${group.label}`,
+      [`**${item}**`, `Cost: ${fmtAUD(cost)}`, `By <@${uid}>`, `Receipt ID: ${receiptId}`, `${paidBy}`, justification ? `Justification: ${justification}` : null].filter(Boolean)));
+  } catch (e) { console.error("Finance log failed:", e.message); }
   return { receiptId, group };
 }
 
@@ -2080,11 +2099,21 @@ Feel free to pick a different task!`);
           const receiptId = makeReceiptId();
           const exp = { receiptId, item: req.item, groupId: req.groupId, submittedBy: req.userName, status: req.reimbursement || "Paid by Rover", qty: 1, finalCost: cost, finalTotal: cost, amount: cost, approved: true, receipt: req.receipt || "", justification: req.justification || "", paymentSource: req.paymentSource || "", date: new Date().toLocaleDateString("en-AU") };
           store.expenses.push(exp);
-          await appendExpenseRow(expenseSheetRow(exp));
-          await updateBudgetDashboard(guild);
-          await postFinanceLog(guild, logEmbed(0x2ecc71, `✅ Request Approved — ${group.emoji} ${group.label}`,
-            [`**${req.item}**`, `Cost: ${fmtAUD(cost)}`, `Approved by <@${uid}>`, `Receipt ID: ${receiptId}`, req.justification ? `Justification: ${req.justification}` : null]));
-          await saveData();
+          // Persist FIRST — the source of truth. Side-effects below must not lose it.
+          try {
+            await saveData();
+          } catch (e) {
+            console.error("❌ Approval save failed:", e.message);
+            store.expenses = store.expenses.filter(x => x.receiptId !== receiptId);
+            store.spent[req.groupId] = Math.max(0, (store.spent[req.groupId] || 0) - cost);
+            store.receiptCounter--;
+            store.pendingRequests.push(req);   // put the request back so it can be retried
+            return replyAndDelete(interaction, "⚠️ Couldn't save the approval (storage error) — nothing was charged. Try again in a moment.");
+          }
+          try { await appendExpenseRow(expenseSheetRow(exp)); } catch (e) { console.error("Sheet append failed:", e.message); }
+          try { await updateBudgetDashboard(guild); } catch (e) { console.error("Budget dashboard failed:", e.message); }
+          try { await postFinanceLog(guild, logEmbed(0x2ecc71, `✅ Request Approved — ${group.emoji} ${group.label}`,
+            [`**${req.item}**`, `Cost: ${fmtAUD(cost)}`, `Approved by <@${uid}>`, `Receipt ID: ${receiptId}`, req.justification ? `Justification: ${req.justification}` : null])); } catch (e) { console.error("Finance log failed:", e.message); }
           return replyAndDelete(interaction, `✅ Approved! **${receiptId}** — ${fmtAUD(cost)} charged to ${group.label}.`);
         } else {
           await postFinanceLog(guild, logEmbed(0xe74c3c, `❌ Request Rejected — ${group.emoji} ${group.label}`, [`**${req.item}**`, `Rejected by <@${uid}>`]));
@@ -2124,8 +2153,15 @@ Feel free to pick a different task!`);
         const data   = pending.get(`${uid}_expense_${tempId}`);
         if (!data) { await interaction.editReply({ content: "Session expired — please start again.", components: [] }); setTimeout(() => interaction.deleteReply().catch(() => {}), 4000); return; }
         pending.delete(`${uid}_expense_${tempId}`);
-        const { receiptId, group } = await finalizeExpenseLog(guild, uid, data, value);
-        await interaction.editReply({ content: `💸 **${receiptId}** logged!\n${data.item} — ${fmtAUD(data.cost)} charged to **${group.label}**  ·  **${value}**`, components: [] });
+        let res;
+        try {
+          res = await finalizeExpenseLog(guild, uid, data, value);
+        } catch (e) {
+          await interaction.editReply({ content: "⚠️ Couldn't save that expense (storage error). Nothing was logged — please try again in a moment.", components: [] });
+          setTimeout(() => interaction.deleteReply().catch(() => {}), 6000);
+          return;
+        }
+        await interaction.editReply({ content: `💸 **${res.receiptId}** logged!\n${data.item} — ${fmtAUD(data.cost)} charged to **${res.group.label}**  ·  **${value}**`, components: [] });
         setTimeout(() => interaction.deleteReply().catch(() => {}), 5000);
         return;
       }
